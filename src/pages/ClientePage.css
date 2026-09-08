@@ -1,0 +1,75 @@
+/* Estilos del portal de cliente. Los 3 temas se activan con data-theme
+   en <html> (ver el useEffect de fase en ClientePage.jsx). */
+
+:root {
+  --font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: Figtree, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+body { background: var(--page-bg, #f5f7fb); font-family: var(--font); }
+h1, h2, h3, .btn { font-family: var(--font-display); }
+
+.portal { max-width: 1080px; }
+.portal .card { border-radius: 1rem; }
+.brand-image { width: 42px; height: 42px; object-fit: contain; }
+.hero { background: linear-gradient(115deg, #0d6efd, #198754); color: #fff; }
+.metric { background: var(--bs-tertiary-bg); border-radius: 1rem; }
+.client-avatar { width: 52px; height: 52px; background: rgba(255, 255, 255, .2); }
+.instagram { background: linear-gradient(125deg, #833ab4, #fd1d1d, #fcb045); color: #fff; text-decoration: none; }
+
+.pause-mode-card { border-radius: 1rem; cursor: pointer; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease; }
+.btn-check:checked + .pause-mode-card {
+  border-color: var(--bs-primary) !important;
+  background: color-mix(in srgb, var(--bs-primary) 8%, var(--bs-body-bg));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bs-primary) 25%, transparent);
+}
+.pause-mode-card:hover { border-color: color-mix(in srgb, var(--bs-primary) 45%, var(--bs-border-color)); }
+
+[data-theme="night"] { --page-bg: #121824; }
+[data-theme="forest"] { --page-bg: #dcefdc; }
+[data-theme="forest"] .metric { background: #cde6cd; }
+[data-theme="forest"] .navbar.bg-body { background: #eef7ee !important; }
+
+.ad-banner img { width: 100%; height: auto; display: block; }
+
+.renewal-banner { background: linear-gradient(120deg, #e4002b, #ff4b3e); color: #fff; overflow: hidden; position: relative; }
+.renewal-banner .ribbon { background: rgba(255, 255, 255, .18); border-radius: 999px; display: inline-flex; align-items: center; gap: .4rem; padding: .25rem .75rem; font-weight: 700; letter-spacing: .02em; }
+.renewal-banner .bounce { display: inline-block; animation: renewal-bounce 1.4s ease-in-out infinite; }
+.renewal-banner .btn-light { font-weight: 700; }
+@keyframes renewal-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+.client-logout-btn {
+  position: fixed; top: 14px; right: 14px; z-index: 1050;
+  display: inline-flex; align-items: center; gap: 8px;
+  border: none; border-radius: 999px; padding: 11px 18px;
+  font: 650 14.5px/1 var(--font-display); color: #fff;
+  background: linear-gradient(135deg, color-mix(in srgb, #e4002b 78%, white 22%), #e4002b);
+  box-shadow: 0 4px 14px color-mix(in srgb, #e4002b 38%, transparent), 0 2px 6px rgba(0, 0, 0, .12);
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+.client-logout-btn:hover { transform: translateY(-2px); filter: brightness(.97); box-shadow: 0 8px 22px color-mix(in srgb, #e4002b 42%, transparent), 0 3px 8px rgba(0, 0, 0, .14); }
+.client-logout-btn:active { transform: translateY(0) scale(.97); }
+.client-logout-btn svg { flex: 0 0 auto; display: block; }
+@media (max-width: 480px) { .client-logout-btn { top: 10px; right: 10px; padding: 10px 14px; } }
+[data-theme="night"] .client-logout-btn { background: linear-gradient(135deg, color-mix(in srgb, #ff4d4d 78%, white 22%), #ff4d4d); box-shadow: 0 4px 14px color-mix(in srgb, #ff4d4d 38%, transparent), 0 2px 6px rgba(0, 0, 0, .12); }
+[data-theme="night"] .client-logout-btn:hover { box-shadow: 0 8px 22px color-mix(in srgb, #ff4d4d 42%, transparent), 0 3px 8px rgba(0, 0, 0, .14); }
+[data-theme="forest"] .client-logout-btn { background: linear-gradient(135deg, color-mix(in srgb, #b3001f 78%, white 22%), #b3001f); box-shadow: 0 4px 14px color-mix(in srgb, #b3001f 38%, transparent), 0 2px 6px rgba(0, 0, 0, .12); }
+[data-theme="forest"] .client-logout-btn:hover { box-shadow: 0 8px 22px color-mix(in srgb, #b3001f 42%, transparent), 0 3px 8px rgba(0, 0, 0, .14); }
+
+main.portal { padding-top: 66px; }
+@media (max-width: 480px) { main.portal { padding-top: 60px; } }
+
+.portal .btn { border-radius: 999px; font-weight: 650; box-shadow: 0 3px 10px rgba(0, 0, 0, .08); transition: transform .15s ease, box-shadow .15s ease, filter .15s ease; }
+.portal .btn:hover { transform: translateY(-2px); filter: brightness(1.03); }
+.portal .btn:active { transform: translateY(0) scale(.98); }
+.portal .btn-primary { background: linear-gradient(135deg, #4c8bff, #0d6efd); border-color: transparent; box-shadow: 0 4px 14px rgba(13, 110, 253, .35); }
+.portal .btn-primary:hover { box-shadow: 0 8px 22px rgba(13, 110, 253, .4); }
+.portal .btn-success { background: linear-gradient(135deg, #28b16b, #198754); border-color: transparent; box-shadow: 0 4px 14px rgba(25, 135, 84, .32); }
+.portal .btn-success:hover { box-shadow: 0 8px 22px rgba(25, 135, 84, .38); }
+
+.premium-lock { max-width: 460px; margin: 40px auto; padding: 28px 24px; text-align: center; border-radius: 1rem; color: #fff; background: linear-gradient(120deg, #e4002b, #ff4b3e); box-shadow: 0 10px 30px rgba(228, 0, 43, .25); }
+.premium-lock .premium-lock-icon { font-size: 32px; margin-bottom: 8px; }
+.premium-lock h2 { font-size: 18px; margin: 0 0 8px; }
+.premium-lock p { margin: 0 0 16px; opacity: .95; font-size: 14px; }
+.btn-premium { display: inline-block; background: #fff; color: #e4002b; font-weight: 700; padding: 10px 18px; border-radius: 999px; text-decoration: none; }
+.btn-premium:hover { filter: brightness(.95); }
