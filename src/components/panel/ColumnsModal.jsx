@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // Reordenar con flechas arriba/abajo es más simple y confiable de usar
 // (sobre todo en celular) que arrastrar y soltar, y logra lo mismo.
@@ -7,8 +7,23 @@ export default function ColumnsModal({ open, onClose, allColumns, hidden, order,
   const [localOrder, setLocalOrder] = useState(initialOrder);
   const [localHidden, setLocalHidden] = useState(hidden);
   const byKey = new Map(allColumns.map((c) => [c.key, c]));
+  const dialogRef = useRef(null);
 
-  if (!open) return null;
+  // Antes este <dialog> se renderizaba con el atributo `open` puesto a mano,
+  // lo que lo deja como un elemento de flujo normal (aparece empujado debajo
+  // de la tabla). Usando showModal()/close() nativos se muestra como overlay
+  // encima de todo, igual que el resto de los formularios del panel (Modal.jsx).
+  useEffect(() => {
+    const dlg = dialogRef.current;
+    if (!dlg) return;
+    if (open && !dlg.open) {
+      setLocalOrder(initialOrder);
+      setLocalHidden(hidden);
+      dlg.showModal();
+    }
+    if (!open && dlg.open) dlg.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   function move(index, dir) {
     const next = [...localOrder];
@@ -22,7 +37,7 @@ export default function ColumnsModal({ open, onClose, allColumns, hidden, order,
   }
 
   return (
-    <dialog className="panel-modal" open onClose={onClose}>
+    <dialog ref={dialogRef} className="panel-modal" onClose={onClose} onCancel={onClose}>
       <div className="modal-head"><h2>Columnas de la tabla</h2><button type="button" onClick={onClose}>✕</button></div>
       <div className="modal-body">
         <p className="muted" style={{ marginTop: 0 }}>Marca las columnas que querés ver, y usá las flechas para ordenarlas. Es una preferencia personal, solo para vos.</p>
