@@ -566,7 +566,7 @@ export default function DispatchPage({ user }) {
 
   const sortedList = (() => {
     if (!sort) return list;
-    const col = columns.find((c) => c.key === sort.key);
+    const col = columns.find((c) => c?.key === sort.key);
     if (!col) return list;
     const withValue = list.map((row, i) => ({ row, i, value: col.sortValue ? col.sortValue(row) : row[col.key] }));
     withValue.sort((a, b) => {
@@ -632,7 +632,7 @@ export default function DispatchPage({ user }) {
 
       <div className="sheet">
         <table id="dispatch-table">
-          <thead><tr>{columns.map((c) => (
+          <thead><tr>{columns.filter(Boolean).map((c) => (
             <th key={c.key} style={colPrefs.widths?.[c.key] ? { width: colPrefs.widths[c.key] } : undefined} className="th-sortable" aria-sort={sort?.key === c.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}>
               <button type="button" className="th-sort-btn" onClick={() => toggleSort(c.key)} title="Ordenar por esta columna">
                 {c.label}

@@ -14,7 +14,10 @@ function writeStore(store) {
 export function getColumnPrefs(userId, group) {
   const store = readStore();
   const entry = store[userId || 'default']?.[group] || {};
-  return { hidden: entry.hidden || [], order: entry.order || [], widths: entry.widths || {} };
+  const hidden = Array.isArray(entry.hidden) ? entry.hidden : [];
+  const order = Array.isArray(entry.order) ? entry.order : [];
+  const widths = entry.widths && typeof entry.widths === 'object' ? entry.widths : {};
+  return { hidden, order, widths };
 }
 
 function updateGroup(userId, group, patch) {
@@ -39,8 +42,13 @@ export function saveColumnWidths(userId, group, widths) {
 // y saca las que el usuario ocultó. Las columnas nuevas que no estén en
 // las preferencias guardadas (ej. un artículo de menú agregado después)
 // se agregan al final, para no perderlas de vista.
+// Blindado contra preferencias guardadas con una forma vieja/corrupta
+// (de una versión anterior de la app): nunca debe devolver columnas nulas.
 export function arrangeColumns(columns, prefs) {
-  const byKey = new Map(columns.map((c) => [c.key, c]));
-  const ordered = prefs.order.length ? [...prefs.order.filter((k) => byKey.has(k)), ...columns.map((c) => c.key).filter((k) => !prefs.order.includes(k))] : columns.map((c) => c.key);
-  return ordered.filter((k) => !prefs.hidden.includes(k)).map((k) => byKey.get(k));
+  const safeColumns = (columns || []).filter(Boolean);
+  const order = Array.isArray(prefs?.order) ? prefs.order : [];
+  const hidden = Array.isArray(prefs?.hidden) ? prefs.hidden : [];
+  const byKey = new Map(safeColumns.map((c) => [c.key, c]));
+  const ordered = order.length ? [...order.filter((k) => byKey.has(k)), ...safeColumns.map((c) => c.key).filter((k) => !order.includes(k))] : safeColumns.map((c) => c.key);
+  return ordered.filter((k) => !hidden.includes(k)).map((k) => byKey.get(k)).filter(Boolean);
 }
