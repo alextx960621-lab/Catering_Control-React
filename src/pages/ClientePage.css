@@ -1,0 +1,168 @@
+/* Estilos del portal de cliente. Los 3 temas se activan con data-theme
+   en <html> (ver el useEffect de fase en ClientePage.jsx).
+   Misma familia visual que LoginPage.css/PanelPage.css: color de marca
+   #3867f4, botones en píldora y el mismo tratamiento de inputs/modal. */
+
+:root {
+  --font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: Figtree, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --bs-primary: #3867f4;
+  --bs-primary-rgb: 56, 103, 244;
+  --bs-link-color: #3867f4;
+  --bs-link-color-rgb: 56, 103, 244;
+  --bs-link-hover-color: #2a52d6;
+  --bs-link-hover-color-rgb: 42, 82, 214;
+  --bs-border-radius: 8px;
+  --bs-border-radius-sm: 6px;
+  --bs-border-radius-lg: 12px;
+  --bs-border-radius-xl: 1rem;
+  --bs-border-radius-2xl: 1rem;
+}
+
+/* Botones en píldora, inputs con el mismo radio, y el botón nativo de
+   "Seleccionar archivo" con tratamiento chico (evita que se salga del
+   recuadro y se ve igual que en el panel). */
+.btn:not(.btn-close):not(.btn-check) { border-radius: 999px !important; font-weight: 650; }
+.form-control, .form-select { border-radius: 8px; }
+input[type="file"].form-control { padding: 6px 10px; font-size: .8rem; color: var(--bs-secondary-color, #6c757d); }
+/* Safari/iOS le da a los campos de fecha un ancho mínimo de contenido que
+   ignora el "width:100%" de Bootstrap cuando el input vive dentro de una
+   columna flex (como las de "Pausar servicio"). */
+input[type="date"], input[type="month"], input[type="time"], input[type="datetime-local"] { min-width: 0; }
+input[type="file"].form-control::file-selector-button {
+  font-family: var(--font-display);
+  font-weight: 650;
+  font-size: .75rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  background: var(--bs-tertiary-bg, #f5f7fb);
+  color: var(--bs-body-color, #212529);
+  cursor: pointer;
+  margin-right: 8px;
+  transition: background .15s;
+}
+input[type="file"].form-control::file-selector-button:hover { background: var(--bs-secondary-bg, #e9ecef); }
+
+/* Modal de "Renovar/Cambiar plan": mismo tipo de letra en el título
+   (Figtree), sin bordes por defecto y la misma sombra suave que las
+   tarjetas del portal. */
+.modal-title { font-family: var(--font-display); font-weight: 700; }
+.modal-content { border: 0; box-shadow: 0 .75rem 2rem rgba(0, 0, 0, .16); }
+.modal-header, .modal-footer { border-color: var(--bs-border-color-translucent, rgba(0, 0, 0, .08)); }
+.modal-header { padding: 1.1rem 1.5rem; }
+.modal-body { padding: 1.25rem 1.5rem; }
+.modal.show .modal-dialog { animation: modal-pop .18s ease; }
+@keyframes modal-pop { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.modal-backdrop.show { transition: opacity .15s ease; }
+
+/* Etiquetas de formulario en negrita y con el color normal del texto. */
+.form-label { font-weight: 700; font-size: .85rem; color: var(--bs-body-color, #212529) !important; }
+
+/* Lista para elegir plan nuevo: filas simples con borde (mismo estilo
+   que las opciones de plan en el panel), en vez de botones grandes. */
+.plan-pick-btn {
+  background: var(--bs-body-bg, #fff);
+  border: 1.5px solid var(--bs-border-color, #dee2e6) !important;
+  border-radius: 12px !important;
+  color: var(--bs-body-color, #212529) !important;
+  font-weight: 650;
+  box-shadow: none;
+}
+.plan-pick-btn:hover { border-color: var(--bs-primary, #3867f4) !important; background: color-mix(in srgb, var(--bs-primary) 6%, var(--bs-body-bg)); }
+
+/* Botón de cerrar modal circular y gris, igual al del panel. */
+.btn-close {
+  background-color: var(--bs-tertiary-bg, #f5f7fb);
+  border-radius: 50%;
+  opacity: 1;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  background-size: .65rem;
+  box-shadow: none;
+  transform: none !important;
+}
+.btn-close:hover { background-color: var(--bs-secondary-bg, #e9ecef); opacity: 1; }
+[data-theme="night"] .btn-close {
+  filter: none;
+  background-color: #2b3648;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23e7ecf5'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e");
+}
+[data-theme="night"] .btn-close:hover { background-color: #374259; }
+
+body { background: var(--page-bg, #f5f7fb); font-family: var(--font); }
+h1, h2, h3, .btn { font-family: var(--font-display); }
+
+.portal { max-width: 1080px; }
+.portal .card { border-radius: 1rem; }
+.brand-image { width: 42px; height: 42px; object-fit: contain; }
+.hero { background: linear-gradient(115deg, #3867f4, #15a77f); color: #fff; }
+.metric { background: var(--bs-tertiary-bg); border-radius: 1rem; }
+.client-avatar { width: 52px; height: 52px; background: rgba(255, 255, 255, .2); }
+.instagram { background: linear-gradient(125deg, #833ab4, #fd1d1d, #fcb045); color: #fff; text-decoration: none; }
+.btn-whatsapp { background: #25D366 !important; border-color: transparent !important; color: #fff !important; font-weight: 650; }
+.btn-whatsapp:hover { background: #20bd5a !important; color: #fff !important; }
+a.link-whatsapp { color: #1da851; font-weight: 650; text-decoration: none; }
+a.link-whatsapp:hover { color: #178a42; text-decoration: underline; }
+.hidden { display: none !important; }
+
+.pause-mode-card { border-radius: 1rem; cursor: pointer; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease; }
+.btn-check:checked + .pause-mode-card {
+  border-color: var(--bs-primary) !important;
+  background: color-mix(in srgb, var(--bs-primary) 8%, var(--bs-body-bg));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bs-primary) 25%, transparent);
+}
+.pause-mode-card:hover { border-color: color-mix(in srgb, var(--bs-primary) 45%, var(--bs-border-color)); }
+
+[data-theme="night"] { --page-bg: #121824; }
+[data-theme="forest"] { --page-bg: #dcefdc; }
+[data-theme="forest"] .metric { background: #cde6cd; }
+[data-theme="forest"] .navbar.bg-body { background: #eef7ee !important; }
+
+.ad-banner img { width: 100%; height: auto; display: block; }
+
+.renewal-banner { background: linear-gradient(120deg, #e4002b, #ff4b3e); color: #fff; overflow: hidden; position: relative; }
+.renewal-banner .ribbon { background: rgba(255, 255, 255, .18); border-radius: 999px; display: inline-flex; align-items: center; gap: .4rem; padding: .25rem .75rem; font-weight: 700; letter-spacing: .02em; }
+.renewal-banner .bounce { display: inline-block; animation: renewal-bounce 1.4s ease-in-out infinite; }
+.renewal-banner .btn-light { font-weight: 700; }
+@keyframes renewal-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+.client-logout-btn {
+  position: fixed; top: 14px; right: 14px; z-index: 1050;
+  display: inline-flex; align-items: center; gap: 8px;
+  border: none; border-radius: 999px; padding: 11px 18px;
+  font: 650 14.5px/1 var(--font-display); color: #fff;
+  background: linear-gradient(135deg, color-mix(in srgb, #e4002b 78%, white 22%), #e4002b);
+  box-shadow: 0 4px 14px color-mix(in srgb, #e4002b 38%, transparent), 0 2px 6px rgba(0, 0, 0, .12);
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+.client-logout-btn:hover { transform: translateY(-2px); filter: brightness(.97); box-shadow: 0 8px 22px color-mix(in srgb, #e4002b 42%, transparent), 0 3px 8px rgba(0, 0, 0, .14); }
+.client-logout-btn:active { transform: translateY(0) scale(.97); }
+.client-logout-btn svg { flex: 0 0 auto; display: block; }
+@media (max-width: 480px) { .client-logout-btn { top: 10px; right: 10px; padding: 10px 14px; } }
+[data-theme="night"] .client-logout-btn { background: linear-gradient(135deg, color-mix(in srgb, #ff4d4d 78%, white 22%), #ff4d4d); box-shadow: 0 4px 14px color-mix(in srgb, #ff4d4d 38%, transparent), 0 2px 6px rgba(0, 0, 0, .12); }
+[data-theme="night"] .client-logout-btn:hover { box-shadow: 0 8px 22px color-mix(in srgb, #ff4d4d 42%, transparent), 0 3px 8px rgba(0, 0, 0, .14); }
+[data-theme="forest"] .client-logout-btn { background: linear-gradient(135deg, color-mix(in srgb, #b3001f 78%, white 22%), #b3001f); box-shadow: 0 4px 14px color-mix(in srgb, #b3001f 38%, transparent), 0 2px 6px rgba(0, 0, 0, .12); }
+[data-theme="forest"] .client-logout-btn:hover { box-shadow: 0 8px 22px color-mix(in srgb, #b3001f 42%, transparent), 0 3px 8px rgba(0, 0, 0, .14); }
+
+main.portal { padding-top: 66px; }
+@media (max-width: 480px) { main.portal { padding-top: 60px; } }
+
+.portal .btn { border-radius: 999px; font-weight: 650; box-shadow: 0 3px 10px rgba(0, 0, 0, .08); transition: transform .15s ease, box-shadow .15s ease, filter .15s ease; }
+.portal .btn:hover { transform: translateY(-2px); filter: brightness(1.03); }
+.portal .btn:active { transform: translateY(0) scale(.98); }
+.portal .btn-primary { background: linear-gradient(135deg, color-mix(in srgb, #3867f4 78%, white 22%), #3867f4); border-color: transparent; box-shadow: 0 4px 14px rgba(56, 103, 244, .35); }
+.portal .btn-primary:hover { box-shadow: 0 8px 22px rgba(13, 110, 253, .4); }
+.portal .btn-success { background: linear-gradient(135deg, color-mix(in srgb, #15a77f 78%, white 22%), #15a77f); border-color: transparent; box-shadow: 0 4px 14px rgba(21, 167, 127, .32); }
+.portal .btn-success:hover { box-shadow: 0 8px 22px rgba(25, 135, 84, .38); }
+
+.premium-lock { max-width: 460px; margin: 40px auto; padding: 28px 24px; text-align: center; border-radius: 1rem; color: #fff; background: linear-gradient(120deg, #e4002b, #ff4b3e); box-shadow: 0 10px 30px rgba(228, 0, 43, .25); }
+.premium-lock .premium-lock-icon { display: flex; justify-content: center; margin-bottom: 8px; }
+.premium-lock h2 { font-size: 18px; margin: 0 0 8px; }
+.premium-lock p { margin: 0 0 16px; opacity: .95; font-size: 14px; }
+.btn-premium { display: inline-block; background: #fff; color: #e4002b; font-weight: 700; padding: 10px 18px; border-radius: 999px; text-decoration: none; }
+.btn-premium:hover { filter: brightness(.95); }
+
+.form-control:focus-visible, .form-select:focus-visible, .btn:focus-visible, .btn-check:focus-visible + .pause-mode-card, th[role="button"]:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--bs-primary, #3867f4); outline-offset: 2px; }
