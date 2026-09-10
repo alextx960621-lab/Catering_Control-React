@@ -102,7 +102,7 @@ export default function NotesPage({ user }) {
                   <span className="muted note-date">{nt.dueDate.split('-').reverse().join('/')}</span>
                 </div>
                 <p className="note-text">{nt.text}</p>
-                {nt.clientName && <p className="muted note-client">Cliente: {nt.clientName}</p>}
+                {nt.clientName && <p className="muted note-client">Cliente: <span className="note-client-name">{nt.clientName}</span></p>}
                 {canEdit && (
                   <div className="note-actions">
                     {nt.status !== 'cumplida' ? (

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { fmt, waLink } from '../../services/planHelpers';
 import { dbInsertAudit } from '../../services/supabaseClient';
+import { IconPin, IconHome, IconCalendar } from './icons';
 
 export default function AddressCard({ client, data, appConfig, branding, next, onSaveClient, onSaveTomorrowOverride }) {
   const addresses = client.addresses || [];
@@ -51,7 +52,7 @@ export default function AddressCard({ client, data, appConfig, branding, next, o
     <div className="col-12">
       <article className="card shadow-sm border-0">
         <div className="card-body p-4">
-          <h2 className="h5 mb-1">📍 Tu dirección de entrega</h2>
+          <h2 className="h5 mb-1">{IconPin}Tu dirección de entrega</h2>
 
           {!hasChoice && (
             <p className="text-secondary mb-3">
@@ -69,14 +70,14 @@ export default function AddressCard({ client, data, appConfig, branding, next, o
                 <div className="col-sm-6">
                   <input className="btn-check" type="radio" name="address-mode" id="address-mode-permanent" checked={mode === 'permanent'} onChange={() => setMode('permanent')} />
                   <label className="pause-mode-card border d-block h-100 p-3" htmlFor="address-mode-permanent">
-                    <span className="d-block fw-semibold">🏠 Desde ahora en adelante</span>
+                    <span className="d-block fw-semibold">{IconHome}Desde ahora en adelante</span>
                     <span className="d-block small text-secondary mt-1">Cambia tu dirección habitual hasta que la vuelvas a cambiar.</span>
                   </label>
                 </div>
                 <div className="col-sm-6">
                   <input className="btn-check" type="radio" name="address-mode" id="address-mode-tomorrow" checked={mode === 'tomorrow'} onChange={() => setMode('tomorrow')} />
                   <label className="pause-mode-card border d-block h-100 p-3" htmlFor="address-mode-tomorrow">
-                    <span className="d-block fw-semibold">📅 Solo el {fmt(next)}</span>
+                    <span className="d-block fw-semibold">{IconCalendar}Solo el {fmt(next)}</span>
                     <span className="d-block small text-secondary mt-1">Cambio puntual; después vuelve a tu dirección de siempre.</span>
                   </label>
                 </div>

@@ -112,6 +112,78 @@ function ScheduleRows({ schedule, setSchedule, addresses }) {
   );
 }
 
+// Modal de "Renovar plan" / "Añadir nuevo plan": suma días al plan del
+// cliente en vez de tener que editar a mano "Días pagados". Reproduce la
+// misma lógica que el formulario clientForm() de panel.html: si es el
+// mismo plan simplemente se acumulan los días; si es un plan distinto y
+// todavía quedan días del plan actual, se pregunta si cambiar de
+// inmediato o conservar los días actuales y encolar el nuevo plan
+// (pendingPlan). En modo "Añadir nuevo plan" el selector arranca en
+// blanco a propósito (antes elegía el primer plan distinto al actual sin
+// que el usuario lo pidiera).
+function RenewPlanModal({ client, mode, plans, onClose, onConfirm }) {
+  const isChangeMode = mode === 'change';
+  const hasRemainingBalance = n(client?.paidDays) > n(client?.consumedDays);
+  const remaining = Math.max(0, n(client?.paidDays) - n(client?.consumedDays));
+  const defaultPlanId = isChangeMode ? '' : client?.planId || '';
+  const [planId, setPlanId] = useState(defaultPlanId);
+  const [days, setDays] = useState(() => n(plans.find((p) => p.id === defaultPlanId)?.serviceDays) || '');
+  const [planChangeMode, setPlanChangeMode] = useState('immediate');
+
+  const samePlan = !planId || planId === client?.planId;
+  const showChoice = !samePlan && hasRemainingBalance;
+
+  function handlePlanChange(id) {
+    setPlanId(id);
+    const p = plans.find((pl) => pl.id === id);
+    if (p?.serviceDays) setDays(n(p.serviceDays));
+  }
+
+  async function handleSubmit(form) {
+    const data = Object.fromEntries(new FormData(form));
+    const daysToAdd = n(data.days);
+    if (!daysToAdd || daysToAdd < 1) { alert('Ingresa cuántos días agregar.'); return false; }
+    return onConfirm({ planId: data.planId, days: daysToAdd, planChangeMode: data.planChangeMode || 'immediate', samePlan: !data.planId || data.planId === client.planId });
+  }
+
+  if (!client) return null;
+  const planName = (id) => plans.find((p) => p.id === id)?.name || 'Sin plan';
+
+  return (
+    <Modal title={isChangeMode ? 'Añadir nuevo plan' : 'Renovar plan'} open={!!client} onClose={onClose} onSubmit={handleSubmit}>
+      <div className="form-grid">
+        <div className="wide plan-summary-row" style={{ margin: 0 }}>
+          <div className="plan-option-info">
+            <b>{client.name}</b>
+            <span className="muted">Plan actual: {planName(client.planId)} · {hasRemainingBalance ? `le quedan ${remaining} día(s)` : 'sin días restantes (Retorno pendiente)'}</span>
+          </div>
+        </div>
+        <label>{isChangeMode ? 'Nuevo plan' : 'Plan a renovar'}
+          <select name="planId" value={planId} onChange={(e) => handlePlanChange(e.target.value)}>
+            <option value="">{isChangeMode ? 'Elige un plan…' : 'Sin plan'}</option>
+            {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+        <label>Días a agregar *<input name="days" type="number" min="1" step="1" required value={days} onChange={(e) => setDays(e.target.value)} /></label>
+        {showChoice && (
+          <div className="wide">
+            <div className="plan-options">
+              <label className="plan-option" style={{ cursor: 'pointer' }}>
+                <div className="plan-option-info"><b>Cambiar de inmediato</b><span className="muted">Se pierden los días restantes del plan actual; el nuevo plan y sus días empiezan a contar desde hoy.</span></div>
+                <input type="radio" name="planChangeMode" value="immediate" checked={planChangeMode === 'immediate'} onChange={() => setPlanChangeMode('immediate')} />
+              </label>
+              <label className="plan-option" style={{ cursor: 'pointer' }}>
+                <div className="plan-option-info"><b>Conservar los días actuales y sumar</b><span className="muted">Termina primero el plan actual y pasa al nuevo recién cuando se acaben esos días.</span></div>
+                <input type="radio" name="planChangeMode" value="carry" checked={planChangeMode === 'carry'} onChange={() => setPlanChangeMode('carry')} />
+              </label>
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 export default function ClientsPage({ user }) {
   const { clients, routes, plans, drivers, settings, currentDate, saveClients, deleteClients, showNotice, loading } = useOperations();
   const [search, setSearch] = useState('');
@@ -119,6 +191,7 @@ export default function ClientsPage({ user }) {
   const [addresses, setAddresses] = useState([]);
   const [activeAddressId, setActiveAddressId] = useState('');
   const [schedule, setSchedule] = useState([]);
+  const [renewing, setRenewing] = useState(null); // { client, mode: 'renew'|'change' }
   const canEdit = canManage(user?.role, settings.customRoles, 'clients');
   const isDriver = user?.role === 'driver';
   const myRoutes = myRouteIds(user, drivers);
@@ -176,6 +249,44 @@ export default function ClientsPage({ user }) {
     showNotice(current === 'Pausado' ? 'Cliente activado.' : 'Cliente pausado.');
   }
 
+  // Abre el modal de renovar/añadir plan; si el formulario de editar
+  // cliente estaba abierto se cierra (igual que en la versión vanilla:
+  // conviene guardar cambios pendientes de nombre/dirección antes de usar
+  // estos botones, ya que no se guardan al abrir la renovación).
+  function openRenew(c, mode = 'renew') {
+    setEditing(null);
+    setRenewing({ client: c, mode });
+  }
+
+  async function confirmRenew({ planId, days, planChangeMode, samePlan }) {
+    const c = renewing.client;
+    const hasRemainingBalance = n(c.paidDays) > n(c.consumedDays);
+    const updated = { ...c };
+    if (samePlan) {
+      updated.paidDays = n(c.paidDays) + days;
+      if (c.pendingPlan) updated.pendingPlan = { ...c.pendingPlan, activateAtConsumedDays: n(c.pendingPlan.activateAtConsumedDays) + days };
+    } else {
+      const newPlan = plans.find((p) => p.id === planId);
+      if (hasRemainingBalance && planChangeMode === 'carry') {
+        const threshold = n(c.paidDays);
+        updated.paidDays = threshold + days;
+        updated.pendingPlan = { planId, activateAtConsumedDays: threshold };
+      } else {
+        updated.planId = planId;
+        updated.items = newPlan?.items || {};
+        updated.paidDays = n(c.paidDays) + days;
+        updated.pendingPlan = null;
+      }
+    }
+    if (updated.status === 'Pausado' || updated.status === 'Retorno pendiente') {
+      updated.status = 'Activo'; updated.pauseStart = ''; updated.pauseDates = [];
+    }
+    saveClients([updated]);
+    showNotice(samePlan ? `Plan de ${c.name} renovado.` : `Nuevo plan asignado a ${c.name}.`);
+    dbInsertAudit({ actor_id: user.id, actor_name: user.name, actor_role: user.role, action: samePlan ? 'Cliente renovado' : 'Nuevo plan asignado', entity_type: 'client', entity_label: c.name, entity_id: c.id, details: { plan: planName(updated.planId), diasAgregados: days, modo: samePlan ? 'mismo-plan' : planChangeMode } });
+    setRenewing(null);
+  }
+
   const columns = [
     { key: 'order', label: 'Orden', render: (c) => n(effectiveOrder(c, currentDate)) || '' },
     { key: 'name', label: 'Cliente / carnet', render: (c) => (<><b>{c.name}</b><br /><small className="muted">CI: {c.carnet || '—'}</small></>) },
@@ -192,6 +303,7 @@ export default function ClientsPage({ user }) {
     { key: 'id', label: 'Acciones', render: (c) => canEdit ? (
       <>
         <button className="icon-btn" onClick={() => togglePause(c)}>{dispatchStatus(c, currentDate, {}, false) === 'Pausado' ? 'Activar' : 'Pausar'}</button>
+        <button className="icon-btn" onClick={() => openRenew(c, 'renew')}>Renovar</button>
         <button className="icon-btn" onClick={() => openEdit(c)}>Editar</button>
         <button className="icon-btn delete" onClick={() => handleDelete(c)}>×</button>
       </>
@@ -215,60 +327,129 @@ export default function ClientsPage({ user }) {
       <DataTable columns={columns} rows={list} emptyText="No hay clientes registrados." resizeGroup="clients" userId={user?.id} />
 
       <Modal title={editing?.id ? 'Editar cliente' : 'Añadir cliente'} open={!!editing} onClose={() => setEditing(null)} onSubmit={handleSubmit}>
-        {editing && (
-          <div className="form-grid">
-            <label>Nombre completo *<input name="name" required defaultValue={editing.name} /></label>
-            <label>Carnet *<input name="carnet" required defaultValue={editing.carnet} /></label>
-            <div className="wide">
-              <label>Direcciones</label>
-              <p className="muted" style={{ margin: '2px 0 8px' }}>Agrega una o varias direcciones de entrega. La ruta de cada una define automáticamente su driver.</p>
-              <AddressRows addresses={addresses} setAddresses={setAddresses} activeId={activeAddressId} setActiveId={setActiveAddressId} routes={routes} />
-            </div>
-            <div className="wide">
-              <label>Horario semanal {scheduleLocked && <span className="badge warn" style={{ marginLeft: 6 }}>Función Premium</span>}</label>
-              <p className="muted" style={{ margin: '2px 0 8px' }}>Opcional: si el cliente solo recibe ciertos días de la semana, configuralo acá y no hace falta pausarlo/reactivarlo a mano cada semana.</p>
-              {scheduleLocked ? (
-                <p className="muted">Esta empresa está en plan Básico. Activa Premium en Configuración para usar horarios semanales.</p>
-              ) : (
-                <ScheduleRows schedule={schedule} setSchedule={setSchedule} addresses={addresses.filter((a) => a.address.trim())} />
-              )}
-            </div>
-            <label>Teléfono 1 *<input name="phone1" required defaultValue={editing.phone1} /></label>
-            <label>Teléfono 2<input name="phone2" defaultValue={editing.phone2} /></label>
-            <label>Plan asignado
-              <select name="planId" defaultValue={editing.planId || ''}>
-                <option value="">Sin plan</option>
-                {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </label>
-            <label>Estado del plan
-              <select name="status" defaultValue={editing.status || 'Activo'}>
-                {['Activo', 'Pausado', 'Retorno pendiente', 'Programado'].map((s) => <option key={s}>{s}</option>)}
-              </select>
-            </label>
-            <label>Fecha de inicio<input name="startDate" type="date" defaultValue={editing.startDate} /></label>
-            <label>Fecha de retorno<input name="returnDate" type="date" defaultValue={editing.returnDate} /></label>
-            <label>Días pagados<input name="paidDays" type="number" min="0" defaultValue={n(editing.paidDays)} /></label>
-            <label>Días consumidos<input name="consumedDays" type="number" min="0" defaultValue={n(editing.consumedDays)} /></label>
-            <label>Carreras por entrega
-              <select name="career" defaultValue={String(n(editing.career) || 1)}>
-                <option value="1">Corto (1)</option><option value="2">Largo (2)</option><option value="3">Muy Largo (3)</option>
-              </select>
-            </label>
-            <label>Cantidad de bolsas<input name="bags" type="number" min="0" defaultValue={n(editing.bags)} /></label>
-            <label className="wide">Dieta especial<textarea name="specialDiet" defaultValue={editing.specialDiet} /></label>
-            <div className="wide">
-              <label>Artículos incluidos</label>
-              <p className="muted" style={{ margin: '2px 0 8px' }}>Se autorrellenan al elegir un plan; puedes editarlos manualmente después.</p>
-              <div className="form-grid">
-                {menuItems.map(({ key, label }) => (
-                  <label key={key}>{label}<input type="number" min="0" name={`item_${key}`} defaultValue={n(editing.items?.[key] ?? plans.find((p) => p.id === editing.planId)?.items?.[key])} /></label>
-                ))}
+        {editing && (() => {
+          const isExisting = !!editing.id;
+          const remaining = Math.max(0, n(editing.paidDays) - n(editing.consumedDays));
+          const pendingPlan = editing.pendingPlan;
+          const pendingDaysLeftOld = pendingPlan ? Math.max(0, n(pendingPlan.activateAtConsumedDays) - n(editing.consumedDays)) : 0;
+          const pendingDaysNew = pendingPlan ? Math.max(0, n(editing.paidDays) - n(pendingPlan.activateAtConsumedDays)) : 0;
+          return (
+            <div className="form-grid">
+              <div className="form-section tone-primary">
+                <div className="form-section-title">🧾 Datos del cliente</div>
+                <div className="form-section-grid">
+                  <label>Nombre completo *<input name="name" required defaultValue={editing.name} /></label>
+                  <label>Carnet *<input name="carnet" required defaultValue={editing.carnet} /></label>
+                  <label>Teléfono 1 *<input name="phone1" required defaultValue={editing.phone1} /></label>
+                  <label>Teléfono 2<input name="phone2" defaultValue={editing.phone2} /></label>
+                </div>
+              </div>
+
+              <div className="form-section tone-accent">
+                <div className="form-section-title">📍 Direcciones</div>
+                <p className="muted" style={{ margin: '2px 0 8px' }}>Agrega una o varias direcciones de entrega. La ruta de cada una define automáticamente su driver.</p>
+                <AddressRows addresses={addresses} setAddresses={setAddresses} activeId={activeAddressId} setActiveId={setActiveAddressId} routes={routes} />
+              </div>
+
+              <div className="form-section tone-warning">
+                <div className="form-section-title">🍽️ Plan y estado del servicio</div>
+                <div className="form-section-grid">
+                  <div className="wide">
+                    {isExisting ? (
+                      <>
+                        <div className="plan-summary-row">
+                          <div className="plan-option-info">
+                            <b>Plan asignado: {planName(editing.planId)}</b>
+                            <span className="muted">{n(editing.paidDays) ? `${n(editing.consumedDays)} de ${n(editing.paidDays)} día(s) consumidos · quedan ${remaining}` : 'Sin días cargados todavía'}</span>
+                          </div>
+                          <div className="plan-option-actions">
+                            <button type="button" className="outline" onClick={() => openRenew(editing, 'renew')}>🔄 Renovar</button>
+                            <button type="button" className="outline" onClick={() => openRenew(editing, 'change')}>➕ Añadir nuevo plan</button>
+                          </div>
+                        </div>
+                        <p className="muted" style={{ margin: '4px 0 0' }}>Usa estos botones para sumar días o cambiar de plan: los días pagados/consumidos no se resetean, se acumulan para poder ver la antigüedad y el consumo real del cliente. Si necesitas ajustar los números a mano, hazlo desde aquí abajo.</p>
+                        <input type="hidden" name="planId" value={editing.planId || ''} />
+                      </>
+                    ) : (
+                      <label>Plan asignado
+                        <select name="planId" defaultValue={editing.planId || ''}>
+                          <option value="">Sin plan</option>
+                          {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                  {pendingPlan && (
+                    <div className="wide plan-alert-box">
+                      <div className="plan-option-info">
+                        <b>Cambio de plan programado</b>
+                        <span className="muted">Le quedan {pendingDaysLeftOld} día(s) con el plan actual ("{planName(editing.planId)}"), después pasa a "{planName(pendingPlan.planId)}" por {pendingDaysNew} día(s) más ({n(editing.paidDays)} en total).</span>
+                      </div>
+                    </div>
+                  )}
+                  <label>Estado del plan
+                    <select name="status" defaultValue={editing.status || 'Activo'}>
+                      {['Activo', 'Pausado', 'Retorno pendiente', 'Programado'].map((s) => <option key={s}>{s}</option>)}
+                    </select>
+                  </label>
+                  <label>Fecha de inicio<input name="startDate" type="date" defaultValue={editing.startDate} /></label>
+                  <label>Fecha de retorno<input name="returnDate" type="date" defaultValue={editing.returnDate} /></label>
+                  {isExisting ? (
+                    <>
+                      <input type="hidden" name="paidDays" value={n(editing.paidDays)} />
+                      <input type="hidden" name="consumedDays" value={n(editing.consumedDays)} />
+                    </>
+                  ) : (
+                    <>
+                      <label>Días pagados<input name="paidDays" type="number" min="0" defaultValue={n(editing.paidDays)} /></label>
+                      <label>Días consumidos<input name="consumedDays" type="number" min="0" defaultValue={n(editing.consumedDays)} /></label>
+                    </>
+                  )}
+                  <label>Carreras por entrega
+                    <select name="career" defaultValue={String(n(editing.career) || 1)}>
+                      <option value="1">Corto (1)</option><option value="2">Largo (2)</option><option value="3">Muy Largo (3)</option>
+                    </select>
+                  </label>
+                  <label>Cantidad de bolsas<input name="bags" type="number" min="0" defaultValue={n(editing.bags)} /></label>
+                  <label className="wide">Dieta especial<textarea name="specialDiet" defaultValue={editing.specialDiet} /></label>
+                </div>
+              </div>
+
+              <div className="form-section tone-accent">
+                <div className="form-section-title">🥗 Artículos incluidos</div>
+                <p className="muted" style={{ margin: '2px 0 8px' }}>Se autorrellenan al elegir un plan arriba; puedes editarlos manualmente después.</p>
+                <div className="form-section-grid items-grid">
+                  {menuItems.map(({ key, label }) => (
+                    <label key={key}>{label}<input type="number" min="0" name={`item_${key}`} defaultValue={n(editing.items?.[key] ?? plans.find((p) => p.id === editing.planId)?.items?.[key])} /></label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-section tone-danger">
+                <div className="form-section-title">🗓️ Horario semanal {scheduleLocked && <span className="badge warn" style={{ marginLeft: 6 }}>Función Premium</span>}</div>
+                {scheduleLocked ? (
+                  <p className="muted">Esta empresa está en plan Básico. Activa Premium en Configuración para usar horarios semanales.</p>
+                ) : (
+                  <>
+                    <p className="muted" style={{ margin: '2px 0 8px' }}>Opcional: si el cliente solo recibe ciertos días de la semana, configuralo acá y no hace falta pausarlo/reactivarlo a mano cada semana.</p>
+                    <ScheduleRows schedule={schedule} setSchedule={setSchedule} addresses={addresses.filter((a) => a.address.trim())} />
+                  </>
+                )}
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </Modal>
+
+      {renewing && (
+        <RenewPlanModal
+          client={renewing.client}
+          mode={renewing.mode}
+          plans={plans}
+          onClose={() => setRenewing(null)}
+          onConfirm={confirmRenew}
+        />
+      )}
     </section>
   );
 }

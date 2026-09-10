@@ -1,16 +1,12 @@
-import { n, waLink, renewalWarningDays } from '../../services/planHelpers';
+import { n, renewalWarningDays } from '../../services/planHelpers';
 
 // Se muestra solo cuando al cliente le quedan pocos días de plan y está
-// activo (no tiene sentido avisarle de renovación si ya está pausado).
-export default function RenewalBanner({ client, appConfig, branding, plan, state, remaining }) {
-  const show = plan && n(client.paidDays) > 0 && remaining <= renewalWarningDays(branding) && !['Pausado', 'Programado', 'No laborable'].includes(state);
+// activo (no tiene sentido avisarle de renovación si ya está pausado). El
+// botón abre directamente el modal de renovación/cambio de plan, no un
+// enlace a WhatsApp — así el cliente no tiene que volver a explicar nada.
+export default function RenewalBanner({ client, branding, plan, state, remaining, onOpenPlanChange }) {
+  const show = n(client.paidDays) > 0 && remaining <= renewalWarningDays(branding) && !['Pausado', 'Programado', 'No laborable'].includes(state);
   if (!show) return null;
-
-  const wa = waLink(
-    branding,
-    appConfig,
-    `Hola, soy ${client.name}. ${remaining <= 0 ? 'Mi plan ya terminó y' : `Me quedan ${remaining} día(s) y`} quiero renovarlo.`,
-  );
 
   return (
     <section className="renewal-banner rounded-4 shadow-sm p-4 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
@@ -26,11 +22,9 @@ export default function RenewalBanner({ client, appConfig, branding, plan, state
           </p>
         </div>
       </div>
-      {wa !== '#' && (
-        <a className="btn btn-light rounded-pill px-4" href={wa} target="_blank" rel="noopener">
-          Quiero renovar
-        </a>
-      )}
+      <button className="btn btn-light rounded-pill px-4" onClick={onOpenPlanChange}>
+        Quiero renovar
+      </button>
     </section>
   );
 }

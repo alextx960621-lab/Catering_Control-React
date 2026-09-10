@@ -166,9 +166,10 @@ export default function Portal({ data, client, appConfig, branding, theme, onThe
       <Header branding={branding} appConfig={appConfig} theme={theme} onThemeChange={onThemeChange} showThemeSelect />
       <Hero client={client} />
       <AdBanner branding={branding} />
-      <RenewalBanner client={client} appConfig={appConfig} branding={branding} plan={plan} state={state} remaining={remaining} />
+      <RenewalBanner client={client} branding={branding} plan={plan} state={state} remaining={remaining} onOpenPlanChange={() => setShowPlanChange(true)} />
       <section className="row g-3">
         <PlanCard client={client} branding={branding} plan={plan} state={state} remaining={remaining} included={included} />
+        <PlanChangeButton onOpen={() => setShowPlanChange(true)} />
         <SupportCard client={client} appConfig={appConfig} branding={branding} />
         <div className="col-12">
           {state === 'Pausado' ? (
@@ -191,7 +192,6 @@ export default function Portal({ data, client, appConfig, branding, theme, onThe
           onSaveTomorrowOverride={handleAddressOverride}
         />
         <NoteCard client={client} />
-        <PlanChangeButton onOpen={() => setShowPlanChange(true)} />
         <InstagramLink branding={branding} appConfig={appConfig} />
       </section>
       <PlanChangeModal show={showPlanChange} onClose={() => setShowPlanChange(false)} data={data} client={client} appConfig={appConfig} branding={branding} plan={plan} />

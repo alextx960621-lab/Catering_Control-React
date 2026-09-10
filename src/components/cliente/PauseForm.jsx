@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { fmt } from '../../services/planHelpers';
 import MessageAlert from './MessageAlert';
+import { IconCalendar } from './icons';
 
 // Formulario de pausa: se muestra cuando el cliente está activo.
 export default function PauseForm({ next, message, onConfirm }) {
@@ -32,7 +33,7 @@ export default function PauseForm({ next, message, onConfirm }) {
           <div className="col-sm-4">
             <input className="btn-check" type="radio" name="pause-mode" id="pause-mode-scheduled" checked={mode === 'scheduled'} onChange={() => setMode('scheduled')} />
             <label className="pause-mode-card border d-block h-100 p-3" htmlFor="pause-mode-scheduled">
-              <span className="d-block fw-semibold">📅 Con fecha de retorno</span>
+              <span className="d-block fw-semibold">{IconCalendar}Con fecha de retorno</span>
               <span className="d-block small text-secondary mt-1">Se reactiva sola el día que elijas, sin que tengas que avisar.</span>
             </label>
           </div>

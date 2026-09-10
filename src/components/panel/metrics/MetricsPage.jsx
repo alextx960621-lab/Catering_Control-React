@@ -268,7 +268,7 @@ export default function MetricsPage({ user }) {
           {canSetCost ? <input type="number" min="0" step="0.01" defaultValue={n(settings.costPerKm)} onBlur={(e) => saveSettings({ ...settings, costPerKm: n(e.target.value) })} /> : <div className="muted">{n(settings.costPerKm).toFixed(2)}</div>}
         </label>
         <span className="spacer" />
-        <button className="violet" onClick={exportMetrics} disabled={!metrics}>Exportar Excel</button>
+        <button className="excel" onClick={exportMetrics} disabled={!metrics}>Exportar Excel</button>
       </div>
       <div className="toolbar" style={{ marginTop: -8 }}>
         <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, width: 'auto' }}>

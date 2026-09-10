@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { fmt } from '../../services/planHelpers';
 import MessageAlert from './MessageAlert';
+import { IconCalendar } from './icons';
 
 // Formulario de reactivación: se muestra cuando el cliente está pausado
 // sin una fecha de retorno futura ya definida.
@@ -26,7 +27,7 @@ export default function ResumeForm({ next, message, onConfirm }) {
           <div className="col-sm-6">
             <input className="btn-check" type="radio" name="resume-mode" id="resume-mode-date" checked={byDate} onChange={() => setByDate(true)} />
             <label className="pause-mode-card border d-block h-100 p-3" htmlFor="resume-mode-date">
-              <span className="d-block fw-semibold">📅 Elegir fecha</span>
+              <span className="d-block fw-semibold">{IconCalendar}Elegir fecha</span>
               <span className="d-block small text-secondary mt-1">Por ejemplo, si vuelves recién en un par de días.</span>
             </label>
           </div>

@@ -11,7 +11,7 @@ import {
   effectiveDriverId, resolvedAddress, writeOrderValue, shiftOrdersFrom, dispatchStatus, statusBadgeClass,
   myRouteIds, canEditDispatchField, lastProcessedDate,
 } from '../../../services/dispatchHelpers';
-import { canManage } from '../../../services/panelAuth';
+import { canManage, isPagePremiumLocked } from '../../../services/panelAuth';
 import './DispatchPage.css';
 
 export default function DispatchPage({ user }) {
@@ -31,6 +31,7 @@ export default function DispatchPage({ user }) {
 
   const isDriver = user?.role === 'driver';
   const canEdit = canManage(user?.role, settings.customRoles, 'dispatch');
+  const dietsLocked = isPagePremiumLocked('specialDietPrint', settings.premiumLockedPages) && settings.plan !== 'premium';
   const date = isDriver ? (getDriverViewDate(user.id, serverToday) || currentDate) : currentDate;
   const dayInfo = days[date] || { laborable: true };
   const myRoutes = myRouteIds(user, drivers);
@@ -340,6 +341,7 @@ export default function DispatchPage({ user }) {
   }
 
   async function exportDiets() {
+    if (dietsLocked) { showNotice('Exportar dietas especiales es una función Premium. Actívala en Configuración.', true); return; }
     const activeClients = clients.filter((c) => dispatchStatus(c, date, dayInfo, false) === 'Activo');
     if (!activeClients.length) { showNotice('No hay clientes activos para exportar hoy.', true); return; }
     const { Workbook } = await import('exceljs');
@@ -547,15 +549,17 @@ export default function DispatchPage({ user }) {
         </div>
         <div className="head-actions">
           {canEdit && (dayInfo.processed ? <button className="warning" onClick={unprocessDay}>Desprocesar día</button> : <button className="primary" onClick={processDay}>Procesar día</button>)}
-          <button className="violet" onClick={exportDiets}>Exportar dietas</button>
-          <button className="violet" onClick={exportRouteOrder}>Exportar orden de ruta</button>
+          <button className="excel" onClick={exportDiets} title={dietsLocked ? 'Función Premium' : ''}>Exportar dietas{dietsLocked ? ' 🔒' : ''}</button>
+          <button className="excel" onClick={exportRouteOrder}>Exportar orden de ruta</button>
           <button className="info" onClick={() => setColumnsOpen(true)}>Columnas</button>
         </div>
       </div>
 
-      <p className="muted" style={{ marginTop: -8, marginBottom: 14, fontSize: 12.5 }}>
-        Exportar a Excel y reordenar columnas quedan para una próxima parte. "Procesar el día" ya suma los días consumidos, cierra el historial de esa fecha y descarga un respaldo en JSON.
-      </p>
+      {dietsLocked && (
+        <p className="muted" style={{ marginTop: -8, marginBottom: 14, fontSize: 12.5 }}>
+          Esta empresa está en plan Básico: exportar las dietas especiales es una función Premium. Actívala desde Configuración.
+        </p>
+      )}
 
       <div className="toolbar">
         <label className="field">Día de trabajo

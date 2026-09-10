@@ -122,7 +122,14 @@ export default function ClientePage() {
   }
 
   if (phase === 'checking') {
-    return <p className="text-secondary text-center py-5">Cargando tu portal…</p>;
+    return (
+      <div className="text-secondary text-center py-5">
+        <div className="spinner-border mb-2" role="status" style={{ width: '1.8rem', height: '1.8rem' }}>
+          <span className="visually-hidden">Cargando…</span>
+        </div>
+        <p className="mb-0">Cargando tu portal…</p>
+      </div>
+    );
   }
 
   return (

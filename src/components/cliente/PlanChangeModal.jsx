@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { rpc, getSessionToken } from '../../services/supabaseClient';
 import { uploadImage } from '../../services/imageUpload';
 import { waLink } from '../../services/planHelpers';
+import { IconCheckCircle } from './icons';
 
 export default function PlanChangeModal({ show, onClose, data, client, appConfig, branding, plan }) {
   const [step, setStep] = useState('choose'); // choose | newplan | pay | sent
@@ -10,9 +11,32 @@ export default function PlanChangeModal({ show, onClose, data, client, appConfig
   const [file, setFile] = useState(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const dialogRef = useRef(null);
+  const previouslyFocused = useRef(null);
 
   useEffect(() => {
     if (show) { setStep('choose'); setRequestType(null); setSelectedPlanId(''); setFile(null); setError(''); }
+  }, [show]);
+
+  // Accesibilidad del modal: guarda el foco previo, lo mueve al diálogo,
+  // bloquea el scroll de fondo y cierra con Escape — igual que cualquier
+  // modal nativo de Bootstrap, pero manejado a mano porque el diálogo se
+  // arma con React en vez de con el JS de Bootstrap.
+  useEffect(() => {
+    if (!show) return;
+    previouslyFocused.current = document.activeElement;
+    dialogRef.current?.focus();
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    function onKeyDown(e) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = prevOverflow;
+      previouslyFocused.current?.focus?.();
+    };
   }, [show]);
 
   if (!show) return null;
@@ -68,24 +92,33 @@ export default function PlanChangeModal({ show, onClose, data, client, appConfig
   return (
     <>
       <div className="modal-backdrop fade show" />
-      <div className="modal fade show" style={{ display: 'block' }} tabIndex={-1} role="dialog">
+      <div
+        className="modal fade show"
+        style={{ display: 'block' }}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="plan-modal-title"
+        ref={dialogRef}
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      >
         <div className="modal-dialog modal-dialog-centered" role="document">
           <div className="modal-content rounded-4">
             <div className="modal-header">
-              <h5 className="modal-title">{step === 'sent' ? '¡Listo!' : '¿Quieres renovar o cambiar de plan?'}</h5>
-              <button type="button" className="btn-close" onClick={onClose} />
+              <h5 className="modal-title" id="plan-modal-title">{step === 'sent' ? '¡Listo!' : '¿Quieres renovar o cambiar de plan?'}</h5>
+              <button type="button" className="btn-close" aria-label="Cerrar" onClick={onClose} />
             </div>
             <div className="modal-body">
               {step === 'choose' && (
                 <div className="d-grid gap-2">
-                  <button className="btn btn-primary btn-lg" onClick={chooseRenew}>Quiero renovar mi plan</button>
-                  <button className="btn btn-outline-primary btn-lg" onClick={() => setStep('newplan')}>Quiero un nuevo plan</button>
+                  <button className="btn btn-primary" onClick={chooseRenew}>Quiero renovar mi plan</button>
+                  <button className="btn btn-outline-primary" onClick={() => setStep('newplan')}>Quiero un nuevo plan</button>
                 </div>
               )}
               {step === 'newplan' && (
                 <div className="d-grid gap-2">
                   {availablePlans.length ? availablePlans.map((p) => (
-                    <button key={p.id} className="btn btn-outline-primary btn-lg text-start" onClick={() => choosePlan(p)}>
+                    <button key={p.id} className="btn plan-pick-btn text-start" onClick={() => choosePlan(p)}>
                       <b>{p.name}</b>
                       {p.cost ? <span className="float-end">{`Bs ${p.cost}`}</span> : null}
                     </button>
@@ -115,7 +148,7 @@ export default function PlanChangeModal({ show, onClose, data, client, appConfig
               )}
               {step === 'sent' && (
                 <div className="text-center py-2">
-                  <span className="fs-1 d-block mb-2">✅</span>
+                  <span className="fs-1 d-block mb-2 text-success">{IconCheckCircle}</span>
                   <p className="mb-1">El equipo está procesando tu solicitud.</p>
                   <p className="text-secondary small">Te vamos a contactar en cuanto la revisemos.</p>
                   {wa !== '#' && <p className="small">¿Urgente? <a className="link-whatsapp" href={wa} target="_blank" rel="noopener">Escríbenos por WhatsApp</a></p>}

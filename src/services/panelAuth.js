@@ -38,6 +38,9 @@ export const PREMIUM_DEFAULT_LOCKED = {
   audit: true,
   metrics: true,
   delivery: false,
+  weeklySchedule: true,
+  returnDate: true,
+  specialDietPrint: true,
   clientPortal: true,
 };
 

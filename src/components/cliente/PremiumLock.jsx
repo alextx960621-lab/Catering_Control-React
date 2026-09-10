@@ -1,6 +1,7 @@
 import { waLink } from '../../services/planHelpers';
 import Header from './Header';
 import LogoutButton from './LogoutButton';
+import { IconLock } from './icons';
 
 export default function PremiumLock({ branding, appConfig, onLogout }) {
   const wa = waLink(branding, appConfig, 'Hola, quiero activar el plan Premium para acceder al portal de clientes.');
@@ -10,7 +11,7 @@ export default function PremiumLock({ branding, appConfig, onLogout }) {
       <LogoutButton onLogout={onLogout} />
       <Header branding={branding} appConfig={appConfig} showThemeSelect={false} />
       <div className="premium-lock">
-        <div className="premium-lock-icon">🔒</div>
+        <div className="premium-lock-icon">{IconLock}</div>
         <h2>Portal de clientes es una función Premium</h2>
         <p>Esta cuenta está en el plan Básico. Contacta a tu proveedor para activar el plan Premium y desbloquear esta función.</p>
         {wa !== '#' && (

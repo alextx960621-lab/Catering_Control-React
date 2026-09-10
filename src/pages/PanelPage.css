@@ -19,6 +19,13 @@
   --panel-shadow: 0 14px 36px rgba(21, 35, 62, .10);
   --panel-radius: 12px;
   --panel-radius-sm: 8px;
+  /* Escala tipografica: usar estos tokens en vez de tamanos sueltos */
+  --panel-fs-xs: 11px;
+  --panel-fs-sm: 12px;
+  --panel-fs-base: 14px;
+  --panel-fs-md: 16px;
+  --panel-fs-lg: 20px;
+  --panel-fs-xl: 25px;
 }
 [data-theme="night"] {
   --panel-bg: #121824; --panel-surface: #1b2433; --panel-surface-2: #222e40;
@@ -54,12 +61,16 @@
   color: #fff; box-shadow: 0 4px 14px color-mix(in srgb, var(--panel-danger) 38%, transparent);
 }
 .panel-shell button.outline {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--panel-primary) 10%, var(--panel-surface)), color-mix(in srgb, var(--panel-primary) 16%, var(--panel-surface)));
-  border: 1px solid color-mix(in srgb, var(--panel-primary) 30%, var(--panel-line));
-  color: color-mix(in srgb, var(--panel-primary) 80%, var(--panel-text));
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--panel-primary) 12%, transparent);
+  background: transparent;
+  border: 1px solid var(--panel-line);
+  color: var(--panel-text);
+  box-shadow: none;
 }
-.panel-shell button.outline:hover { background: linear-gradient(135deg, color-mix(in srgb, var(--panel-primary) 16%, var(--panel-surface)), color-mix(in srgb, var(--panel-primary) 24%, var(--panel-surface))); }
+.panel-shell button.outline:hover { background: var(--panel-surface-2); box-shadow: none; }
+.panel-shell button.excel {
+  background: linear-gradient(135deg, color-mix(in srgb, #217346 78%, white 22%), #217346);
+  color: #fff; box-shadow: 0 4px 14px rgba(33, 115, 70, .38);
+}
 .panel-shell button:disabled { cursor: not-allowed; opacity: .52; transform: none !important; box-shadow: none !important; }
 .panel-shell input, .panel-shell select, .panel-shell textarea {
   width: 100%; color: var(--panel-text); background: var(--panel-surface); border: 1px solid var(--panel-line);
@@ -194,8 +205,50 @@
 @media (max-width: 560px) { .panel-shell .form-grid { grid-template-columns: 1fr; } }
 
 .panel-shell .head-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
-.panel-shell .icon-btn { background: color-mix(in srgb, var(--panel-primary) 10%, transparent); box-shadow: none; padding: 4px 10px; min-height: auto; font-size: 12.5px; color: color-mix(in srgb, var(--panel-primary) 82%, var(--panel-text)); border-radius: 999px; }
-.panel-shell .icon-btn.delete { color: #fff; background: var(--panel-danger); }
+.panel-shell .icon-btn { padding: 5px 7px; background: transparent; color: var(--panel-primary); min-height: auto; box-shadow: none; }
+.panel-shell .icon-btn.delete {
+  color: var(--panel-danger); background: color-mix(in srgb, var(--panel-danger) 13%, transparent);
+  display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px;
+  padding: 0; font-size: 16px; font-weight: 800; line-height: 1;
+}
+.panel-shell .icon-btn.delete:hover { background: color-mix(in srgb, var(--panel-danger) 24%, transparent); }
+
+/* Secciones con color para diferenciar bloques en formularios largos
+   (ej. ficha de cliente), igual que la versión vanilla. */
+.panel-shell .form-section { grid-column: 1 / -1; border: 1px solid var(--panel-line); border-radius: var(--panel-radius); padding: 14px 16px; background: var(--panel-surface-2); }
+.panel-shell .form-section-title { font-family: var(--font-display, Figtree, sans-serif); font-weight: 700; font-size: 13px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.panel-shell .form-section-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.panel-shell .form-section-grid .wide { grid-column: 1 / -1; }
+.panel-shell .form-section.tone-primary { background: color-mix(in srgb, var(--panel-primary) 8%, var(--panel-surface)); border-color: color-mix(in srgb, var(--panel-primary) 30%, var(--panel-line)); }
+.panel-shell .form-section.tone-accent { background: color-mix(in srgb, var(--panel-accent) 9%, var(--panel-surface)); border-color: color-mix(in srgb, var(--panel-accent) 30%, var(--panel-line)); }
+.panel-shell .form-section.tone-warning { background: color-mix(in srgb, var(--panel-warning) 12%, var(--panel-surface)); border-color: color-mix(in srgb, var(--panel-warning) 35%, var(--panel-line)); }
+.panel-shell .form-section.tone-danger { background: color-mix(in srgb, var(--panel-danger) 6%, var(--panel-surface)); border-color: color-mix(in srgb, var(--panel-danger) 20%, var(--panel-line)); }
+.panel-shell .plan-summary-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 12px 14px; border-radius: var(--panel-radius-sm); border: 1.5px solid var(--panel-line);
+  background: var(--panel-surface); margin-bottom: 4px;
+}
+.panel-shell .plan-alert-box {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 12px 14px; border-radius: var(--panel-radius-sm); border: 1.5px solid var(--panel-danger);
+  background: color-mix(in srgb, var(--panel-danger) 6%, transparent); margin-bottom: 4px;
+}
+.panel-shell .plan-alert-box label { display: flex; align-items: center; gap: 6px; flex-direction: row; font-weight: 400; }
+@media (max-width: 560px) { .panel-shell .form-section-grid { grid-template-columns: 1fr; } .panel-shell .plan-summary-row { flex-direction: column; align-items: stretch; } }
+
+.panel-shell input[type="file"] { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; font-size: var(--panel-fs-xs); color: var(--panel-muted); padding: 4px 4px 4px 0; }
+.panel-shell input[type="file"]::file-selector-button {
+  font-family: var(--font-display, Figtree, sans-serif); font-weight: 650; font-size: var(--panel-fs-xs);
+  padding: 6px 12px; border-radius: 999px; border: 1px solid var(--panel-line); background: var(--panel-surface-2);
+  color: var(--panel-text); cursor: pointer; margin-right: 8px; transition: background .15s;
+}
+.panel-shell input[type="file"]::file-selector-button:hover { background: var(--panel-bg); }
+
+.panel-shell .note-client-name { font-family: var(--font-display, Figtree, sans-serif); font-weight: 700; font-size: var(--panel-fs-base); color: var(--panel-text); }
+.panel-shell .table td b, .panel-shell .table th b { font-family: var(--font-display, Figtree, sans-serif); color: var(--panel-text); font-weight: 700; }
+.panel-shell .page-head h1 { font-size: var(--panel-fs-xl); }
+.panel-shell h2 { font-size: var(--panel-fs-lg); }
+.panel-shell h3 { font-size: var(--panel-fs-md); }
 
 .panel-shell .premium-lock { max-width: 460px; margin: 40px auto; padding: 28px 24px; text-align: center; border-radius: 1rem; color: #fff; background: linear-gradient(120deg, #e4002b, #ff4b3e); box-shadow: 0 10px 30px rgba(228, 0, 43, .25); }
 .panel-shell .premium-lock .premium-lock-icon { font-size: 32px; margin-bottom: 8px; }
@@ -241,7 +294,7 @@
 }
 .panel-shell button.warning {
   background: linear-gradient(135deg, color-mix(in srgb, #f4a940 78%, white 22%), #f4a940);
-  color: #3a2a06; box-shadow: 0 4px 14px rgba(244, 169, 64, .35);
+  color: #fff; box-shadow: 0 4px 14px rgba(244, 169, 64, .35);
 }
 .panel-shell button.info {
   background: linear-gradient(135deg, color-mix(in srgb, #3867f4 78%, white 22%), #3867f4);

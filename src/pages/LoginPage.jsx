@@ -10,6 +10,7 @@ import ShareAppButton from '../components/login/ShareAppButton';
 import ClientForm from '../components/login/ClientForm';
 import StaffForm from '../components/login/StaffForm';
 import WhatsappSupportButton from '../components/login/WhatsappSupportButton';
+import AppFooter from '../components/login/AppFooter';
 
 export default function LoginPage() {
   const [theme, setTheme] = useTheme();
@@ -91,9 +92,14 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <WhatsappSupportButton whatsappNumber={whatsappNumber} />
+              <WhatsappSupportButton whatsappNumber={whatsappNumber} brandName={brandName} />
             </div>
           </section>
+        </div>
+      </div>
+      <div className="row justify-content-center w-100">
+        <div className="col-12 login-card">
+          <AppFooter />
         </div>
       </div>
     </main>

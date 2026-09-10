@@ -9,7 +9,7 @@ import { dbGetAllAuditLog, dbGetAllDeliveryStatus, dbGetAllSnapshots, dbInsertAu
 const PREMIUM_LOCKABLE_PAGES = [
   ['notes', 'Notas'], ['payroll', 'Sueldos'], ['inventory', 'Inventario'], ['audit', 'Auditoría'],
   ['metrics', 'Métricas'], ['weeklySchedule', 'Horario semanal (Clientes)'], ['returnDate', 'Reactivación automática por fecha'],
-  ['clientPortal', 'Portal de clientes'],
+  ['specialDietPrint', 'Exportar dietas especiales'], ['clientPortal', 'Portal de clientes'],
 ];
 
 function themeKey(userId) {

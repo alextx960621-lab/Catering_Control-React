@@ -11,13 +11,91 @@ function uid(prefix) {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
+function ReassignPlanModal({ open, onClose, plans, clients, saveClients, showNotice, logAudit, planName }) {
+  const [fromId, setFromId] = useState('');
+  const [toId, setToId] = useState('');
+  const [checked, setChecked] = useState(new Set());
+  const targets = plans.length && fromId ? clients.filter((c) => c.planId === fromId) : [];
+
+  function toggleAll() {
+    if (checked.size === targets.length) setChecked(new Set());
+    else setChecked(new Set(targets.map((c) => c.id)));
+  }
+  function toggleOne(id) {
+    const next = new Set(checked);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setChecked(next);
+  }
+  function handleFromChange(id) {
+    setFromId(id);
+    setChecked(new Set(clients.filter((c) => c.planId === id).map((c) => c.id)));
+  }
+
+  function handleSubmit() {
+    if (!fromId || !toId) { alert('Selecciona el plan de origen y el de destino.'); return false; }
+    if (fromId === toId) { alert('El plan de origen y destino no pueden ser el mismo.'); return false; }
+    const selected = clients.filter((c) => checked.has(c.id));
+    if (!selected.length) { alert('No hay clientes seleccionados para reasignar.'); return false; }
+    const toPlanObj = plans.find((p) => p.id === toId);
+    saveClients(selected.map((c) => ({ ...c, planId: toId, items: { ...(toPlanObj?.items || {}) } })));
+    showNotice(`${selected.length} cliente(s) reasignado(s) de "${planName(fromId)}" a "${planName(toId)}".`);
+    logAudit('Clientes reasignados de plan', `${planName(fromId)} → ${planName(toId)}`, toId, { clientes: selected.length });
+  }
+
+  return (
+    <Modal title="Reasignar clientes de plan" open={open} onClose={onClose} onSubmit={handleSubmit}>
+      <div className="form-grid">
+        <label>Plan actual (origen) *
+          <select value={fromId} onChange={(e) => handleFromChange(e.target.value)} required>
+            <option value="">Selecciona…</option>
+            {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+        <label>Plan nuevo (destino) *
+          <select value={toId} onChange={(e) => setToId(e.target.value)} required>
+            <option value="">Selecciona…</option>
+            {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+        <div className="wide">
+          {!fromId ? (
+            <p className="muted">Elegí el plan de origen para ver qué clientes lo tienen.</p>
+          ) : !targets.length ? (
+            <p className="muted">No hay clientes con el plan "{planName(fromId)}".</p>
+          ) : (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <b>Clientes con este plan ({targets.length})</b>
+                <button type="button" className="outline" style={{ padding: '4px 10px' }} onClick={toggleAll}>Seleccionar/quitar todos</button>
+              </div>
+              <div style={{ maxHeight: 220, overflow: 'auto', border: '1px solid var(--panel-line)', borderRadius: 8, padding: 8, display: 'grid', gap: 4 }}>
+                {targets.map((c) => (
+                  <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input type="checkbox" checked={checked.has(c.id)} onChange={() => toggleOne(c.id)} style={{ width: 'auto', minHeight: 'auto' }} />{c.name}
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export default function PlansPage({ user }) {
-  const { plans, settings, clients, savePlans, saveSettings, showNotice, loading } = useOperations();
+  const { plans, settings, clients, savePlans, saveClients, saveSettings, showNotice, loading } = useOperations();
   const [editingPlan, setEditingPlan] = useState(null);
   const [planPhoto, setPlanPhoto] = useState('');
   const [editingItem, setEditingItem] = useState(null);
+  const [reassigning, setReassigning] = useState(false);
   const canEdit = canManage(user?.role, settings.customRoles, 'plans');
   const menuItems = settings.menuItems || [];
+
+  function planName(id) { return plans.find((p) => p.id === id)?.name || 'Sin plan'; }
+  function logAudit(action, label, id, details = {}) {
+    dbInsertAudit({ actor_id: user.id, actor_name: user.name, actor_role: user.role, action, entity_type: 'plan', entity_label: label, entity_id: id, details });
+  }
 
   function openPlan(p) {
     setEditingPlan(p || {});
@@ -125,6 +203,7 @@ export default function PlansPage({ user }) {
         {canEdit && (
           <div className="head-actions">
             <button className="primary" onClick={() => openPlan(null)}>+ Crear plan</button>
+            <button className="info" onClick={() => setReassigning(true)}>Reasignar clientes de plan</button>
             <button className="outline" onClick={() => setEditingItem({})}>+ Crear artículo</button>
           </div>
         )}
@@ -166,6 +245,17 @@ export default function PlansPage({ user }) {
           )}
         </div>
       </Modal>
+
+      <ReassignPlanModal
+        open={reassigning}
+        onClose={() => setReassigning(false)}
+        plans={plans}
+        clients={clients}
+        saveClients={saveClients}
+        showNotice={showNotice}
+        logAudit={logAudit}
+        planName={planName}
+      />
     </section>
   );
 }

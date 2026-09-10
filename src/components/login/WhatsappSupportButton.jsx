@@ -4,11 +4,11 @@ const WhatsappIcon = (
   </svg>
 );
 
-export default function WhatsappSupportButton({ whatsappNumber }) {
+export default function WhatsappSupportButton({ whatsappNumber, brandName }) {
   const cleanNumber = String(whatsappNumber || '').replace(/\D/g, '');
   if (!cleanNumber) return null;
 
-  const message = encodeURIComponent('Hola, necesito ayuda para ingresar a Catering Control.');
+  const message = encodeURIComponent(`Hola, necesito ayuda para ingresar a ${brandName || 'Catering Control'}.`);
 
   return (
     <a

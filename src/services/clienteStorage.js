@@ -1,4 +1,5 @@
 import config from './config';
+import { STORAGE_KEYS } from './storageKeys';
 
 // Claves de localStorage/sessionStorage del portal cliente. Mismas que
 // usaba la versión anterior, para no perder datos guardados de clientes
@@ -8,8 +9,6 @@ const prefix = config.storagePrefix;
 export const CLIENTE_KEYS = {
   operations: `${prefix}-operaciones-v3`, // catálogo: planes + calendario laborable
   clientRow: `${prefix}-client-row-v1`, // datos del cliente logueado
-  themeStore: `${prefix}-client-theme-store-v1`, // tema elegido, por cliente
-  themeLegacy: `${prefix}-client-theme-v1`,
   branding: `${prefix}-client-branding-v1`,
 };
 
@@ -39,20 +38,19 @@ export const writeClientRow = (client) => writeJSON(CLIENTE_KEYS.clientRow, clie
 export const readCachedBranding = () => readJSON(CLIENTE_KEYS.branding, {});
 export const writeCachedBranding = (branding) => writeJSON(CLIENTE_KEYS.branding, branding);
 
-// El tema se guarda POR CLIENTE (si dos personas comparten el mismo
-// celular/PWA, cada una puede tener su propio tema elegido).
-export function getClientTheme(clientId) {
-  const store = readJSON(CLIENTE_KEYS.themeStore, {});
-  const key = clientId || 'default';
-  if (!store[key]) {
-    store[key] = localStorage.getItem(CLIENTE_KEYS.themeLegacy) || 'light';
-    writeJSON(CLIENTE_KEYS.themeStore, store);
-  }
-  return store[key];
+// Misma llave que usan login.html y panel.html (STORAGE_KEYS.uiTheme): el
+// tema es único por dispositivo/navegador, no por cliente — si se cambia
+// en cualquiera de las 3 pantallas, debe verse igual en las otras. Se
+// ignora a propósito el clientId que reciben estas funciones (se deja el
+// parámetro para no romper a quien las llama).
+export function getClientTheme() {
+  return localStorage.getItem(STORAGE_KEYS.uiTheme) || 'light';
 }
 
-export function saveClientTheme(clientId, theme) {
-  const store = readJSON(CLIENTE_KEYS.themeStore, {});
-  store[clientId || 'default'] = theme;
-  writeJSON(CLIENTE_KEYS.themeStore, store);
+export function saveClientTheme(_clientId, theme) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.uiTheme, theme);
+  } catch (_) {
+    /* localStorage lleno/bloqueado: no es crítico */
+  }
 }

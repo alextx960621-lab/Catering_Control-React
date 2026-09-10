@@ -66,12 +66,14 @@ export default function ClientForm({ active, onError, onClearError }) {
         <input
           className="form-control"
           id="client-phone"
+          type="tel"
           inputMode="tel"
-          autoComplete="current-password"
+          autoComplete="tel"
+          pattern="[0-9]*"
           placeholder="70000000"
           required
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
         />
       </div>
       <button className="btn btn-primary w-100" type="submit" disabled={loading}>
