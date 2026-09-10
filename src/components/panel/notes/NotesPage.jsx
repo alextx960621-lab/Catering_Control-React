@@ -8,7 +8,34 @@ function uid(prefix) {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
-export default function NotesPage({ user }) {
+const URL_RE = /(https?:\/\/[^\s]+)/g;
+
+// Los avisos que dejan los clientes desde el portal (pausa, renovación,
+// cambio de plan) a veces incluyen la URL del comprobante de pago dentro
+// del texto. Acá se detecta y se muestra como un link clicable en vez de
+// texto plano.
+function NoteText({ text }) {
+  const nodes = [];
+  let lastIndex = 0;
+  let key = 0;
+  let m;
+  URL_RE.lastIndex = 0;
+  while ((m = URL_RE.exec(text))) {
+    if (m.index > lastIndex) nodes.push(text.slice(lastIndex, m.index));
+    const url = m[0].replace(/[.,;)]+$/, '');
+    const isImage = /comprobante|\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(url);
+    nodes.push(
+      <a key={key++} href={url} target="_blank" rel="noreferrer" className="note-link">
+        {isImage ? '📎 Ver comprobante' : url}
+      </a>
+    );
+    lastIndex = m.index + m[0].length;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return <>{nodes}</>;
+}
+
+export default function NotesPage({ user, onGoToClient }) {
   const { notes, clients, currentDate, settings, saveNotes, deleteNote, showNotice, loading } = useOperations();
   const [filter, setFilter] = useState('today');
   const [search, setSearch] = useState('');
@@ -101,7 +128,7 @@ export default function NotesPage({ user }) {
                   {nt.source === 'cliente' && <span className="badge off">Desde el portal</span>}
                   <span className="muted note-date">{nt.dueDate.split('-').reverse().join('/')}</span>
                 </div>
-                <p className="note-text">{nt.text}</p>
+                <p className="note-text"><NoteText text={nt.text} /></p>
                 {nt.clientName && <p className="muted note-client">Cliente: <span className="note-client-name">{nt.clientName}</span></p>}
                 {canEdit && (
                   <div className="note-actions">
@@ -112,6 +139,12 @@ export default function NotesPage({ user }) {
                       </>
                     ) : (
                       <button className="warning" onClick={() => setRescheduling(nt)}>Reabrir</button>
+                    )}
+                    {nt.clientId && (
+                      <>
+                        <button className="outline" onClick={() => onGoToClient?.(nt.clientId, 'edit')}>✏️ Editar cliente</button>
+                        <button className="outline" onClick={() => onGoToClient?.(nt.clientId, 'renew')}>🔄 Renovar</button>
+                      </>
                     )}
                     <button className="icon-btn delete" onClick={() => handleDelete(nt)} title="Eliminar">×</button>
                   </div>

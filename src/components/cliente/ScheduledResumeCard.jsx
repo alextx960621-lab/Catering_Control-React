@@ -5,6 +5,7 @@ import { IconCheckCircle } from './icons';
 // Se muestra cuando el cliente ya programó una fecha de retorno (futura).
 export default function ScheduledResumeCard({ client, next, message, onAdvance }) {
   return (
+    <div className="col-12">
     <article className="card shadow-sm border-0">
       <div className="card-body p-4">
         <h2 className="h5 mb-1">
@@ -21,5 +22,6 @@ export default function ScheduledResumeCard({ client, next, message, onAdvance }
         <MessageAlert message={message} />
       </div>
     </article>
+    </div>
   );
 }

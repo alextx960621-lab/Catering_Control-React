@@ -14,7 +14,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt', // el usuario decide cuándo actualizar (igual que "Actualización disponible" del sw.js viejo)
+      registerType: 'autoUpdate', // se actualiza sola en segundo plano, sin pedirle nada al usuario
+      injectRegister: false, // el registro del service worker se hace a mano en main.jsx (para poder revisar cada cierto tiempo si hay versión nueva mientras la app sigue abierta)
       includeAssets: ['icons/*.png'],
       manifest: false, // usamos public/manifest.json tal cual, no uno generado
       workbox: {

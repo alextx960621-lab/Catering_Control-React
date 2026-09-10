@@ -10,6 +10,7 @@ export default function ResumeForm({ next, message, onConfirm }) {
   const [resumeDate, setResumeDate] = useState('');
 
   return (
+    <div className="col-12">
     <article className="card shadow-sm border-0">
       <div className="card-body p-4">
         <h2 className="h5 mb-1">Reactivar servicio</h2>
@@ -44,5 +45,6 @@ export default function ResumeForm({ next, message, onConfirm }) {
         <MessageAlert message={message} />
       </div>
     </article>
+    </div>
   );
 }

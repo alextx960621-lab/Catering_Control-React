@@ -156,8 +156,11 @@
   box-shadow: 0 2px 5px rgba(20, 35, 55, .025); padding: 17px;
 }
 .panel-shell .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(135px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.panel-shell .summary-grid.compact { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .panel-shell .metric strong { font-size: 24px; display: block; margin-top: 4px; }
 .panel-shell .metric small { color: var(--panel-muted); }
+.panel-shell .presence-row { min-width: 0; }
+.panel-shell .presence-row > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Menú colapsado (solo íconos) */
 .panel-shell #app.sidebar-collapsed { grid-template-columns: 74px 1fr; }
@@ -180,6 +183,9 @@
   .panel-shell nav.open { display: flex; }
   .panel-shell .aside-bottom { margin: 0; padding: 0; border-top: 0; flex: 1 1 100%; }
   .panel-shell .summary-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .panel-shell .summary-grid.compact { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* --- Piezas compartidas por TODAS las pantallas del panel --- */
@@ -314,6 +320,7 @@
 .panel-shell .note-card-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .panel-shell .note-date { margin-left: auto; font-size: 12px; white-space: nowrap; color: var(--panel-muted); }
 .panel-shell .note-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
+.panel-shell .note-text .note-link { color: var(--panel-accent, #2563eb); text-decoration: underline; word-break: break-all; }
 .panel-shell .note-client { margin: 0; font-size: 12.5px; color: var(--panel-muted); }
 .panel-shell .note-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 

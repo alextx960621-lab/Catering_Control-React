@@ -9,6 +9,7 @@ export default function PauseForm({ next, message, onConfirm }) {
   const [returnDate, setReturnDate] = useState('');
 
   return (
+    <div className="col-12">
     <article className="card shadow-sm border-0">
       <div className="card-body p-4">
         <h2 className="h5 mb-1">Pausar servicio</h2>
@@ -50,5 +51,6 @@ export default function PauseForm({ next, message, onConfirm }) {
         <MessageAlert message={message} />
       </div>
     </article>
+    </div>
   );
 }

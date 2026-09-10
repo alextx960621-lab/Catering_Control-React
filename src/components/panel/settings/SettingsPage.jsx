@@ -225,7 +225,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
       <div className="two-col" style={{ marginTop: 18 }}>
         <div className="card card-pad stack">
           <h3>Conectados ahora</h3>
-          <div className="summary-grid" style={{ marginBottom: 4 }}>
+          <div className="summary-grid compact" style={{ marginBottom: 4 }}>
             <div className="card metric"><div className="muted" style={{ fontSize: 11 }}>Clientes</div><strong>{counts.cliente}</strong></div>
             <div className="card metric"><div className="muted" style={{ fontSize: 11 }}>Drivers</div><strong>{counts.driver}</strong></div>
             <div className="card metric"><div className="muted" style={{ fontSize: 11 }}>Personal</div><strong>{counts.staff}</strong></div>
@@ -234,11 +234,11 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
           {detail.length ? (
             <div style={{ maxHeight: 220, overflowY: 'auto' }}>
               {detail.map((m, i) => (
-                <div key={i} style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', alignItems: 'baseline', padding: '8px 4px', borderBottom: '1px solid var(--panel-line)' }}>
-                  <span style={{ minWidth: 90 }}>{ROLE_ICONS[m.role] || '●'} {m.role === 'cliente' ? 'Cliente' : m.role === 'driver' ? 'Driver' : 'Personal'}</span>
-                  <b style={{ minWidth: 120 }}>{m.name || '(sin nombre)'}</b>
-                  <span className="muted" style={{ fontSize: 12 }}>{m.device || ''}</span>
-                  <span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>{m.at ? `desde ${new Date(m.at).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
+                <div key={i} className="presence-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', alignItems: 'baseline', padding: '8px 4px', borderBottom: '1px solid var(--panel-line)' }}>
+                  <span style={{ flex: '0 1 auto' }}>{ROLE_ICONS[m.role] || '●'} {m.role === 'cliente' ? 'Cliente' : m.role === 'driver' ? 'Driver' : 'Personal'}</span>
+                  <b style={{ flex: '1 1 90px' }}>{m.name || '(sin nombre)'}</b>
+                  <span className="muted" style={{ fontSize: 12, flex: '1 1 80px' }}>{m.device || ''}</span>
+                  <span className="muted" style={{ marginLeft: 'auto', fontSize: 12, flex: '0 0 auto' }}>{m.at ? `desde ${new Date(m.at).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
                 </div>
               ))}
             </div>

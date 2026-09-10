@@ -47,6 +47,12 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
   const { notice, refreshAll, settings } = useOperations();
   const notesCount = 0; // se conecta cuando haga falta afinar el contador exacto de notas pendientes
   const isPremium = settings.plan === 'premium';
+  const [pendingClientAction, setPendingClientAction] = useState(null); // { clientId, action: 'edit'|'renew' }
+
+  function goToClient(clientId, action) {
+    setPendingClientAction({ clientId, action });
+    onNavigate('clients');
+  }
 
   function locked(page) {
     return isPagePremiumLocked(page, settings.premiumLockedPages) && !isPremium;
@@ -69,11 +75,11 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
           <div key={notice.key} className={`panel-toast${notice.error ? ' error' : ''}`}>{notice.text}</div>
         )}
         {activePage === 'dispatch' && <DispatchPage user={user} />}
-        {activePage === 'notes' && gated('notes', 'Notas', NotesPage)}
+        {activePage === 'notes' && (locked('notes') ? <PremiumPageLock featureLabel="Notas" premiumWhatsapp={settings.premiumWhatsapp} /> : <NotesPage user={user} onGoToClient={goToClient} />)}
         {activePage === 'drivers' && <DriversPage user={user} />}
         {activePage === 'routes' && <RoutesPage user={user} />}
         {activePage === 'plans' && <PlansPage user={user} />}
-        {activePage === 'clients' && <ClientsPage user={user} />}
+        {activePage === 'clients' && <ClientsPage user={user} pendingClientAction={pendingClientAction} onConsumePendingClientAction={() => setPendingClientAction(null)} />}
         {activePage === 'delivery' && <DeliveryPage user={user} />}
         {activePage === 'users' && <UsersPage user={user} />}
         {activePage === 'audit' && gated('audit', 'Auditoría', AuditPage)}

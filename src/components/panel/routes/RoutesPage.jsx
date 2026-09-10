@@ -12,7 +12,7 @@ function uid(prefix) {
 const ROUTE_TYPES = { short: ['Corta', 'done'], long: ['Larga', 'pending'], verylong: ['Muy larga', 'warn'] };
 
 export default function RoutesPage({ user }) {
-  const { routes, clients, drivers, saveRoutes, showNotice, loading } = useOperations();
+  const { routes, clients, drivers, settings, saveRoutes, showNotice, loading } = useOperations();
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
   const canEdit = canManage(user?.role, settings.customRoles, 'routes');

@@ -533,6 +533,16 @@ export default function DispatchPage({ user }) {
             </div>
           )}
         </div>
+
+        <div className="toolbar">
+          <label className="field">Día de trabajo
+            <div className="date-input-wrap">
+              <input type="date" value={date} onChange={(e) => handleWorkDateChange(e.target.value)} disabled={!canEdit && !isDriver} />
+              {isDriver && date !== serverToday && <button type="button" className="outline" onClick={resetDriverViewToToday} style={{ marginLeft: 6 }}>Hoy</button>}
+            </div>
+          </label>
+        </div>
+
         {loadingHistorial ? <p className="muted">Cargando historial de este día…</p> : historial ? (
           <HistorialTable snap={historial} />
         ) : <p className="muted">No se encontró un respaldo guardado para este día.</p>}

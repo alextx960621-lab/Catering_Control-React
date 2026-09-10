@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useOperations } from '../../../context/OperationsContext';
 import { dbInsertAudit } from '../../../services/supabaseClient';
 import { n } from '../../../services/planHelpers';
@@ -184,7 +184,7 @@ function RenewPlanModal({ client, mode, plans, onClose, onConfirm }) {
   );
 }
 
-export default function ClientsPage({ user }) {
+export default function ClientsPage({ user, pendingClientAction, onConsumePendingClientAction }) {
   const { clients, routes, plans, drivers, settings, currentDate, saveClients, deleteClients, showNotice, loading } = useOperations();
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
@@ -257,6 +257,21 @@ export default function ClientsPage({ user }) {
     setEditing(null);
     setRenewing({ client: c, mode });
   }
+
+  // Permite que otras pantallas (p. ej. Notas) pidan abrir la edición o la
+  // renovación de un cliente específico al navegar acá.
+  useEffect(() => {
+    if (!pendingClientAction || loading) return;
+    const c = clients.find((x) => x.id === pendingClientAction.clientId);
+    if (c) {
+      if (pendingClientAction.action === 'renew') openRenew(c, 'renew');
+      else openEdit(c);
+    } else {
+      showNotice('No se encontró ese cliente (puede haber sido eliminado).', true);
+    }
+    onConsumePendingClientAction?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingClientAction, loading]);
 
   async function confirmRenew({ planId, days, planChangeMode, samePlan }) {
     const c = renewing.client;

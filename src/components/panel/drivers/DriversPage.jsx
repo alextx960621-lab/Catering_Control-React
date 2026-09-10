@@ -12,7 +12,7 @@ function uid(prefix) {
 }
 
 export default function DriversPage({ user }) {
-  const { drivers, routes, clients, saveDrivers, saveClients, showNotice, loading } = useOperations();
+  const { drivers, routes, clients, settings, saveDrivers, saveClients, showNotice, loading } = useOperations();
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
   const [photoUrl, setPhotoUrl] = useState('');
