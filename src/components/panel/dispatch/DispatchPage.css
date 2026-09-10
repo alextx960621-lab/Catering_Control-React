@@ -12,6 +12,11 @@
 .panel-shell th { position: relative; }
 .panel-shell .col-resize-handle { position: absolute; top: 0; right: 0; width: 8px; height: 100%; cursor: col-resize; z-index: 3; }
 .panel-shell .col-resize-handle:hover { background: color-mix(in srgb, var(--panel-primary) 30%, transparent); }
+.panel-shell .th-sort-btn { display: flex; align-items: center; gap: 5px; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; text-align: left; }
+.panel-shell .th-sort-btn:hover { color: var(--panel-primary); }
+.panel-shell .th-sort-icon { font-size: 9px; opacity: .55; }
+.panel-shell th[aria-sort="ascending"] .th-sort-icon, .panel-shell th[aria-sort="descending"] .th-sort-icon { opacity: 1; color: var(--panel-primary); }
+.panel-shell th.th-sortable[aria-sort="ascending"], .panel-shell th.th-sortable[aria-sort="descending"] { color: var(--panel-primary); }
 .panel-shell th:last-child, .panel-shell td:last-child { border-right: 0; }
 .panel-shell tbody tr:nth-child(even) td { background: var(--panel-surface-2); }
 .panel-shell tbody tr:hover td { background: color-mix(in srgb, var(--panel-primary) 4%, transparent); }

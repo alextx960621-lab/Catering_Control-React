@@ -58,7 +58,7 @@ function normalizeSettings(settings) {
 // niega a subir nada si su campo todavía no fue confirmado.
 const BLOCK_FIELDS = ['plans', 'days', 'currentDate', 'drivers', 'routes', 'settings', 'staffUsers', 'inventory'];
 
-export function OperationsProvider({ children, onThemeFromSettings }) {
+export function OperationsProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState([]);
   const [routes, setRoutes] = useState([]);
@@ -146,7 +146,6 @@ export function OperationsProvider({ children, onThemeFromSettings }) {
         setDrivers(personalFields.drivers || []);
         setRoutes(personalFields.routes?.length ? personalFields.routes : [{ id: 'r_open', name: 'Ruta abierta', description: 'Drivers disponibles sin ruta de trabajo', open: true, order: 0 }]);
         setStaffUsers(personalFields.staffUsers || []);
-        if (personalFields.settings?.theme) onThemeFromSettings?.(personalFields.settings.theme);
         confirmed.current.drivers = true;
         confirmed.current.routes = true;
         confirmed.current.settings = true;

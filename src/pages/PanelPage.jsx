@@ -6,6 +6,7 @@ import { readStaffSession, clearSessions } from '../services/session';
 import { setSessionToken, revokeSession, joinPresence } from '../services/supabaseClient';
 import { fetchBrandingRemote } from '../services/clienteData';
 import { OperationsProvider, useOperations } from '../context/OperationsContext';
+import { useTheme } from '../hooks/useTheme';
 import Sidebar from '../components/panel/Sidebar';
 import DispatchPage from '../components/panel/dispatch/DispatchPage';
 import NotesPage from '../components/panel/notes/NotesPage';
@@ -99,7 +100,9 @@ export default function PanelPage() {
   const [phase, setPhase] = useState('checking'); // 'checking' | 'ready'
   const [user, setUser] = useState(null);
   const [branding, setBranding] = useState({ companyName: config.companyName, logoUrl: config.logoUrl });
-  const [theme, setTheme] = useState('light');
+  // Mismo hook y misma llave de localStorage que usan LoginPage y ClientePage,
+  // así el tema es por navegador/dispositivo y no por cuenta ni por usuario.
+  const [theme, setTheme] = useTheme();
   const [activePage, setActivePage] = useState('dispatch');
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
@@ -123,7 +126,6 @@ export default function PanelPage() {
   }, [navigate]);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
     document.documentElement.dataset.bsTheme = theme === 'night' ? 'dark' : 'light';
   }, [theme]);
 
@@ -139,7 +141,7 @@ export default function PanelPage() {
 
   return (
     <div className="panel-shell">
-      <OperationsProvider onThemeFromSettings={setTheme}>
+      <OperationsProvider>
         <PanelShell
           user={user} branding={branding} theme={theme} onThemeChange={setTheme} activePage={activePage}
           onNavigate={setActivePage} onLogout={handleLogout}

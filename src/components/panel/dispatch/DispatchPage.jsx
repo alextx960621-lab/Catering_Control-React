@@ -411,17 +411,17 @@ export default function DispatchPage({ user }) {
   }
 
   const allColumns = [
-    { key: 'order', label: 'Orden', render: (c) => (
+    { key: 'order', label: 'Orden', sortValue: (c) => n(effectiveOrder(c, date)), render: (c) => (
       <input className="day-edit" type="number" defaultValue={effectiveOrder(c, date)}
         disabled={!canEditDispatchField(c, 'order', date, { role: user?.role, isDriver, myRoutes, realToday: serverToday, canEditDispatch: canEdit })}
         onBlur={(e) => handleFieldBlur(c, 'order', e.target.value, e.target)} />
     ) },
-    { key: 'name', label: 'Cliente', render: (c) => (<><b>{c.name}</b><br /><small className="muted">{c.carnet || 'Sin carnet'}</small></>) },
-    { key: 'route', label: 'Ruta', render: (c) => routeName(effectiveRouteId(c, date)) },
-    { key: 'driver', label: 'Driver', render: (c) => driverNameOf(effectiveDriverId(c, date, drivers)) },
-    { key: 'plan', label: 'Plan', render: (c) => planOf(c.planId)?.name || 'Sin plan' },
-    ...menuItemsList().map(([key, label]) => ({ key, label, render: (c) => itemValue(c, key) })),
-    { key: 'address1', label: 'Dirección', render: (c) => effectiveAddress(c, date) || '—' },
+    { key: 'name', label: 'Cliente', sortValue: (c) => c.name || '', render: (c) => (<><b>{c.name}</b><br /><small className="muted">{c.carnet || 'Sin carnet'}</small></>) },
+    { key: 'route', label: 'Ruta', sortValue: (c) => routeName(effectiveRouteId(c, date)) || '', render: (c) => routeName(effectiveRouteId(c, date)) },
+    { key: 'driver', label: 'Driver', sortValue: (c) => driverNameOf(effectiveDriverId(c, date, drivers)) || '', render: (c) => driverNameOf(effectiveDriverId(c, date, drivers)) },
+    { key: 'plan', label: 'Plan', sortValue: (c) => planOf(c.planId)?.name || '', render: (c) => planOf(c.planId)?.name || 'Sin plan' },
+    ...menuItemsList().map(([key, label]) => ({ key, label, sortValue: (c) => n(itemValue(c, key)), render: (c) => itemValue(c, key) })),
+    { key: 'address1', label: 'Dirección', sortValue: (c) => effectiveAddress(c, date) || '', render: (c) => effectiveAddress(c, date) || '—' },
     { key: 'maps', label: 'Google Maps', render: (c) => {
       const link = effectiveMaps(c, date);
       return (
@@ -431,19 +431,19 @@ export default function DispatchPage({ user }) {
         </div>
       );
     } },
-    { key: 'phone1', label: 'Teléfono 1', render: (c) => (
+    { key: 'phone1', label: 'Teléfono 1', sortValue: (c) => c.phone1 || '', render: (c) => (
       <input className="day-edit" defaultValue={c.phone1 || ''} onBlur={(e) => handleFieldBlur(c, 'phone1', e.target.value)} />
     ) },
-    { key: 'phone2', label: 'Teléfono 2', render: (c) => (
+    { key: 'phone2', label: 'Teléfono 2', sortValue: (c) => c.phone2 || '', render: (c) => (
       <input className="day-edit" defaultValue={c.phone2 || ''} onBlur={(e) => handleFieldBlur(c, 'phone2', e.target.value)} />
     ) },
-    { key: 'notes', label: 'Observaciones', render: (c) => (
+    { key: 'notes', label: 'Observaciones', sortValue: (c) => effectiveNotes(c, date) || '', render: (c) => (
       <input className="day-edit" defaultValue={effectiveNotes(c, date)} onBlur={(e) => handleFieldBlur(c, 'notes', e.target.value)} />
     ) },
-    { key: 'specialDiet', label: 'Dieta especial', render: (c) => c.specialDiet || '—' },
-    { key: 'career', label: 'Carreras / entrega', render: (c) => n(c.career || 1) },
-    { key: 'bags', label: 'Bolsas', render: (c) => n(c.bags) },
-    { key: 'status', label: 'Estado', render: (c) => {
+    { key: 'specialDiet', label: 'Dieta especial', sortValue: (c) => c.specialDiet || '', render: (c) => c.specialDiet || '—' },
+    { key: 'career', label: 'Carreras / entrega', sortValue: (c) => n(c.career || 1), render: (c) => n(c.career || 1) },
+    { key: 'bags', label: 'Bolsas', sortValue: (c) => n(c.bags), render: (c) => n(c.bags) },
+    { key: 'status', label: 'Estado', sortValue: (c) => dispatchStatus(c, date, dayInfo, false) || '', render: (c) => {
       const current = dispatchStatus(c, date, dayInfo, false);
       const pausedToday = c.pauseDates?.includes(date);
       const canToggle = current === 'Activo' || pausedToday;
@@ -458,8 +458,8 @@ export default function DispatchPage({ user }) {
         </>
       );
     } },
-    { key: 'remaining', label: 'Servicios restantes', render: (c) => (n(c.paidDays) ? Math.max(0, n(c.paidDays) - n(c.consumedDays)) : '—') },
-    { key: 'returnDate', label: 'Fecha de retorno', render: (c) => (
+    { key: 'remaining', label: 'Servicios restantes', sortValue: (c) => (n(c.paidDays) ? Math.max(0, n(c.paidDays) - n(c.consumedDays)) : -1), render: (c) => (n(c.paidDays) ? Math.max(0, n(c.paidDays) - n(c.consumedDays)) : '—') },
+    { key: 'returnDate', label: 'Fecha de retorno', sortValue: (c) => c.returnDate || '', render: (c) => (
       <input className="day-edit" type="date" defaultValue={c.returnDate || ''}
         disabled={!canEditDispatchField(c, 'returnDate', date, { role: user?.role, isDriver, myRoutes, realToday: serverToday, canEditDispatch: canEdit })}
         onBlur={(e) => handleFieldBlur(c, 'returnDate', e.target.value)} />
@@ -468,6 +468,20 @@ export default function DispatchPage({ user }) {
   const columns = arrangeColumns(allColumns, colPrefs);
 
   const resizeRef = useRef(null);
+  const [sort, setSort] = useState(null); // { key, dir: 'asc'|'desc' }
+  function toggleSort(key) {
+    setSort((prev) => {
+      if (!prev || prev.key !== key) return { key, dir: 'asc' };
+      if (prev.dir === 'asc') return { key, dir: 'desc' };
+      return null; // tercer clic: vuelve al orden original
+    });
+  }
+  function compareSortValues(a, b) {
+    const an = typeof a === 'number' ? a : (a !== null && a !== '' && !isNaN(a)) ? Number(a) : null;
+    const bn = typeof b === 'number' ? b : (b !== null && b !== '' && !isNaN(b)) ? Number(b) : null;
+    if (an !== null && bn !== null) return an - bn;
+    return String(a ?? '').localeCompare(String(b ?? ''), 'es', { sensitivity: 'base', numeric: true });
+  }
   function startResize(e, key) {
     e.preventDefault();
     const th = e.currentTarget.parentElement;
@@ -550,6 +564,19 @@ export default function DispatchPage({ user }) {
     );
   }
 
+  const sortedList = (() => {
+    if (!sort) return list;
+    const col = columns.find((c) => c.key === sort.key);
+    if (!col) return list;
+    const withValue = list.map((row, i) => ({ row, i, value: col.sortValue ? col.sortValue(row) : row[col.key] }));
+    withValue.sort((a, b) => {
+      const cmp = compareSortValues(a.value, b.value);
+      if (cmp !== 0) return sort.dir === 'asc' ? cmp : -cmp;
+      return a.i - b.i; // estable
+    });
+    return withValue.map((x) => x.row);
+  })();
+
   return (
     <section className="page active">
       <div className="page-head">
@@ -606,13 +633,16 @@ export default function DispatchPage({ user }) {
       <div className="sheet">
         <table id="dispatch-table">
           <thead><tr>{columns.map((c) => (
-            <th key={c.key} style={colPrefs.widths?.[c.key] ? { width: colPrefs.widths[c.key] } : undefined}>
-              {c.label}
+            <th key={c.key} style={colPrefs.widths?.[c.key] ? { width: colPrefs.widths[c.key] } : undefined} className="th-sortable" aria-sort={sort?.key === c.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}>
+              <button type="button" className="th-sort-btn" onClick={() => toggleSort(c.key)} title="Ordenar por esta columna">
+                {c.label}
+                <span className="th-sort-icon">{sort?.key === c.key ? (sort.dir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+              </button>
               <span className="col-resize-handle" onMouseDown={(e) => startResize(e, c.key)} title="Arrastrar para cambiar el ancho" />
             </th>
           ))}</tr></thead>
           <tbody>
-            {list.length ? list.map((c) => (
+            {sortedList.length ? sortedList.map((c) => (
               <tr key={c.id}>{columns.map((col) => <td key={col.key}>{col.render(c)}</td>)}</tr>
             )) : (
               <tr><td colSpan={columns.length} className="empty">No hay pedidos para los filtros seleccionados.</td></tr>

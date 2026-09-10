@@ -12,10 +12,6 @@ const PREMIUM_LOCKABLE_PAGES = [
   ['specialDietPrint', 'Exportar dietas especiales'], ['clientPortal', 'Portal de clientes'],
 ];
 
-function themeKey(userId) {
-  return `staff-theme-${userId}`;
-}
-
 export default function SettingsPage({ user, theme, onThemeChange }) {
   const {
     settings, saveSettings, serverToday, showNotice,
@@ -32,7 +28,8 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
   const { counts, detail } = usePresence();
 
   function handleThemeChange(value) {
-    localStorage.setItem(themeKey(user.id), value);
+    // onThemeChange viene del hook useTheme (PanelPage), que ya guarda en la
+    // misma llave de localStorage que usan login y el portal del cliente.
     onThemeChange(value);
   }
 
