@@ -131,6 +131,7 @@ export async function dbInsertAudit(entry) {
 
 // --- Presencia en línea (quién está usando la app ahora mismo) --------
 let presenceChannel = null;
+const presenceListeners = new Set();
 
 // Etiqueta corta a partir del user-agent, solo para reconocer "cuál es
 // cuál" en la lista de Conectados ahora -- no reemplaza una IP real (eso
@@ -158,41 +159,59 @@ export function presenceState() {
 
 export function joinPresence(info, onChange) {
   try {
-    if (presenceChannel) return presenceChannel;
+    if (typeof onChange === 'function') {
+      presenceListeners.add(onChange);
+    }
+
+    const notifyListeners = () => {
+      if (!presenceChannel) return;
+      const state = presenceChannel.presenceState();
+      presenceListeners.forEach((fn) => {
+        try {
+          fn(state);
+        } catch (_) {}
+      });
+    };
+
+    if (presenceChannel) {
+      notifyListeners();
+      return presenceChannel;
+    }
+
     const sessionId = `${info.role}-${info.id || 'anon'}-${Math.random().toString(36).slice(2, 9)}`;
     presenceChannel = supabase.channel('catering-online-users', { config: { presence: { key: sessionId } } });
-    if (typeof onChange === 'function') {
-      presenceChannel.on('presence', { event: 'sync' }, () => {
-        try {
-          onChange(presenceChannel.presenceState());
-        } catch (_) {
-          /* ignorar: solo afecta el indicador visual de "en línea" */
-        }
-      });
-    }
+
+    presenceChannel.on('presence', { event: 'sync' }, notifyListeners);
+    presenceChannel.on('presence', { event: 'join' }, notifyListeners);
+    presenceChannel.on('presence', { event: 'leave' }, notifyListeners);
+
     presenceChannel.subscribe(async (status, err) => {
       if (status === 'SUBSCRIBED') {
         try {
-          await presenceChannel.track({ role: info.role, name: info.name || '', id: info.id || '', device: deviceLabel(), at: new Date().toISOString() });
+          await presenceChannel.track({
+            role: info.role,
+            name: info.name || '',
+            id: info.id || '',
+            device: deviceLabel(),
+            at: new Date().toISOString()
+          });
         } catch (trackErr) {
-          // TEMPORAL: antes se tragaba en silencio. "Conectados ahora" siempre
-          // en 0 puede deberse a que .track() falla (ej. RLS de
-          // realtime.messages si el proyecto tiene "Realtime Authorization"
-          // activado, que exige políticas para canales — ver RLS lockdown
-          // arriba en este archivo) o a que Realtime no está habilitado para
-          // este proyecto de Supabase. Quitar este console.warn una vez
-          // diagnosticado.
           console.warn('[presencia] track() falló, "Conectados ahora" no va a contar a este dispositivo:', trackErr);
         }
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        // TEMPORAL: mismo diagnóstico que arriba, para el caso en que el
-        // canal ni siquiera llegue a SUBSCRIBED.
         console.warn(`[presencia] canal 'catering-online-users' en estado "${status}", no se pudo suscribir:`, err);
       }
     });
+
     return presenceChannel;
   } catch (err) {
     console.error('[supabase] Error uniéndose al canal de presencia:', err);
     return null;
+  }
+}
+
+export function leavePresenceListener(onChange) {
+  if (typeof onChange === 'function') {
+    presenceListeners.delete(onChange);
   }
 }
