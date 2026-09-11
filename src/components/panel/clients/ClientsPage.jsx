@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOperations } from '../../../context/OperationsContext';
 import { dbInsertAudit } from '../../../services/supabaseClient';
 import { n } from '../../../services/planHelpers';
-import { effectiveRouteId, effectiveOrder, effectiveMaps, effectiveAddress, dispatchStatus, statusBadgeClass, myRouteIds } from '../../../services/dispatchHelpers';
+import { effectiveRouteId, effectiveOrder, effectiveMaps, effectiveAddress, dispatchStatus, statusBadgeClass, myRouteIds, clientWaLink } from '../../../services/dispatchHelpers';
 import { canManage, isPagePremiumLocked } from '../../../services/panelAuth';
 import { resolveShortMapsLinkIfNeeded } from '../../../services/resolveMapsLink';
 import Modal from '../Modal';
@@ -12,11 +12,6 @@ const WEEKDAYS = [{ v: 1, l: 'Lun' }, { v: 2, l: 'Mar' }, { v: 3, l: 'Mié' }, {
 
 function uid(prefix) {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-}
-function waLink(phone) {
-  const digits = (phone || '').replace(/\D/g, '');
-  if (!digits) return null;
-  return `https://wa.me/${digits.length <= 8 ? '591' + digits : digits}`;
 }
 
 // Filas de direcciones editables dentro del formulario de cliente. Vive
@@ -184,7 +179,7 @@ function RenewPlanModal({ client, mode, plans, onClose, onConfirm }) {
   );
 }
 
-export default function ClientsPage({ user, pendingClientAction, onConsumePendingClientAction }) {
+export default function ClientsPage({ user, pendingClientAction, onConsumePendingClientAction, onRenewalCompleted }) {
   const { clients, routes, plans, drivers, settings, currentDate, saveClients, deleteClients, showNotice, loading } = useOperations();
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
@@ -299,6 +294,12 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     saveClients([updated]);
     showNotice(samePlan ? `Plan de ${c.name} renovado.` : `Nuevo plan asignado a ${c.name}.`);
     dbInsertAudit({ actor_id: user.id, actor_name: user.name, actor_role: user.role, action: samePlan ? 'Cliente renovado' : 'Nuevo plan asignado', entity_type: 'client', entity_label: c.name, entity_id: c.id, details: { plan: planName(updated.planId), diasAgregados: days, modo: samePlan ? 'mismo-plan' : planChangeMode } });
+    // Guarda los datos de esta renovación para que, si el staff viene desde
+    // una nota de solicitud de plan y después la marca "Cumplida", se pueda
+    // armar el mensaje de confirmación de WhatsApp con el plan y los días
+    // reales que se cargaron (no lo que el cliente pidió, sino lo que
+    // finalmente se aplicó).
+    onRenewalCompleted?.(c.id, { kind: samePlan ? 'renovacion' : 'compra', planName: planName(updated.planId), days, clientName: c.name, phone: c.phone1 });
     setRenewing(null);
   }
 
@@ -308,7 +309,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     { key: 'route', label: 'Ruta', render: (c) => routeName(effectiveRouteId(c, currentDate)) },
     { key: 'address1', label: 'Dirección', render: (c) => (c.addresses || []).map((a) => a.address).filter(Boolean).join(', ') || '—' },
     { key: 'maps', label: 'Google Maps', render: (c) => { const link = effectiveMaps(c, currentDate); return link ? <a href={link} target="_blank" rel="noopener">Abrir mapa</a> : '—'; } },
-    { key: 'phone1', label: 'Teléfono', render: (c) => { const link = waLink(c.phone1); return link ? <a href={link} target="_blank" rel="noopener" title="Abrir chat de WhatsApp">{c.phone1}</a> : (c.phone1 || '—'); } },
+    { key: 'phone1', label: 'Teléfono', render: (c) => { const link = clientWaLink(c.phone1); return link ? <a href={link} target="_blank" rel="noopener" title="Abrir chat de WhatsApp">{c.phone1}</a> : (c.phone1 || '—'); } },
     { key: 'plan', label: 'Plan', render: (c) => planName(c.planId) },
     { key: 'driver', label: 'Driver', render: (c) => driverName(c.driverId) },
     { key: 'status', label: 'Estado', render: (c) => <span className={`badge ${statusBadgeClass(dispatchStatus(c, currentDate, {}, false))}`}>{dispatchStatus(c, currentDate, {}, false)}</span> },
@@ -317,9 +318,9 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     { key: 'specialDiet', label: 'Dieta especial', render: (c) => c.specialDiet || '—' },
     { key: 'id', label: 'Acciones', render: (c) => canEdit ? (
       <>
-        <button className="icon-btn" onClick={() => togglePause(c)}>{dispatchStatus(c, currentDate, {}, false) === 'Pausado' ? 'Activar' : 'Pausar'}</button>
-        <button className="icon-btn" onClick={() => openRenew(c, 'renew')}>Renovar</button>
-        <button className="icon-btn" onClick={() => openEdit(c)}>Editar</button>
+        <button className="icon-btn warning" onClick={() => togglePause(c)}>{dispatchStatus(c, currentDate, {}, false) === 'Pausado' ? 'Activar' : 'Pausar'}</button>
+        <button className="icon-btn violet" onClick={() => openRenew(c, 'renew')}>Renovar</button>
+        <button className="icon-btn info" onClick={() => openEdit(c)}>Editar</button>
         <button className="icon-btn delete" onClick={() => handleDelete(c)}>×</button>
       </>
     ) : '—' },

@@ -170,13 +170,24 @@ export function joinPresence(info, onChange) {
         }
       });
     }
-    presenceChannel.subscribe(async (status) => {
+    presenceChannel.subscribe(async (status, err) => {
       if (status === 'SUBSCRIBED') {
         try {
           await presenceChannel.track({ role: info.role, name: info.name || '', id: info.id || '', device: deviceLabel(), at: new Date().toISOString() });
-        } catch (_) {
-          /* ignorar: solo afecta el indicador visual de "en línea" */
+        } catch (trackErr) {
+          // TEMPORAL: antes se tragaba en silencio. "Conectados ahora" siempre
+          // en 0 puede deberse a que .track() falla (ej. RLS de
+          // realtime.messages si el proyecto tiene "Realtime Authorization"
+          // activado, que exige políticas para canales — ver RLS lockdown
+          // arriba en este archivo) o a que Realtime no está habilitado para
+          // este proyecto de Supabase. Quitar este console.warn una vez
+          // diagnosticado.
+          console.warn('[presencia] track() falló, "Conectados ahora" no va a contar a este dispositivo:', trackErr);
         }
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        // TEMPORAL: mismo diagnóstico que arriba, para el caso en que el
+        // canal ni siquiera llegue a SUBSCRIBED.
+        console.warn(`[presencia] canal 'catering-online-users' en estado "${status}", no se pudo suscribir:`, err);
       }
     });
     return presenceChannel;

@@ -5,6 +5,7 @@ import config from '../../../services/config';
 import ImageField from '../ImageField';
 import { usePresence, ROLE_ICONS } from '../../../hooks/usePresence';
 import { dbGetAllAuditLog, dbGetAllDeliveryStatus, dbGetAllSnapshots, dbInsertAuditBulk, dbUpsertDeliveryRows, dbUpsertSnapshotsBulk } from '../../../services/db';
+import { setTheme as saveMyTheme } from '../../../services/userPrefs';
 
 const PREMIUM_LOCKABLE_PAGES = [
   ['notes', 'Notas'], ['payroll', 'Sueldos'], ['inventory', 'Inventario'], ['audit', 'Auditoría'],
@@ -28,8 +29,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
   const { counts, detail } = usePresence();
 
   function handleThemeChange(value) {
-    // onThemeChange viene del hook useTheme (PanelPage), que ya guarda en la
-    // misma llave de localStorage que usan login y el portal del cliente.
+    saveMyTheme(user.id, value); // cachea local al instante + sincroniza con la cuenta en Supabase
     onThemeChange(value);
   }
 
@@ -146,7 +146,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
       <div className="two-col">
         <div className="card card-pad stack">
           <h3>Tu tema</h3>
-          <p className="muted">Solo afecta a tu navegador, no a los demás usuarios.</p>
+          <p className="muted">Es personal tuyo (no afecta a los demás usuarios) y viaja con tu cuenta: si entrás desde otro celular o computadora, vas a ver este mismo tema.</p>
           <label>Tema
             <select value={theme} onChange={(e) => handleThemeChange(e.target.value)}>
               <option value="light">Claro</option>
@@ -154,7 +154,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
               <option value="forest">Bosque</option>
             </select>
           </label>
-          <p className="muted" style={{ fontSize: 12 }}>Elegir qué columnas ver en Día de trabajo queda pendiente para una próxima parte.</p>
+          <p className="muted" style={{ fontSize: 12 }}>El orden, ancho y columnas ocultas que elijas en las tablas (Día de trabajo, Clientes, Drivers, etc.) también viajan con tu cuenta de la misma forma.</p>
         </div>
 
         {isAdmin && (

@@ -2,6 +2,7 @@ import { canManage } from '../../../services/panelAuth';
 import { useState } from 'react';
 import { useOperations } from '../../../context/OperationsContext';
 import { dbInsertAudit } from '../../../services/supabaseClient';
+import { clientWaLink } from '../../../services/dispatchHelpers';
 import Modal from '../Modal';
 
 function uid(prefix) {
@@ -35,7 +36,20 @@ function NoteText({ text }) {
   return <>{nodes}</>;
 }
 
-export default function NotesPage({ user, onGoToClient }) {
+// El texto de estas notas lo genera PlanChangeModal.jsx cuando un cliente
+// pide renovar o comprar un plan desde el portal — siempre arranca igual,
+// así que sirve para reconocer automáticamente cuáles son solicitudes de
+// plan y cuáles son un recordatorio cualquiera cargado por el staff.
+function isPlanRequestNote(nt) {
+  return !!nt.clientId && /^Solicitud de plan:/i.test(nt.text || '');
+}
+
+function renewalWaMessage({ kind, clientName, planName, days }) {
+  const accion = kind === 'compra' ? 'la compra de tu nuevo plan' : 'la renovación de tu plan';
+  return `Hola ${clientName}, te confirmamos ${accion} "${planName}" por ${days} día(s). ¡Gracias por seguir con nosotros! 🙌`;
+}
+
+export default function NotesPage({ user, onGoToClient, renewalByClient = {}, onConsumeRenewal }) {
   const { notes, clients, currentDate, settings, saveNotes, deleteNote, showNotice, loading } = useOperations();
   const [filter, setFilter] = useState('today');
   const [search, setSearch] = useState('');
@@ -62,8 +76,28 @@ export default function NotesPage({ user, onGoToClient }) {
 
   function markDone(nt) {
     saveNotes([{ ...nt, status: 'cumplida', completedAt: currentDate, read: true }]);
-    showNotice('Nota marcada como cumplida.');
     dbInsertAudit({ actor_id: user.id, actor_name: user.name, actor_role: user.role, action: 'Nota cumplida', entity_type: 'note', entity_label: nt.clientName || nt.createdBy || 'Nota interna', entity_id: nt.id, details: { texto: nt.text.slice(0, 60) } });
+
+    // Si esta nota era una solicitud de renovación/compra de plan Y ya se
+    // le cargó el plan al cliente desde el botón "Renovar" de acá mismo,
+    // al marcarla cumplida se abre WhatsApp con el mensaje de confirmación
+    // ya escrito, listo para mandarle al cliente.
+    if (isPlanRequestNote(nt)) {
+      const info = renewalByClient[nt.clientId];
+      if (info) {
+        const phone = clients.find((c) => c.id === nt.clientId)?.phone1 || info.phone;
+        const link = clientWaLink(phone, renewalWaMessage({ ...info, clientName: nt.clientName || info.clientName }));
+        if (link) {
+          window.open(link, '_blank');
+          showNotice('Nota marcada como cumplida. Abrimos WhatsApp para confirmarle al cliente.');
+        } else {
+          showNotice('Nota marcada como cumplida. El cliente no tiene teléfono cargado para avisarle por WhatsApp.', true);
+        }
+        onConsumeRenewal?.(nt.clientId);
+        return;
+      }
+    }
+    showNotice('Nota marcada como cumplida.');
   }
 
   function handleDelete(nt) {
@@ -142,8 +176,8 @@ export default function NotesPage({ user, onGoToClient }) {
                     )}
                     {nt.clientId && (
                       <>
-                        <button className="outline" onClick={() => onGoToClient?.(nt.clientId, 'edit')}>✏️ Editar cliente</button>
-                        <button className="outline" onClick={() => onGoToClient?.(nt.clientId, 'renew')}>🔄 Renovar</button>
+                        <button className="info" onClick={() => onGoToClient?.(nt.clientId, 'edit')}>✏️ Editar cliente</button>
+                        <button className="violet" onClick={() => onGoToClient?.(nt.clientId, 'renew')}>🔄 Renovar</button>
                       </>
                     )}
                     <button className="icon-btn delete" onClick={() => handleDelete(nt)} title="Eliminar">×</button>

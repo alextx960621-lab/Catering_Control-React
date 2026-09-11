@@ -118,7 +118,7 @@ export default function InventoryPage({ user }) {
       return links.length ? links.map((l) => `${n(l.quantity)} × ${menuLabel(l.clientItemKey)}`).join(', ') : '—';
     } },
     { key: 'id', label: 'Acciones', render: (item) => canEdit ? (
-      <><button className="icon-btn" onClick={() => setEditingItem(item)}>Editar</button><button className="icon-btn delete" onClick={() => handleItemDelete(item)}>×</button></>
+      <><button className="icon-btn info" onClick={() => setEditingItem(item)}>Editar</button><button className="icon-btn delete" onClick={() => handleItemDelete(item)}>×</button></>
     ) : '—' },
   ];
 
@@ -127,7 +127,7 @@ export default function InventoryPage({ user }) {
     { key: 'clientItemKey', label: 'Artículo entregado', render: (l) => menuLabel(l.clientItemKey) },
     { key: 'quantity', label: 'Cantidad por entrega', render: (l) => n(l.quantity) },
     { key: 'id', label: 'Acciones', render: (l) => canEdit ? (
-      <><button className="icon-btn" onClick={() => setEditingLink(l)}>Editar</button><button className="icon-btn delete" onClick={() => handleLinkDelete(l)}>×</button></>
+      <><button className="icon-btn info" onClick={() => setEditingLink(l)}>Editar</button><button className="icon-btn delete" onClick={() => handleLinkDelete(l)}>×</button></>
     ) : '—' },
   ];
 
@@ -138,7 +138,7 @@ export default function InventoryPage({ user }) {
     { key: 'type', label: 'Tipo', render: (m) => MOVEMENT_LABELS[m.type] || m.type },
     { key: 'note', label: 'Detalle', render: (m) => m.note || '—' },
     { key: 'id', label: 'Acciones', render: (m) => (canEdit && m.type !== 'delivery') ? (
-      <><button className="icon-btn" onClick={() => setEditingMovement(m)}>Editar</button><button className="icon-btn delete" onClick={() => handleMovementDelete(m)}>×</button></>
+      <><button className="icon-btn info" onClick={() => setEditingMovement(m)}>Editar</button><button className="icon-btn delete" onClick={() => handleMovementDelete(m)}>×</button></>
     ) : '—' },
   ];
 

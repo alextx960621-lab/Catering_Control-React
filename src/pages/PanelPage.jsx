@@ -6,7 +6,7 @@ import { readStaffSession, clearSessions } from '../services/session';
 import { setSessionToken, revokeSession, joinPresence } from '../services/supabaseClient';
 import { fetchBrandingRemote } from '../services/clienteData';
 import { OperationsProvider, useOperations } from '../context/OperationsContext';
-import { useTheme } from '../hooks/useTheme';
+import { getTheme as getMyCachedTheme } from '../services/userPrefs';
 import Sidebar from '../components/panel/Sidebar';
 import DispatchPage from '../components/panel/dispatch/DispatchPage';
 import NotesPage from '../components/panel/notes/NotesPage';
@@ -45,14 +45,31 @@ function PagePlaceholder({ page }) {
 // Todo lo de acá adentro ya puede usar useOperations() (clientes, rutas,
 // drivers, planes, notas) porque vive DENTRO de <OperationsProvider>.
 function PanelShell({ user, branding, theme, onThemeChange, activePage, onNavigate, onLogout, collapsed, onToggleCollapse }) {
-  const { notice, refreshAll, settings } = useOperations();
-  const notesCount = 0; // se conecta cuando haga falta afinar el contador exacto de notas pendientes
+  const { notice, refreshAll, settings, notes } = useOperations();
+  // Cuántas notas están pendientes (sin cumplir) — se muestra como
+  // numerito rojo en la campanita de Notas del menú, igual que las
+  // notificaciones de redes sociales.
+  const notesCount = notes.filter((nt) => nt.status !== 'cumplida').length;
   const isPremium = settings.plan === 'premium';
   const [pendingClientAction, setPendingClientAction] = useState(null); // { clientId, action: 'edit'|'renew' }
+  // Última renovación/compra de plan confirmada por cliente, para que Notas
+  // pueda armar el mensaje de WhatsApp al marcar "Cumplida" una solicitud.
+  const [renewalByClient, setRenewalByClient] = useState({});
 
   function goToClient(clientId, action) {
     setPendingClientAction({ clientId, action });
     onNavigate('clients');
+  }
+  function recordRenewal(clientId, info) {
+    setRenewalByClient((prev) => ({ ...prev, [clientId]: info }));
+  }
+  function consumeRenewal(clientId) {
+    setRenewalByClient((prev) => {
+      if (!(clientId in prev)) return prev;
+      const next = { ...prev };
+      delete next[clientId];
+      return next;
+    });
   }
 
   function locked(page) {
@@ -76,11 +93,11 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
           <div key={notice.key} className={`panel-toast${notice.error ? ' error' : ''}`}>{notice.text}</div>
         )}
         {activePage === 'dispatch' && <DispatchPage user={user} />}
-        {activePage === 'notes' && (locked('notes') ? <PremiumPageLock featureLabel="Notas" premiumWhatsapp={settings.premiumWhatsapp} /> : <NotesPage user={user} onGoToClient={goToClient} />)}
+        {activePage === 'notes' && (locked('notes') ? <PremiumPageLock featureLabel="Notas" premiumWhatsapp={settings.premiumWhatsapp} /> : <NotesPage user={user} onGoToClient={goToClient} renewalByClient={renewalByClient} onConsumeRenewal={consumeRenewal} />)}
         {activePage === 'drivers' && <DriversPage user={user} />}
         {activePage === 'routes' && <RoutesPage user={user} />}
         {activePage === 'plans' && <PlansPage user={user} />}
-        {activePage === 'clients' && <ClientsPage user={user} pendingClientAction={pendingClientAction} onConsumePendingClientAction={() => setPendingClientAction(null)} />}
+        {activePage === 'clients' && <ClientsPage user={user} pendingClientAction={pendingClientAction} onConsumePendingClientAction={() => setPendingClientAction(null)} onRenewalCompleted={recordRenewal} />}
         {activePage === 'delivery' && <DeliveryPage user={user} />}
         {activePage === 'users' && <UsersPage user={user} />}
         {activePage === 'audit' && gated('audit', 'Auditoría', AuditPage)}
@@ -100,9 +117,15 @@ export default function PanelPage() {
   const [phase, setPhase] = useState('checking'); // 'checking' | 'ready'
   const [user, setUser] = useState(null);
   const [branding, setBranding] = useState({ companyName: config.companyName, logoUrl: config.logoUrl });
-  // Mismo hook y misma llave de localStorage que usan LoginPage y ClientePage,
-  // así el tema es por navegador/dispositivo y no por cuenta ni por usuario.
-  const [theme, setTheme] = useTheme();
+  // Arranca con el tema que este mismo navegador tenga cacheado para el
+  // usuario de la sesión (si hay), para no pintar "Claro" un instante y
+  // después saltar al tema real -- el valor definitivo (que puede venir
+  // de OTRO dispositivo) lo confirma OperationsContext al cargar
+  // userPrefs del servidor, vía onThemeFromSettings.
+  const [theme, setTheme] = useState(() => {
+    const cachedSession = readStaffSession();
+    return (cachedSession && getMyCachedTheme(cachedSession.id)) || 'light';
+  });
   const [activePage, setActivePage] = useState('dispatch');
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
@@ -126,6 +149,7 @@ export default function PanelPage() {
   }, [navigate]);
 
   useEffect(() => {
+    document.documentElement.dataset.theme = theme;
     document.documentElement.dataset.bsTheme = theme === 'night' ? 'dark' : 'light';
   }, [theme]);
 
@@ -141,7 +165,7 @@ export default function PanelPage() {
 
   return (
     <div className="panel-shell">
-      <OperationsProvider>
+      <OperationsProvider userId={user?.id} onThemeFromSettings={setTheme}>
         <PanelShell
           user={user} branding={branding} theme={theme} onThemeChange={setTheme} activePage={activePage}
           onNavigate={setActivePage} onLogout={handleLogout}

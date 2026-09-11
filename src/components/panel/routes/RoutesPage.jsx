@@ -53,7 +53,7 @@ export default function RoutesPage({ user }) {
     { key: 'clients', label: 'Clientes', render: (r) => clients.filter((c) => c.routeId === r.id).length },
     { key: 'drivers', label: 'Drivers', render: (r) => drivers.filter((d) => d.routeId === r.id).length },
     { key: 'id', label: 'Acciones', render: (r) => canEdit && !r.open ? (
-      <><button className="icon-btn" onClick={() => setEditing(r)}>Editar</button><button className="icon-btn delete" onClick={() => handleDelete(r)}>×</button></>
+      <><button className="icon-btn info" onClick={() => setEditing(r)}>Editar</button><button className="icon-btn delete" onClick={() => handleDelete(r)}>×</button></>
     ) : '—' },
   ];
 

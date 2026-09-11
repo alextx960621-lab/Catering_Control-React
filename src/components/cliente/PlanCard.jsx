@@ -4,7 +4,7 @@ export default function PlanCard({ client, branding, plan, state, remaining, inc
   const items = menuItemsList(branding).filter(([key]) => n(included[key]) > 0);
 
   return (
-    <div className="col-12 col-lg-8">
+    <div className="col-12">
       <article className="card shadow-sm border-0 h-100 text-center">
         <div className="card-body p-4">
           {plan?.photoUrl && (

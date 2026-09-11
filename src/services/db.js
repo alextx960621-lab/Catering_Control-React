@@ -47,6 +47,19 @@ export async function dbSetFields(tableKey, fieldsObj) {
   return result !== null;
 }
 
+// --- Preferencias personales (tema + orden/anchos/ocultas de columnas) --
+// A diferencia de dbSetFields, esto NUNCA sobreescribe el bloque
+// 'personal' entero ni siquiera la fila 'userPrefs' completa: el RPC
+// staff_save_own_prefs hace un jsonb_set atómico solo en la clave del
+// propio usuario (sacada de la sesión, no de un parámetro), así que dos
+// personas guardando su propio tema al mismo tiempo no se pisan entre sí.
+// Requiere supabase-setup-final-v2.sql (sección 15) ya corrido en el
+// proyecto de Supabase -- ver services/userPrefs.js para el uso.
+export async function dbSaveOwnPrefs(prefs) {
+  const result = await rpc('staff_save_own_prefs', { p_token: getSessionToken(), p_prefs: prefs || {} });
+  return result !== null;
+}
+
 // --- Clientes (tabla db_clientes_rows) ---------------------------------
 export async function dbGetClientRows() {
   const data = await rpc('staff_get_client_rows', { p_token: getSessionToken() });

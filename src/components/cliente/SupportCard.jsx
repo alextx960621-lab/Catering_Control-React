@@ -4,7 +4,7 @@ export default function SupportCard({ client, appConfig, branding }) {
   const wa = waLink(branding, appConfig, `Hola, soy ${client.name}. Quiero renovar o cambiar mi plan.`);
 
   return (
-    <div className="col-12 col-lg-4">
+    <div className="col-12">
       <article className="card shadow-sm border-0 h-100">
         <div className="card-body p-4 d-flex flex-column">
           <h2 className="h5">Atención al cliente</h2>

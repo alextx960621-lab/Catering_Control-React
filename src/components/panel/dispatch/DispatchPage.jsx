@@ -222,7 +222,7 @@ export default function DispatchPage({ user }) {
 
     if (!dayInfo.laborable) {
       if (!confirm(`¿Cerrar el día ${date.split('-').reverse().join('/')} como no laborable? No se procesan pedidos.`)) return;
-      const newDays = { ...days, [date]: { ...dayInfo, processed: true, processedClientIds: [] } };
+      const newDays = { ...days, [date]: { ...dayInfo, processed: true, processedClientIds: [], payrollSnapshot: [] } };
       saveDays(newDays);
       await dbUpsertSnapshot(date, buildSnapshotPayload([]));
       showNotice('Día no laborable cerrado.');
@@ -234,8 +234,14 @@ export default function DispatchPage({ user }) {
     if (!confirm(`¿Procesar el día ${date.split('-').reverse().join('/')}?`)) return;
     const activeClients = clients.filter((c) => dispatchStatus(c, date, dayInfo, false) === 'Activo');
     const processedIds = activeClients.map((c) => c.id);
+    // Congela la cantidad de carreras de cada cliente (y su driver) tal
+    // como están en este instante, para Sueldos. Así, si más adelante se
+    // edita un cliente (ej. de carrera corta a larga), el historial de
+    // días ya procesados no se recalcula ni cambia — solo afecta a los
+    // días que se procesen de ahí en adelante.
+    const payrollSnapshot = activeClients.map((c) => ({ id: c.id, career: n(c.career || 1), driverId: effectiveDriverId(c, date, drivers) }));
     saveClients(activeClients.map((c) => ({ ...c, consumedDays: n(c.consumedDays) + 1 })));
-    const newDays = { ...days, [date]: { ...dayInfo, processed: true, processedClientIds: processedIds } };
+    const newDays = { ...days, [date]: { ...dayInfo, processed: true, processedClientIds: processedIds, payrollSnapshot } };
     saveDays(newDays);
 
     // Descuenta del inventario de cocina lo que corresponda a los
@@ -296,7 +302,7 @@ export default function DispatchPage({ user }) {
     if (!confirm(`¿Desprocesar el día ${date.split('-').reverse().join('/')}? Se revertirá el conteo de días consumidos.`)) return;
     const ids = dayInfo.processedClientIds || clients.filter((c) => dispatchStatus(c, date, dayInfo, false) === 'Activo').map((c) => c.id);
     saveClients(clients.filter((c) => ids.includes(c.id)).map((c) => ({ ...c, consumedDays: Math.max(0, n(c.consumedDays) - 1) })));
-    saveDays({ ...days, [date]: { ...dayInfo, processed: false, processedClientIds: [] } });
+    saveDays({ ...days, [date]: { ...dayInfo, processed: false, processedClientIds: [], payrollSnapshot: [] } });
     // Repone el inventario descontado automáticamente al procesar (quantity
     // ya quedó guardado en negativo, así que restarlo lo repone).
     const kept = [];
@@ -643,7 +649,11 @@ export default function DispatchPage({ user }) {
           ))}</tr></thead>
           <tbody>
             {sortedList.length ? sortedList.map((c) => (
-              <tr key={c.id}>{columns.map((col) => <td key={col.key}>{col.render(c)}</td>)}</tr>
+              // La key incluye la fecha: los campos editables de esta fila
+              // usan defaultValue (no están controlados), así que sin esto
+              // React reutiliza el mismo <input> al cambiar de día y se
+              // queda mostrando el valor del día anterior en vez del actual.
+              <tr key={`${c.id}::${date}`}>{columns.map((col) => <td key={col.key}>{col.render(c)}</td>)}</tr>
             )) : (
               <tr><td colSpan={columns.length} className="empty">No hay pedidos para los filtros seleccionados.</td></tr>
             )}

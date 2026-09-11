@@ -16,7 +16,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate', // se actualiza sola en segundo plano, sin pedirle nada al usuario
       injectRegister: false, // el registro del service worker se hace a mano en main.jsx (para poder revisar cada cierto tiempo si hay versión nueva mientras la app sigue abierta)
-      includeAssets: ['icons/*.png'],
+      includeAssets: ['icons/*.png', 'manifest.json'],
       manifest: false, // usamos public/manifest.json tal cual, no uno generado
       workbox: {
         navigateFallback: '/index.html',
@@ -34,7 +34,36 @@ export default defineConfig({
             handler: 'NetworkOnly',
           },
           {
-            // Resto de archivos estáticos (CSS/JS/íconos): caché primero
+            // manifest.json aparte, y con NetworkFirst en vez de CacheFirst:
+            // es un archivo chico que casi no pesa, así que no vale la pena
+            // arriesgarse a servir uno viejo (con el ícono/nombre/tema
+            // anteriores) si el usuario cambió el branding. Antes caía en
+            // la regla de "estáticos" de abajo (CacheFirst 30 días).
+            urlPattern: ({ url }) => url.pathname.endsWith('/manifest.json'),
+            handler: 'NetworkFirst',
+            options: { cacheName: 'manifest', expiration: { maxEntries: 1, maxAgeSeconds: 24 * 60 * 60 } },
+          },
+          {
+            // Íconos: StaleWhileRevalidate en vez de CacheFirst puro. Sirve
+            // la copia cacheada al instante (rápido, como antes) pero
+            // dispara en paralelo un pedido de red que refresca la caché
+            // para la próxima vez — así, si se sube un ícono nuevo con el
+            // mismo nombre de archivo, se ve actualizado en la segunda
+            // carga en vez de tener que esperar 30 días o forzar un
+            // refresh completo del navegador.
+            urlPattern: ({ url, request }) => request.destination === 'image' && url.pathname.includes('/icons/'),
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'iconos',
+              expiration: { maxEntries: 30, maxAgeSeconds: 30 * 24 * 60 * 60 },
+            },
+          },
+          {
+            // Resto de archivos estáticos (CSS/JS/fuentes/otras imágenes):
+            // caché primero. Estos SÍ llevan hash de contenido en el
+            // nombre de archivo (Vite los renombra en cada build), así que
+            // CacheFirst es seguro: un cambio real siempre pide una URL
+            // nueva, nunca sirve contenido viejo con el mismo nombre.
             urlPattern: ({ request }) =>
               ['style', 'script', 'image', 'font'].includes(request.destination),
             handler: 'CacheFirst',

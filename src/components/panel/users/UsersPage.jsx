@@ -122,7 +122,7 @@ export default function UsersPage({ user }) {
     { key: 'role', label: 'Rol', render: (u) => <span className={`badge ${isBuiltinRole(u.role) ? 'off' : 'violet-badge'}`}>{roleLabel(u.role, customRoles)}</span> },
     { key: 'route', label: 'Ruta asignada', render: (u) => u.role === 'driver' ? routeName(u.routeId) : '—' },
     { key: 'id', label: 'Acciones', render: (u) => (
-      <><button className="icon-btn" onClick={() => setEditing(u)}>Editar</button>{u.id !== user.id && <button className="icon-btn delete" onClick={() => handleDelete(u)}>×</button>}</>
+      <><button className="icon-btn info" onClick={() => setEditing(u)}>Editar</button>{u.id !== user.id && <button className="icon-btn delete" onClick={() => handleDelete(u)}>×</button>}</>
     ) },
   ];
 
@@ -130,7 +130,7 @@ export default function UsersPage({ user }) {
     { key: 'label', label: 'Rol', render: (r) => <b>{r.label}</b> },
     { key: 'summary', label: 'Acceso', render: (r) => <small className="muted">{roleSummary(r)}</small> },
     { key: 'id', label: 'Acciones', render: (r) => (
-      <><button className="icon-btn" onClick={() => setEditingRole(r)}>Editar</button><button className="icon-btn delete" onClick={() => handleRoleDelete(r)}>×</button></>
+      <><button className="icon-btn info" onClick={() => setEditingRole(r)}>Editar</button><button className="icon-btn delete" onClick={() => handleRoleDelete(r)}>×</button></>
     ) },
   ];
 

@@ -5,7 +5,7 @@ import config from '../services/config';
 import { readClientSession, clearSessions } from '../services/session';
 import { readOperations, writeOperations, readClientRow, writeClientRow, readCachedBranding, getClientTheme, saveClientTheme } from '../services/clienteStorage';
 import { fetchBrandingRemote, fetchIsPremium, fetchServerSync, saveClient } from '../services/clienteData';
-import { setSessionToken, dbGetClientRow, joinPresence, revokeSession } from '../services/supabaseClient';
+import { setSessionToken, dbGetClientRow, dbSaveOwnClientProfile, joinPresence, revokeSession } from '../services/supabaseClient';
 import Portal from '../components/cliente/Portal';
 import PremiumLock from '../components/cliente/PremiumLock';
 
@@ -58,7 +58,11 @@ export default function ClientePage() {
 
       setData(localData);
       setClient(localClient);
-      setTheme(getClientTheme(session.id));
+      // Si el cliente ya eligió un tema desde ALGÚN dispositivo, ese es
+      // el que manda (uiTheme viaja con su propia fila — ver
+      // supabase-setup-final-v2.sql sección 15); si nunca eligió
+      // ninguno, se usa el último visto en este navegador como default.
+      setTheme(localClient.uiTheme || getClientTheme(session.id));
       if (freshBranding) setBranding(freshBranding);
 
       if (!isPremium) {
@@ -80,6 +84,7 @@ export default function ClientePage() {
       if (remoteClient) {
         writeClientRow(remoteClient);
         setClient(remoteClient);
+        if (remoteClient.uiTheme) setTheme(remoteClient.uiTheme);
       }
       if (freshBranding2) setBranding(freshBranding2);
       if (!(await fetchIsPremium())) setPhase('locked');
@@ -98,7 +103,11 @@ export default function ClientePage() {
   }, [phase, theme]);
 
   function handleThemeChange(newTheme) {
-    if (sessionRef.current) saveClientTheme(sessionRef.current.id, newTheme);
+    if (sessionRef.current) {
+      saveClientTheme(sessionRef.current.id, newTheme); // cache local, instantáneo
+      dbSaveOwnClientProfile(sessionRef.current.id, { uiTheme: newTheme }); // viaja con la cuenta a otros dispositivos
+    }
+    setClient((prev) => (prev ? { ...prev, uiTheme: newTheme } : prev));
     setTheme(newTheme);
   }
 

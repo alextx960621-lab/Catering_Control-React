@@ -3,6 +3,7 @@ import { dbGet, dbSet, dbGetClientRows, dbGetFields, dbSetFields, dbUpsertClient
 import { rpc } from '../services/supabaseClient';
 import { DEFAULT_MENU_ITEMS, addDays } from '../services/planHelpers';
 import { lastProcessedDate } from '../services/dispatchHelpers';
+import { hydrateFromServer as hydrateUserPrefsFromServer, getTheme as getMyTheme } from '../services/userPrefs';
 
 // "Operaciones" son los datos que casi todas las pantallas del Panel
 // necesitan al mismo tiempo: clientes, rutas, drivers, planes, el
@@ -58,7 +59,7 @@ function normalizeSettings(settings) {
 // niega a subir nada si su campo todavía no fue confirmado.
 const BLOCK_FIELDS = ['plans', 'days', 'currentDate', 'drivers', 'routes', 'settings', 'staffUsers', 'inventory'];
 
-export function OperationsProvider({ children }) {
+export function OperationsProvider({ children, userId, onThemeFromSettings }) {
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState([]);
   const [routes, setRoutes] = useState([]);
@@ -117,7 +118,7 @@ export function OperationsProvider({ children }) {
       const [clientRows, clientesFields, personalFields, srvDate, noteRows, inventoryBlock] = await Promise.all([
         dbGetClientRows(),
         dbGetFields('clientes', ['plans', 'days', 'currentDate']),
-        dbGetFields('personal', ['drivers', 'routes', 'settings', 'staffUsers']),
+        dbGetFields('personal', ['drivers', 'routes', 'settings', 'staffUsers', 'userPrefs']),
         rpc('get_server_date', {}),
         dbGetNoteRows(),
         dbGet('inventario'),
@@ -146,6 +147,16 @@ export function OperationsProvider({ children }) {
         setDrivers(personalFields.drivers || []);
         setRoutes(personalFields.routes?.length ? personalFields.routes : [{ id: 'r_open', name: 'Ruta abierta', description: 'Drivers disponibles sin ruta de trabajo', open: true, order: 0 }]);
         setStaffUsers(personalFields.staffUsers || []);
+        // Preferencias PERSONALES (tema + columnas): se confirman con el
+        // servidor acá (hydrateFromServer), lo que además habilita que de
+        // ahora en más los cambios de este usuario se empiecen a
+        // sincronizar (ver services/userPrefs.js). El tema propio, si
+        // existe, tiene prioridad sobre el tema de empresa (settings.theme,
+        // que sigue siendo el default para quien nunca eligió uno propio).
+        if (userId) hydrateUserPrefsFromServer(userId, personalFields.userPrefs?.[userId]);
+        const myTheme = userId ? getMyTheme(userId) : null;
+        if (myTheme) onThemeFromSettings?.(myTheme);
+        else if (personalFields.settings?.theme) onThemeFromSettings?.(personalFields.settings.theme);
         confirmed.current.drivers = true;
         confirmed.current.routes = true;
         confirmed.current.settings = true;

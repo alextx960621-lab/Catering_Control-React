@@ -102,7 +102,7 @@ export default function DeliveryPage({ user }) {
         if (!canEdit) return '—';
         const st = recordFor(c.id)?.status;
         return st === 'entregado' || st === 'no_entregado' ? (
-          <><button className="icon-btn" onClick={() => setMarking({ client: c, kind: st })}>Editar</button><button className="icon-btn delete" onClick={() => clearRecord(c)}>Quitar</button></>
+          <><button className="icon-btn info" onClick={() => setMarking({ client: c, kind: st })}>Editar</button><button className="icon-btn delete" onClick={() => clearRecord(c)}>Quitar</button></>
         ) : (
           <><button className="primary" onClick={() => setMarking({ client: c, kind: 'entregado' })}>Entregado</button> <button className="warning" onClick={() => setMarking({ client: c, kind: 'no_entregado' })}>No entregado</button></>
         );
@@ -200,7 +200,7 @@ export default function DeliveryPage({ user }) {
                 {canEdit && (
                   <div className="delivery-detail-actions">
                     {st === 'entregado' || st === 'no_entregado' ? (
-                      <><button className="icon-btn" onClick={() => { setMarking({ client: viewing, kind: st }); setViewing(null); }}>Editar</button><button className="icon-btn delete" onClick={() => clearRecord(viewing)}>Quitar marca</button></>
+                      <><button className="icon-btn info" onClick={() => { setMarking({ client: viewing, kind: st }); setViewing(null); }}>Editar</button><button className="icon-btn delete" onClick={() => clearRecord(viewing)}>Quitar marca</button></>
                     ) : (
                       <><button className="primary" onClick={() => { setMarking({ client: viewing, kind: 'entregado' }); setViewing(null); }}>Marcar entregado</button><button className="warning" onClick={() => { setMarking({ client: viewing, kind: 'no_entregado' }); setViewing(null); }}>Marcar no entregado</button></>
                     )}

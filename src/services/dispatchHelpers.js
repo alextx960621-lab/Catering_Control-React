@@ -176,7 +176,16 @@ export function lastProcessedDate(days) {
   return dates.length ? dates.sort().at(-1) : null;
 }
 
-// Qué campos puede editar cada rol en la tabla de despacho.
+// Link de WhatsApp para escribirle a un cliente (a diferencia de
+// planHelpers.waLink, que arma el link hacia el número de LA EMPRESA). Si
+// el número tiene 8 dígitos o menos se asume Bolivia y se le antepone 591.
+export function clientWaLink(phone, text = '') {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (!digits) return null;
+  const full = digits.length <= 8 ? '591' + digits : digits;
+  return `https://wa.me/${full}${text ? `?text=${encodeURIComponent(text)}` : ''}`;
+}
+
 export function canEditDispatchField(client, field, date, { role, isDriver, myRoutes, realToday, canEditDispatch }) {
   if (field === 'returnDate' && client.status !== 'Programado') return false;
   if (canEditDispatch) return true;

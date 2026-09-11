@@ -16,6 +16,8 @@
   --panel-accent: #15a77f;
   --panel-danger: #e4002b;
   --panel-warning: #f4a940;
+  --panel-warning-ink: #8d5a02;
+  --panel-violet: #8a5cf6;
   --panel-shadow: 0 14px 36px rgba(21, 35, 62, .10);
   --panel-radius: 12px;
   --panel-radius-sm: 8px;
@@ -32,6 +34,7 @@
   --panel-text: #edf2fa; --panel-muted: #a9b6c9; --panel-line: #324158;
   --panel-primary: #7296ff; --panel-primary-ink: #0f1726;
   --panel-accent: #51cfaa; --panel-danger: #ff4d4d; --panel-warning: #ffc466;
+  --panel-warning-ink: #3d2a00; --panel-violet: #b79bfb;
   --panel-shadow: 0 14px 36px rgba(0, 0, 0, .3);
 }
 [data-theme="forest"] {
@@ -39,6 +42,7 @@
   --panel-text: #163821; --panel-muted: #4f7259; --panel-line: #a9d2ab;
   --panel-primary: #1f7a4d; --panel-primary-ink: #fff;
   --panel-accent: #9c5f20; --panel-danger: #b3001f; --panel-warning: #bd7b1d;
+  --panel-warning-ink: #40290a; --panel-violet: #7a52c9;
 }
 
 .panel-shell { background: var(--panel-bg); color: var(--panel-text); min-height: 100vh; font: 14px/1.35 var(--font, Inter, sans-serif); }
@@ -219,6 +223,21 @@
 }
 .panel-shell .icon-btn.delete:hover { background: color-mix(in srgb, var(--panel-danger) 24%, transparent); }
 
+/* Armonización de colores para el patrón compacto de tabla (icon-btn),
+   siguiendo la misma convención por función que ya usan los botones
+   grandes (success/warning/info/violet) y que .icon-btn.delete: fondo
+   transparente con un tinte suave del color y texto/ícono del mismo
+   color, sin la sombra/degradado de los botones grandes para no
+   sobrecargar filas de tabla con poco espacio. */
+.panel-shell .icon-btn.info { color: var(--panel-primary); background: color-mix(in srgb, var(--panel-primary) 12%, transparent); border-radius: 999px; }
+.panel-shell .icon-btn.info:hover { background: color-mix(in srgb, var(--panel-primary) 22%, transparent); }
+.panel-shell .icon-btn.success { color: var(--panel-accent); background: color-mix(in srgb, var(--panel-accent) 12%, transparent); border-radius: 999px; }
+.panel-shell .icon-btn.success:hover { background: color-mix(in srgb, var(--panel-accent) 22%, transparent); }
+.panel-shell .icon-btn.warning { color: var(--panel-warning-ink); background: color-mix(in srgb, var(--panel-warning) 26%, transparent); border-radius: 999px; }
+.panel-shell .icon-btn.warning:hover { background: color-mix(in srgb, var(--panel-warning) 40%, transparent); }
+.panel-shell .icon-btn.violet { color: var(--panel-violet); background: color-mix(in srgb, var(--panel-violet) 14%, transparent); border-radius: 999px; }
+.panel-shell .icon-btn.violet:hover { background: color-mix(in srgb, var(--panel-violet) 24%, transparent); }
+
 /* Secciones con color para diferenciar bloques en formularios largos
    (ej. ficha de cliente), igual que la versión vanilla. */
 .panel-shell .form-section { grid-column: 1 / -1; border: 1px solid var(--panel-line); border-radius: var(--panel-radius); padding: 14px 16px; background: var(--panel-surface-2); }
@@ -293,7 +312,13 @@
    pantalla usa la variante que corresponda por significado (success para
    confirmar/guardar cosas positivas, warning para acciones de alerta
    suave, info para acciones neutras informativas), respetando siempre la
-   misma sombra/redondeo que ya tenían primary/danger/outline. */
+   misma sombra/redondeo que ya tenían primary/danger/outline. La misma
+   convención de color por función (success/warning/info/violet) se
+   extiende también al patrón compacto de tabla vía `.icon-btn.info`,
+   `.icon-btn.success`, `.icon-btn.warning`, `.icon-btn.violet` (ver más
+   abajo, junto a `.icon-btn.delete`) — se aplicó de forma pareja en
+   ClientsPage, DriversPage, RoutesPage, PlansPage, UsersPage e
+   InventoryPage. */
 .panel-shell button.success {
   background: linear-gradient(135deg, color-mix(in srgb, #1f9d5c 78%, white 22%), #1f9d5c);
   color: #fff; box-shadow: 0 4px 14px rgba(31, 157, 92, .35);
@@ -307,8 +332,8 @@
   color: #fff; box-shadow: 0 4px 14px rgba(56, 103, 244, .35);
 }
 .panel-shell button.violet {
-  background: linear-gradient(135deg, color-mix(in srgb, #8a5cf6 78%, white 22%), #8a5cf6);
-  color: #fff; box-shadow: 0 4px 14px rgba(138, 92, 246, .35);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--panel-violet) 78%, white 22%), var(--panel-violet));
+  color: #fff; box-shadow: 0 4px 14px color-mix(in srgb, var(--panel-violet) 35%, transparent);
 }
 .panel-shell .badge.warn { color: #8d5a02; background: #fff2d9; }
 .panel-shell .badge.pending { color: #7551ad; background: #eee5ff; }

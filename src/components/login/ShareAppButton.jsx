@@ -26,11 +26,19 @@ const CheckIcon = (
 // driver nuevo, etc). En una pestaña normal del navegador ya está la barra
 // de arriba, así que no lo mostramos para no ensuciar la pantalla.
 export default function ShareAppButton({ brandName }) {
-  const [copied, setCopied] = useState(false);
+  // 'idle' | 'copied' | 'error' — antes solo había un booleano "copied" y el
+  // único feedback era el cambio de ícono (muy sutil, en desktop parecía que
+  // el botón "no hacía nada"). Ahora se muestra además un texto explícito.
+  const [status, setStatus] = useState('idle');
 
   if (!isStandalonePwa()) return null;
 
   const shareUrl = `${location.origin}${location.pathname}`;
+
+  function flashStatus(next) {
+    setStatus(next);
+    setTimeout(() => setStatus('idle'), 2200);
+  }
 
   async function handleShare() {
     const shareData = { title: brandName, text: `Ingresá a ${brandName}`, url: shareUrl };
@@ -44,23 +52,37 @@ export default function ShareAppButton({ brandName }) {
     }
     try {
       await navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      flashStatus('copied');
     } catch (_) {
-      /* clipboard bloqueado: no hay más alternativa en este navegador */
+      // clipboard bloqueado por permisos en el contexto de la PWA instalada:
+      // avisar explícitamente en vez de quedar en silencio.
+      flashStatus('error');
     }
   }
 
+  const label =
+    status === 'copied' ? 'Link copiado' : status === 'error' ? 'No se pudo copiar' : 'Compartir esta app';
+
   return (
-    <button
-      type="button"
-      className="btn btn-outline-secondary btn-sm rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
-      style={{ width: 36, height: 36 }}
-      onClick={handleShare}
-      title={copied ? 'Link copiado' : 'Compartir esta app'}
-      aria-label={copied ? 'Link copiado' : 'Compartir esta app'}
-    >
-      {copied ? CheckIcon : ShareIcon}
-    </button>
+    <span className="share-app-btn-wrap position-relative d-inline-flex flex-shrink-0">
+      <button
+        type="button"
+        className="btn btn-outline-secondary btn-sm rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+        style={{ width: 36, height: 36 }}
+        onClick={handleShare}
+        title={label}
+        aria-label={label}
+      >
+        {status === 'copied' ? CheckIcon : ShareIcon}
+      </button>
+      {status !== 'idle' && (
+        <span
+          className={`share-app-btn-toast${status === 'error' ? ' share-app-btn-toast-error' : ''}`}
+          role="status"
+        >
+          {status === 'copied' ? 'Link copiado ✅' : 'No se pudo copiar el link'}
+        </span>
+      )}
+    </span>
   );
 }

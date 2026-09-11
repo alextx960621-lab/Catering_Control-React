@@ -176,7 +176,7 @@ export default function PlansPage({ user }) {
     { key: 'availableForPurchase', label: 'En portal cliente', render: (p) => <span className={`badge ${p.availableForPurchase ? 'active' : 'off'}`}>{p.availableForPurchase ? 'Sí' : 'No'}</span> },
     ...menuItems.map(({ key, label }) => ({ key, label, render: (p) => n(p.items?.[key]) })),
     { key: 'id', label: 'Acciones', render: (p) => canEdit ? (
-      <><button className="icon-btn" onClick={() => openPlan(p)}>Editar</button><button className="icon-btn delete" onClick={() => handlePlanDelete(p)}>×</button></>
+      <><button className="icon-btn info" onClick={() => openPlan(p)}>Editar</button><button className="icon-btn delete" onClick={() => handlePlanDelete(p)}>×</button></>
     ) : '—' },
   ];
 
@@ -190,7 +190,7 @@ export default function PlansPage({ user }) {
       </div>
     ) },
     { key: 'id', label: 'Acciones', render: (m) => canEdit ? (
-      <><button className="icon-btn" onClick={() => setEditingItem(m)}>Editar</button><button className="icon-btn delete" onClick={() => handleItemDelete(m)}>×</button></>
+      <><button className="icon-btn info" onClick={() => setEditingItem(m)}>Editar</button><button className="icon-btn delete" onClick={() => handleItemDelete(m)}>×</button></>
     ) : '—' },
   ];
 

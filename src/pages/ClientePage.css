@@ -21,8 +21,18 @@
 
 /* Botones en píldora, inputs con el mismo radio, y el botón nativo de
    "Seleccionar archivo" con tratamiento chico (evita que se salga del
-   recuadro y se ve igual que en el panel). */
-.btn:not(.btn-close):not(.btn-check) { border-radius: 999px !important; font-weight: 650; }
+   recuadro y se ve igual que en el panel).
+   IMPORTANTE: esta regla estaba SIN ámbito (aplicaba a `.btn` global) y,
+   como todo el CSS del proyecto se bundlea junto sin CSS Modules, el
+   `border-radius: 999px !important` se filtraba a TODAS las páginas —
+   entre otros, era la causa real del botón de "ver contraseña" en el
+   login (LoginPage/StaffForm) apareciendo redondo en vez de con la
+   esquina recta que le da Bootstrap dentro de un `.input-group`. Se
+   acota a `.portal` (la raíz del portal de cliente en ClientePage.jsx),
+   que es el único lugar donde se quería este tratamiento — ya existía
+   además una regla `.portal .btn { border-radius: 999px; ... }` más
+   abajo en este mismo archivo, esta de acá era una duplicada sin scope. */
+.portal .btn:not(.btn-close):not(.btn-check) { font-weight: 650; }
 .form-control, .form-select { border-radius: 8px; }
 input[type="file"].form-control { padding: 6px 10px; font-size: .8rem; color: var(--bs-secondary-color, #6c757d); }
 /* Safari/iOS le da a los campos de fecha un ancho mínimo de contenido que

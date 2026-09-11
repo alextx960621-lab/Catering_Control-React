@@ -98,3 +98,29 @@ body {
 [data-theme="forest"] body { background: radial-gradient(circle at 20% 20%, rgba(31, 122, 77, .25), transparent 34%), #dcefdc; }
 [data-theme="forest"] .card { background: #eef7ee; }
 [data-theme="forest"] .bg-body-tertiary { background: #cde6cd !important; }
+
+/* Feedback explícito del botón "Compartir esta app" (ver ShareAppButton.jsx):
+   antes el único indicio de que el link se copió era el cambio de ícono,
+   muy sutil sobre todo en desktop, así que parecía que el botón "no hacía
+   nada". Ahora se muestra un texto flotante al lado. */
+.share-app-btn-toast {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 8px);
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-size: .72rem;
+  font-weight: 650;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 12%, #fff);
+  color: var(--brand);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .1);
+  pointer-events: none;
+  z-index: 5;
+}
+.share-app-btn-toast-error { background: #fdeaea; color: #c62828; }
+@media (max-width: 420px) {
+  /* En pantallas angostas no hay espacio a la izquierda: mostrarlo debajo. */
+  .share-app-btn-toast { top: calc(100% + 6px); right: 0; transform: none; }
+}

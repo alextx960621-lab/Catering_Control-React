@@ -48,7 +48,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="container py-4 d-flex align-items-center" style={{ minHeight: '100vh' }}>
+    <main className="container py-4 d-flex flex-column align-items-center justify-content-center" style={{ minHeight: '100vh' }}>
       <div className="row justify-content-center w-100">
         <div className="col-12 login-card">
           <section className="card shadow-lg border-0 rounded-4">

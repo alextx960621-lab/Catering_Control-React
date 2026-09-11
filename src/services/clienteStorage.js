@@ -38,11 +38,15 @@ export const writeClientRow = (client) => writeJSON(CLIENTE_KEYS.clientRow, clie
 export const readCachedBranding = () => readJSON(CLIENTE_KEYS.branding, {});
 export const writeCachedBranding = (branding) => writeJSON(CLIENTE_KEYS.branding, branding);
 
-// Misma llave que usan login.html y panel.html (STORAGE_KEYS.uiTheme): el
-// tema es único por dispositivo/navegador, no por cliente — si se cambia
-// en cualquiera de las 3 pantallas, debe verse igual en las otras. Se
-// ignora a propósito el clientId que reciben estas funciones (se deja el
-// parámetro para no romper a quien las llama).
+// Misma llave que usan login.html y panel.html (STORAGE_KEYS.uiTheme): es
+// el cache LOCAL de este dispositivo, para pintar el tema correcto al
+// instante mientras carga la sesión (y para que login/index sigan
+// mostrando algo consistente sin esperar red). El valor que de verdad
+// viaja con la cuenta del cliente entre dispositivos es client.uiTheme
+// (columna 'uiTheme' en su propia fila, guardado vía
+// dbSaveOwnClientProfile — ver pages/ClientePage.jsx), no esto. Se deja
+// el parámetro clientId sin usar para no romper a quien ya llama a estas
+// funciones.
 export function getClientTheme() {
   return localStorage.getItem(STORAGE_KEYS.uiTheme) || 'light';
 }

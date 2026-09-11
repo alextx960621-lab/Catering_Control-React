@@ -93,7 +93,7 @@ export default function DriversPage({ user }) {
       <>{routeName(d.routeId)}{(d.extraRouteIds || []).length > 0 && <span className="badge warn" title="Rutas de reemplazo"> + {d.extraRouteIds.map(routeName).join(', ')}</span>}</>
     ) },
     { key: 'id', label: 'Acciones', render: (d) => canEdit ? (
-      <><button className="icon-btn" onClick={() => openEdit(d)}>Editar</button><button className="icon-btn delete" onClick={() => handleDelete(d)}>×</button></>
+      <><button className="icon-btn info" onClick={() => openEdit(d)}>Editar</button><button className="icon-btn delete" onClick={() => handleDelete(d)}>×</button></>
     ) : '—' },
   ];
 
