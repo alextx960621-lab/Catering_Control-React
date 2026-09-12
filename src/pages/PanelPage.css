@@ -52,6 +52,10 @@
   font-family: var(--font-display, Figtree, sans-serif); font-weight: 650;
   color: var(--panel-text); background: var(--panel-surface-2); min-height: 36px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, .07);
+  /* El mismo "brillo" que ya tenía la letra de botones como "Procesar
+     día" (button.primary), ahora en TODOS los botones: un realce suave
+     detrás de la letra en vez de un texto plano. */
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .18), 0 0 10px rgba(255, 255, 255, .22);
   transition: background .15s, transform .12s ease, box-shadow .15s ease, filter .15s ease;
 }
 .panel-shell button:hover { filter: brightness(.97); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0, 0, 0, .13); }
@@ -79,6 +83,7 @@
 .panel-shell input, .panel-shell select, .panel-shell textarea {
   width: 100%; color: var(--panel-text); background: var(--panel-surface); border: 1px solid var(--panel-line);
   border-radius: var(--panel-radius-sm); padding: 8px 10px; outline: none; min-height: 36px;
+  font-size: 16px; /* por debajo de esto, Safari/iOS hace zoom automático al enfocar */
 }
 
 .panel-shell #app { min-height: 100vh; display: grid; grid-template-columns: 240px 1fr; }
@@ -365,7 +370,14 @@
 .panel-shell .note-client { margin: 0; font-size: 12.5px; color: var(--panel-muted); }
 .panel-shell .note-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 
-.panel-shell .address-row { display: grid; grid-template-columns: 2fr 1fr 1.4fr 0.6fr 1.6fr auto; gap: 6px; margin-bottom: 6px; align-items: center; }
+.panel-shell .address-row {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px;
+  padding: 14px 40px 14px 14px; margin-bottom: 12px; border: 1px solid var(--panel-line);
+  border-radius: var(--panel-radius-sm); background: var(--panel-surface-2);
+}
+.panel-shell .address-field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--panel-muted); font-weight: 600; }
+.panel-shell .address-field-wide { grid-column: 1 / -1; }
+.panel-shell .address-row-remove { position: absolute; top: 10px; right: 10px; }
 @media (max-width: 560px) { .panel-shell .address-row { grid-template-columns: 1fr; } }
 
 .panel-shell .schedule-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; border: 1px solid var(--panel-line); border-radius: var(--panel-radius-sm); padding: 8px; margin-bottom: 8px; }

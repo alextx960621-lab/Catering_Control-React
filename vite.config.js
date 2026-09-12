@@ -14,7 +14,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate', // se actualiza sola en segundo plano, sin pedirle nada al usuario
+      registerType: 'prompt', // espera a que la persona toque "Actualizar ahora" en <UpdateBanner /> en vez de tomar control solo
       injectRegister: false, // el registro del service worker se hace a mano en main.jsx (para poder revisar cada cierto tiempo si hay versión nueva mientras la app sigue abierta)
       includeAssets: ['icons/*.png', 'manifest.json'],
       manifest: false, // usamos public/manifest.json tal cual, no uno generado

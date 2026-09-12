@@ -8,6 +8,11 @@ export function useTheme() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    // Bootstrap tiene su PROPIO modo oscuro, aparte de nuestras variables
+    // --panel-*: sin esto, todo lo que sea puramente Bootstrap (pills de
+    // "Soy cliente/Soy del equipo", alertas, etc en Login) se queda con
+    // los colores claros de Bootstrap aunque el resto ya esté en nocturno.
+    document.documentElement.dataset.bsTheme = theme === 'night' ? 'dark' : 'light';
     localStorage.setItem(STORAGE_KEYS.uiTheme, theme);
   }, [theme]);
 

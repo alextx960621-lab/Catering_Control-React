@@ -37,20 +37,40 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes })
     <>
       {addresses.map((a, i) => (
         <div key={a.id} className="address-row">
-          <input placeholder="Dirección" value={a.address} onChange={(e) => update(i, 'address', e.target.value)} />
-          <select value={a.routeId} onChange={(e) => update(i, 'routeId', e.target.value)}>
-            <option value="">Ruta abierta</option>
-            {routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
-          <input placeholder="Link de Google Maps" value={a.maps} onChange={(e) => update(i, 'maps', e.target.value)} />
+          <button type="button" className="icon-btn delete address-row-remove" onClick={() => remove(i)} aria-label="Eliminar esta dirección" title="Eliminar esta dirección">×</button>
+
+          <label className="address-field address-field-wide">
+            <span>Dirección</span>
+            <input placeholder="Ej. Av. Busch #123, edif. Torre Azul, depto 4B" value={a.address} onChange={(e) => update(i, 'address', e.target.value)} />
+          </label>
+
+          <label className="address-field">
+            <span>Ruta</span>
+            <select value={a.routeId} onChange={(e) => update(i, 'routeId', e.target.value)}>
+              <option value="">Ruta abierta</option>
+              {routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          </label>
+
           {/* Orden y Observaciones: mismos campos que ya se pueden editar
               desde Día de trabajo (uno por dirección, con la misma
               prioridad de effectiveOrder/effectiveNotes) -- ahora también
               editables acá para no depender siempre de entrar a Día de
               trabajo para fijar el valor inicial de un cliente nuevo. */}
-          <input placeholder="Orden" type="number" value={a.order ?? ''} onChange={(e) => update(i, 'order', e.target.value)} style={{ maxWidth: 90 }} />
-          <input placeholder="Observaciones (ej. dejar en portería)" value={a.notes ?? ''} onChange={(e) => update(i, 'notes', e.target.value)} />
-          <button type="button" className="icon-btn delete" onClick={() => remove(i)}>×</button>
+          <label className="address-field">
+            <span>Orden de entrega</span>
+            <input placeholder="Ej. 1" type="number" value={a.order ?? ''} onChange={(e) => update(i, 'order', e.target.value)} />
+          </label>
+
+          <label className="address-field address-field-wide">
+            <span>Link de Google Maps</span>
+            <input placeholder="https://maps.app.goo.gl/…" value={a.maps} onChange={(e) => update(i, 'maps', e.target.value)} />
+          </label>
+
+          <label className="address-field address-field-wide">
+            <span>Observaciones para el repartidor</span>
+            <input placeholder="Ej. dejar en portería, tocar timbre 2" value={a.notes ?? ''} onChange={(e) => update(i, 'notes', e.target.value)} />
+          </label>
         </div>
       ))}
       <button type="button" className="outline" onClick={add}>+ Añadir dirección</button>

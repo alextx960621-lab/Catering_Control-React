@@ -13,7 +13,6 @@
    LoginPage.jsx con el hook usePageBodyClass mientras esa página está
    montada, así que solo aplica en esta página. */
 
-html { font-size: 15px; }
 :root {
   --brand: #3867f4;
   --font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -28,9 +27,23 @@ html { font-size: 15px; }
 body.page-login {
   min-height: 100vh;
   font-family: var(--font);
+  font-size: 15px;
   background: radial-gradient(circle at 20% 20%, rgba(56, 103, 244, .2), transparent 34%), #f5f7fb;
 }
+/* Los campos de texto van SIEMPRE a 16px (no al 15px del resto de la
+   página): por debajo de ese umbral, Safari/iOS hace zoom automático al
+   tocar el campo. A partir de 16px el zoom vuelve a ser 100% manual
+   (pellizcar), que es lo que se pidió. */
+.form-control, .form-select { font-size: 16px; }
 #brand-title, .btn, .nav-pills .nav-link { font-family: var(--font-display); }
+
+/* Pedido explícito: el mismo brillo que tenía la letra de "Procesar día"
+   (en Panel), pero en TODOS los botones de toda la app -- por eso, a
+   diferencia del resto de este archivo, esta regla es intencionalmente
+   global (sin `body.page-login` ni `.portal` delante). */
+button, .btn, .nav-pills .nav-link {
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .18), 0 0 10px rgba(255, 255, 255, .22);
+}
 
 .btn-primary {
   --bs-btn-bg: var(--brand);

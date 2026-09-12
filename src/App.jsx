@@ -4,6 +4,7 @@ import PanelPage from './pages/PanelPage';
 import ClientePage from './pages/ClientePage';
 import TerminosPage from './pages/TerminosPage';
 import PrivacidadPage from './pages/PrivacidadPage';
+import UpdateBanner from './components/UpdateBanner';
 
 // Estas 3 rutas son el equivalente directo a los 3 archivos .html que tenía
 // la versión anterior:
@@ -13,6 +14,7 @@ import PrivacidadPage from './pages/PrivacidadPage';
 export default function App() {
   return (
     <BrowserRouter>
+      <UpdateBanner />
       <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/panel" element={<PanelPage />} />
