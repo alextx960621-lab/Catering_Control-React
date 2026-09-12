@@ -97,7 +97,7 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
         {activePage === 'drivers' && <DriversPage user={user} />}
         {activePage === 'routes' && <RoutesPage user={user} />}
         {activePage === 'plans' && <PlansPage user={user} />}
-        {activePage === 'clients' && <ClientsPage user={user} pendingClientAction={pendingClientAction} onConsumePendingClientAction={() => setPendingClientAction(null)} onRenewalCompleted={recordRenewal} />}
+        {activePage === 'clients' && <ClientsPage user={user} pendingClientAction={pendingClientAction} onConsumePendingClientAction={() => setPendingClientAction(null)} onRenewalCompleted={recordRenewal} onReturnToNotes={() => onNavigate('notes')} />}
         {activePage === 'delivery' && <DeliveryPage user={user} />}
         {activePage === 'users' && <UsersPage user={user} />}
         {activePage === 'audit' && gated('audit', 'Auditoría', AuditPage)}

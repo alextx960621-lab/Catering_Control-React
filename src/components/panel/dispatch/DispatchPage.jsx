@@ -516,11 +516,20 @@ export default function DispatchPage({ user }) {
   }
 
   function handleSaveColumns(order, hiddenList) {
-    setColPrefs({ order, hidden: hiddenList });
+    // Antes esto reemplazaba colPrefs completo ({order, hidden}), perdiendo
+    // los anchos de columna ya guardados (colPrefs.widths) hasta el próximo
+    // refresh -- se corrige mezclando en vez de reemplazar.
+    setColPrefs((p) => ({ ...p, order, hidden: hiddenList }));
     saveColumnOrder(user?.id, 'dispatch', order);
     saveHiddenColumns(user?.id, 'dispatch', hiddenList);
     setColumnsOpen(false);
     showNotice('Columnas actualizadas.');
+  }
+
+  function handleResetColumnWidths() {
+    setColPrefs((p) => ({ ...p, widths: {} }));
+    saveColumnWidths(user?.id, 'dispatch', {});
+    showNotice('Anchos de columna restaurados.');
   }
 
   function totalsRow(label, orders, variant) {
@@ -671,6 +680,7 @@ export default function DispatchPage({ user }) {
         hidden={colPrefs.hidden}
         order={colPrefs.order}
         onSave={handleSaveColumns}
+        onResetWidths={handleResetColumnWidths}
       />
       {orderConflict && (
         <dialog className="panel-modal" open onClose={() => resolveOrderConflict('cancel')}>

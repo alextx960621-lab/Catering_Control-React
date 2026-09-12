@@ -167,20 +167,46 @@ export async function dbGetAllDeliveryStatus(sinceDate) {
 }
 
 // --- Imágenes (logo, fotos de plan, fotos de choferes, etc.) -------------
-// NOTA DE SEGURIDAD heredada del original: el bucket sigue con
-// subir/reemplazar/borrar abiertos a la clave pública (ver
-// supabase-storage-setup.sql). Es un riesgo menor -- imágenes, no datos
-// de clientes -- pero quedó pendiente de cerrar en un cambio aparte.
+// El bucket "app-images" ya NO acepta subir/reemplazar/borrar directo con
+// la anon key (ver sección 16 de supabase-setup-final-v2.sql): esas
+// políticas se sacaron porque cualquiera con la clave pública podía
+// escribir ahí sin pasar por ningún login. Ahora todo pasa por la Edge
+// Function `image-storage` (supabase-functions/image-storage/index.ts),
+// que valida el token de sesión (staff o cliente) igual que cualquier
+// RPC, y recién ahí -- del lado del servidor, con la service_role key --
+// entrega una URL firmada de subida o hace el borrado.
+//
+// IMPORTANTE: si la Edge Function todavía no está desplegada
+// (`supabase functions deploy image-storage --no-verify-jwt`) en un
+// proyecto, subir/borrar imágenes va a fallar (quedan logueadas en
+// consola, no rompen el resto de la app). No correr la sección 16 del
+// SQL sin haber desplegado antes esta función, o se pierde la subida de
+// imágenes en producción.
 const IMAGES_BUCKET = 'app-images';
+
+async function invokeImageStorage(action, path) {
+  const { data, error } = await supabase.functions.invoke('image-storage', {
+    body: { action, p_token: getSessionToken(), p_path: path },
+  });
+  if (error) {
+    console.error(`[supabase] Error en Edge Function image-storage (${action}):`, error.message);
+    return null;
+  }
+  return data;
+}
 
 export async function storageUploadImage(path, blob, contentType) {
   try {
-    const { error } = await supabase.storage.from(IMAGES_BUCKET).upload(path, blob, { contentType, upsert: true, cacheControl: '604800' });
+    const signed = await invokeImageStorage('upload-url', path);
+    if (!signed?.signedUrl || !signed?.token) return null;
+    const { error } = await supabase.storage
+      .from(IMAGES_BUCKET)
+      .uploadToSignedUrl(signed.path || path, signed.token, blob, { contentType, upsert: true });
     if (error) {
-      console.error('[supabase] Error subiendo imagen:', error.message);
+      console.error('[supabase] Error subiendo imagen con URL firmada:', error.message);
       return null;
     }
-    const { data } = supabase.storage.from(IMAGES_BUCKET).getPublicUrl(path);
+    const { data } = supabase.storage.from(IMAGES_BUCKET).getPublicUrl(signed.path || path);
     return data?.publicUrl || null;
   } catch (err) {
     console.error('[supabase] Fallo de red subiendo imagen:', err);
@@ -191,12 +217,8 @@ export async function storageUploadImage(path, blob, contentType) {
 export async function storageRemoveImage(path) {
   if (!path) return true;
   try {
-    const { error } = await supabase.storage.from(IMAGES_BUCKET).remove([path]);
-    if (error) {
-      console.error('[supabase] Error borrando imagen:', error.message);
-      return false;
-    }
-    return true;
+    const result = await invokeImageStorage('remove', path);
+    return result?.ok === true;
   } catch (err) {
     console.error('[supabase] Fallo de red borrando imagen:', err);
     return false;

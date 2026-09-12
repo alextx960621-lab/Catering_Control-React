@@ -28,6 +28,11 @@ export default function DataTable({ columns, rows, getRowId = (r) => r.id, searc
   const [sort, setSort] = useState(null); // { key, dir: 'asc'|'desc' }
   const resizeRef = useRef(null);
 
+  function resetWidths() {
+    setWidths({});
+    if (resizeGroup) saveColumnWidths(userId, resizeGroup, {});
+  }
+
   function toggleSort(key) {
     setSort((prev) => {
       if (!prev || prev.key !== key) return { key, dir: 'asc' };
@@ -77,11 +82,14 @@ export default function DataTable({ columns, rows, getRowId = (r) => r.id, searc
     window.addEventListener('mouseup', onUp);
   }
 
+  const hasCustomWidths = resizeGroup && Object.keys(widths).length > 0;
+
   return (
     <>
-      {onSearchChange && (
+      {(onSearchChange || hasCustomWidths) && (
         <div className="toolbar">
-          <input className="search" placeholder={searchPlaceholder || 'Buscar…'} value={search} onChange={(e) => onSearchChange(e.target.value)} />
+          {onSearchChange && <input className="search" placeholder={searchPlaceholder || 'Buscar…'} value={search} onChange={(e) => onSearchChange(e.target.value)} />}
+          {hasCustomWidths && <button type="button" className="outline" onClick={resetWidths} title="Vuelve los anchos de columna a su tamaño automático">Restaurar anchos</button>}
         </div>
       )}
       <div className="sheet">

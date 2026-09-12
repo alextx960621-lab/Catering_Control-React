@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 // Reordenar con flechas arriba/abajo es más simple y confiable de usar
 // (sobre todo en celular) que arrastrar y soltar, y logra lo mismo.
-export default function ColumnsModal({ open, onClose, allColumns, hidden, order, onSave }) {
+export default function ColumnsModal({ open, onClose, allColumns, hidden, order, onSave, onResetWidths }) {
   const initialOrder = order.length ? [...order.filter((k) => allColumns.some((c) => c.key === k)), ...allColumns.map((c) => c.key).filter((k) => !order.includes(k))] : allColumns.map((c) => c.key);
   const [localOrder, setLocalOrder] = useState(initialOrder);
   const [localHidden, setLocalHidden] = useState(hidden);
@@ -58,6 +58,8 @@ export default function ColumnsModal({ open, onClose, allColumns, hidden, order,
         </ul>
       </div>
       <div className="modal-foot">
+        <button type="button" className="outline" onClick={() => { setLocalOrder(allColumns.map((c) => c.key)); setLocalHidden([]); }}>Restaurar orden y visibilidad</button>
+        {onResetWidths && <button type="button" className="outline" onClick={onResetWidths} title="Vuelve los anchos de columna a su tamaño automático">Restaurar anchos</button>}
         <button type="button" className="outline" onClick={onClose}>Cancelar</button>
         <button type="button" className="primary" onClick={() => onSave(localOrder, localHidden)}>Guardar</button>
       </div>

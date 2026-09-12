@@ -179,7 +179,7 @@ function RenewPlanModal({ client, mode, plans, onClose, onConfirm }) {
   );
 }
 
-export default function ClientsPage({ user, pendingClientAction, onConsumePendingClientAction, onRenewalCompleted }) {
+export default function ClientsPage({ user, pendingClientAction, onConsumePendingClientAction, onRenewalCompleted, onReturnToNotes }) {
   const { clients, routes, plans, drivers, settings, currentDate, saveClients, deleteClients, showNotice, loading } = useOperations();
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
@@ -187,6 +187,11 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
   const [activeAddressId, setActiveAddressId] = useState('');
   const [schedule, setSchedule] = useState([]);
   const [renewing, setRenewing] = useState(null); // { client, mode: 'renew'|'change' }
+  // Si se llegó a editar/renovar este cliente desde un botón de Notas, al
+  // terminar (guardar) hay que devolver al staff a Notas para que pueda
+  // marcar la solicitud como cumplida — si no, se queda en Clientes y
+  // nunca llega a disparar el mensaje de confirmación por WhatsApp.
+  const [fromNote, setFromNote] = useState(false);
   const canEdit = canManage(user?.role, settings.customRoles, 'clients');
   const isDriver = user?.role === 'driver';
   const myRoutes = myRouteIds(user, drivers);
@@ -229,6 +234,9 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     saveClients([c]);
     showNotice('Cliente guardado.');
     dbInsertAudit({ actor_id: user.id, actor_name: user.name, actor_role: user.role, action: isNew ? 'Cliente creado' : 'Cliente editado', entity_type: 'client', entity_label: c.name, entity_id: c.id, details: {} });
+    // Si se llegó acá desde el botón "Editar cliente" de una nota, se
+    // vuelve a Notas para que el staff pueda marcarla como cumplida.
+    if (fromNote) { onReturnToNotes?.(); setFromNote(false); }
   }
 
   function handleDelete(c) {
@@ -259,6 +267,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     if (!pendingClientAction || loading) return;
     const c = clients.find((x) => x.id === pendingClientAction.clientId);
     if (c) {
+      setFromNote(true);
       if (pendingClientAction.action === 'renew') openRenew(c, 'renew');
       else openEdit(c);
     } else {
@@ -301,6 +310,11 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     // finalmente se aplicó).
     onRenewalCompleted?.(c.id, { kind: samePlan ? 'renovacion' : 'compra', planName: planName(updated.planId), days, clientName: c.name, phone: c.phone1 });
     setRenewing(null);
+    // Si esta renovación se hizo desde el botón "Renovar" de una nota, se
+    // vuelve a Notas automáticamente — si no, el staff se queda en
+    // Clientes y puede olvidarse de marcar la nota como cumplida, que es
+    // justo el paso que dispara el mensaje de confirmación por WhatsApp.
+    if (fromNote) { onReturnToNotes?.(); setFromNote(false); }
   }
 
   const columns = [
@@ -342,7 +356,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
       </div>
       <DataTable columns={columns} rows={list} emptyText="No hay clientes registrados." resizeGroup="clients" userId={user?.id} />
 
-      <Modal title={editing?.id ? 'Editar cliente' : 'Añadir cliente'} open={!!editing} onClose={() => setEditing(null)} onSubmit={handleSubmit}>
+      <Modal title={editing?.id ? 'Editar cliente' : 'Añadir cliente'} open={!!editing} onClose={() => { setEditing(null); setFromNote(false); }} onSubmit={handleSubmit}>
         {editing && (() => {
           const isExisting = !!editing.id;
           const remaining = Math.max(0, n(editing.paidDays) - n(editing.consumedDays));
@@ -462,7 +476,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
           client={renewing.client}
           mode={renewing.mode}
           plans={plans}
-          onClose={() => setRenewing(null)}
+          onClose={() => { setRenewing(null); setFromNote(false); }}
           onConfirm={confirmRenew}
         />
       )}

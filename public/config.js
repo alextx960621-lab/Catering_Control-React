@@ -28,6 +28,6 @@ window.APP_CONFIG = {
   storagePrefix: 'catering-app',
 
   // Datos del proyecto de Supabase de ESTA empresa (Project Settings → API).
-  supabaseUrl: 'https://kkqcaiunetlikfyaldab.supabase.co',
-  supabaseKey: 'sb_publishable_9EH5FSbrI0ZAV04LSJeeBg_d1X_b-Nj',
+  supabaseUrl: 'https://sucygrskajrcnwizrfpd.supabase.co',
+  supabaseKey: 'sb_publishable_yiChv91nKsuQVEPMd0t3Ng_hjpiurFD',
 };
