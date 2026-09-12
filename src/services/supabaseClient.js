@@ -170,15 +170,23 @@ export function joinPresence(info, onChange) {
     presenceChannel = supabase.channel('catering-online-users', {
       config: { presence: { key: sessionId }, private: true },
     });
-    if (typeof onChange === 'function') {
-      presenceChannel.on('presence', { event: 'sync' }, () => {
+    // IMPORTANTE: este .on('presence', 'sync') hay que registrarlo SIEMPRE,
+    // haya o no un onChange -- no es solo un "listener" opcional, es lo que
+    // activa/engancha la extensión de presencia en el canal del lado del
+    // cliente (así lo hacen todos los ejemplos oficiales de Supabase,
+    // siempre encadenado ANTES de .subscribe()). Sin esto, .track() queda
+    // "huérfano": no tira error, pero el estado de presencia nunca termina
+    // de sincronizarse -- por eso "Conectados ahora" podía marcar 0 incluso
+    // para uno mismo, con RLS y Realtime perfectamente configurados.
+    presenceChannel.on('presence', { event: 'sync' }, () => {
+      if (typeof onChange === 'function') {
         try {
           onChange(presenceChannel.presenceState());
         } catch (_) {
           /* ignorar: solo afecta el indicador visual de "en línea" */
         }
-      });
-    }
+      }
+    });
     presenceChannel.subscribe(async (status, err) => {
       if (status === 'SUBSCRIBED') {
         try {

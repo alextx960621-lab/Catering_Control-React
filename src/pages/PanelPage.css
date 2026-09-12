@@ -32,9 +32,9 @@
 [data-theme="night"] {
   --panel-bg: #121824; --panel-surface: #1b2433; --panel-surface-2: #222e40;
   --panel-text: #edf2fa; --panel-muted: #a9b6c9; --panel-line: #324158;
-  --panel-primary: #7296ff; --panel-primary-ink: #0f1726;
+  --panel-primary: #7296ff; --panel-primary-ink: #fff;
   --panel-accent: #51cfaa; --panel-danger: #ff4d4d; --panel-warning: #ffc466;
-  --panel-warning-ink: #3d2a00; --panel-violet: #b79bfb;
+  --panel-warning-ink: #fff; --panel-violet: #b79bfb;
   --panel-shadow: 0 14px 36px rgba(0, 0, 0, .3);
 }
 [data-theme="forest"] {
@@ -147,10 +147,23 @@
 .panel-shell .sync-dot.error { background: var(--panel-danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--panel-danger) 20%, transparent); }
 @media (max-width: 850px) {
   .panel-shell .top-actions { top: 8px; right: 8px; padding: 5px 8px; gap: 6px; }
-  /* Separa la hamburguesa de "Actualizar" con un espacio extra invisible
-     (sin agregar ningún punto/ícono nuevo), igual de criterio que el
-     puntito de sincronización que ya separa "Actualizar" de "Salir". */
-  .panel-shell .top-actions .menu-toggle { display: block; margin-right: 10px; }
+  /* Separa la hamburguesa de "Actualizar" el mismo espacio visual que hay
+     entre "Actualizar" y "Salir" (ese hueco tiene el gap del flex de los
+     dos lados MÁS el puntito de sincronización en el medio: 6px + 9px +
+     6px = 21px) -- así el margin-right de acá se calcula para sumar,
+     junto con el gap normal (6px), esos mismos 21px en total. */
+  .panel-shell .top-actions .menu-toggle { display: block; margin-right: 15px; }
+  /* Mismo tratamiento "píldora de color" que ya tienen Actualizar (azul)
+     y Salir (rojo), pero en amarillo -- para que las 3 se vean como el
+     mismo tipo de botón en vez de que la hamburguesa quede como un
+     ícono suelto sin fondo. */
+  .panel-shell .top-actions .menu-toggle {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--panel-warning) 78%, white 22%), var(--panel-warning));
+    color: var(--panel-warning-ink);
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--panel-warning) 35%, transparent);
+    padding: 6px 11px;
+    font-size: 15px;
+  }
   .panel-shell .top-refresh .btn-text, .panel-shell .top-logout .btn-text { display: none; }
 }
 
