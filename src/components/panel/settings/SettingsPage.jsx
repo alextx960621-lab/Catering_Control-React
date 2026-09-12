@@ -143,7 +143,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
     <section className="page active">
       <div className="page-head"><div><h1>Configuración</h1><p>Preferencias visuales y datos de la empresa.</p></div></div>
 
-      <div className="two-col">
+      <div className="settings-grid">
         <div className="card card-pad stack">
           <h3>Tu tema</h3>
           <p className="muted">Es personal tuyo (no afecta a los demás usuarios) y viaja con tu cuenta: si entrás desde otro celular o computadora, vas a ver este mismo tema.</p>
@@ -219,7 +219,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
         )}
       </div>
 
-      <div className="two-col" style={{ marginTop: 18 }}>
+      <div className="settings-grid" style={{ marginTop: 18 }}>
         <div className="card card-pad stack">
           <h3>Conectados ahora</h3>
           <div className="summary-grid compact" style={{ marginBottom: 4 }}>

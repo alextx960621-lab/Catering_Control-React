@@ -1184,12 +1184,16 @@ end $do$;
 -- Dashboard → Project Settings → Realtime que esté habilitado a nivel de
 -- proyecto, o los console.warn de diagnóstico que quedan en
 -- joinPresence() desde la consola del navegador en producción.
--- Defensivo: en proyectos donde por algún motivo esta tabla gestionada por
--- Supabase no tuviera RLS activado, las políticas de abajo no harían nada
--- (¡una tabla sin RLS deja pasar todo igual, política o no!). Esto es
--- idempotente -- no rompe nada si ya estaba activado, que es lo normal.
-alter table if exists realtime.messages enable row level security;
-
+-- (14 sep 2026) Se QUITA el `alter table realtime.messages enable row level
+-- security` que estaba acá antes: Supabase bloqueó por completo (changelog
+-- del 14 jul 2026) cualquier modificación estructural al esquema `realtime`,
+-- incluso para el rol postgres -- por eso el script fallaba con
+-- "ERROR 42501: must be owner of table messages" apenas llegaba a esta
+-- línea, y ninguna sentencia posterior (secciones 15 y 16 incluidas) llegaba
+-- a correr. No hace falta de todos modos: Supabase mantiene RLS activado
+-- por defecto en `realtime.messages` desde que existe la tabla -- lo único
+-- que hay que crear son las policies de abajo, y crear/reemplazar policies
+-- SÍ está permitido (no es una alteración estructural de la tabla).
 drop policy if exists "presencia: anon puede escuchar" on realtime.messages;
 create policy "presencia: anon puede escuchar"
 on realtime.messages for select

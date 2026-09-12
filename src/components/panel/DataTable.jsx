@@ -1,11 +1,25 @@
 import { useRef, useState } from 'react';
-import { getColumnPrefs, saveColumnWidths } from '../../services/columnPrefs';
+import { getColumnPrefs, saveColumnWidths, saveColumnOrder, saveHiddenColumns, arrangeColumns } from '../../services/columnPrefs';
+import ColumnsModal from './ColumnsModal';
 
 // Tabla simple con buscador arriba y columnas redimensionables a mano.
-// `columns`: [{key,label,render(row)}]. `resizeGroup` identifica esta
-// tabla para guardar los anchos por separado de las demás (ej.
-// 'clients', 'drivers') — si no se pasa, no se guarda nada (sirve igual,
-// solo que sin recordar los anchos entre visitas).
+// `columns`: [{key,label,render(row)}] ya en el orden final -- se usa así
+// en la mayoría de las tablas del panel (Drivers, Rutas, Planes, Usuarios,
+// Inventario, Entregas, Auditoría), que no necesitan que cada persona
+// reordene/oculte columnas, solo que se acuerden los anchos.
+//
+// `allColumns` es la variante opcional para las tablas donde SÍ hace falta
+// que cada usuario reordene/oculte columnas a su gusto (mismo patrón que ya
+// tenía "Columnas" en Día de trabajo): se le pasa la lista COMPLETA sin
+// arreglar, y este componente se encarga de aplicar las preferencias
+// guardadas (orden/ocultas/anchos, por cuenta vía resizeGroup) y de mostrar
+// el botón "Columnas" + su modal. Si no se pasa `allColumns`, el
+// comportamiento es idéntico al de siempre (nada cambia para las tablas que
+// no lo usan).
+//
+// `resizeGroup` identifica esta tabla para guardar las preferencias por
+// separado de las demás (ej. 'clients', 'drivers') — si no se pasa, no se
+// guarda nada (sirve igual, solo que sin recordar nada entre visitas).
 // Para ordenar por una columna renderizada (JSX, con íconos, badges, etc.)
 // se necesita un valor "plano" comparable. Si la columna no define
 // `sortValue`, se usa el propio dato de la fila en `col.key` como mejor
@@ -23,14 +37,24 @@ function compareValues(a, b) {
   return String(a ?? '').localeCompare(String(b ?? ''), 'es', { sensitivity: 'base', numeric: true });
 }
 
-export default function DataTable({ columns, rows, getRowId = (r) => r.id, search, onSearchChange, searchPlaceholder, emptyText = 'Sin registros.', resizeGroup, userId }) {
-  const [widths, setWidths] = useState(() => (resizeGroup ? getColumnPrefs(userId, resizeGroup).widths : {}));
+export default function DataTable({ columns: fixedColumns, allColumns, rows, getRowId = (r) => r.id, search, onSearchChange, searchPlaceholder, emptyText = 'Sin registros.', resizeGroup, userId }) {
+  const [colPrefs, setColPrefs] = useState(() => (resizeGroup ? getColumnPrefs(userId, resizeGroup) : { hidden: [], order: [], widths: {} }));
+  const [columnsOpen, setColumnsOpen] = useState(false);
   const [sort, setSort] = useState(null); // { key, dir: 'asc'|'desc' }
   const resizeRef = useRef(null);
 
+  const columns = allColumns ? arrangeColumns(allColumns, colPrefs) : fixedColumns;
+  const widths = colPrefs.widths || {};
+
   function resetWidths() {
-    setWidths({});
+    setColPrefs((p) => ({ ...p, widths: {} }));
     if (resizeGroup) saveColumnWidths(userId, resizeGroup, {});
+  }
+
+  function handleSaveColumns(order, hidden) {
+    setColPrefs((p) => ({ ...p, order, hidden }));
+    if (resizeGroup) { saveColumnOrder(userId, resizeGroup, order); saveHiddenColumns(userId, resizeGroup, hidden); }
+    setColumnsOpen(false);
   }
 
   function toggleSort(key) {
@@ -68,9 +92,9 @@ export default function DataTable({ columns, rows, getRowId = (r) => r.id, searc
     function onUp() {
       if (resizeRef.current) {
         const finalWidth = Math.max(60, th.offsetWidth);
-        setWidths((prev) => {
-          const next = { ...prev, [resizeRef.current.key]: finalWidth };
-          if (resizeGroup) saveColumnWidths(userId, resizeGroup, next);
+        setColPrefs((prev) => {
+          const next = { ...prev, widths: { ...prev.widths, [resizeRef.current.key]: finalWidth } };
+          if (resizeGroup) saveColumnWidths(userId, resizeGroup, next.widths);
           return next;
         });
       }
@@ -86,9 +110,10 @@ export default function DataTable({ columns, rows, getRowId = (r) => r.id, searc
 
   return (
     <>
-      {(onSearchChange || hasCustomWidths) && (
+      {(onSearchChange || hasCustomWidths || allColumns) && (
         <div className="toolbar">
           {onSearchChange && <input className="search" placeholder={searchPlaceholder || 'Buscar…'} value={search} onChange={(e) => onSearchChange(e.target.value)} />}
+          {allColumns && <button type="button" className="info" onClick={() => setColumnsOpen(true)}>Columnas</button>}
           {hasCustomWidths && <button type="button" className="outline" onClick={resetWidths} title="Vuelve los anchos de columna a su tamaño automático">Restaurar anchos</button>}
         </div>
       )}
@@ -118,6 +143,17 @@ export default function DataTable({ columns, rows, getRowId = (r) => r.id, searc
           </tbody>
         </table>
       </div>
+      {allColumns && (
+        <ColumnsModal
+          open={columnsOpen}
+          onClose={() => setColumnsOpen(false)}
+          allColumns={allColumns}
+          hidden={colPrefs.hidden || []}
+          order={colPrefs.order || []}
+          onSave={handleSaveColumns}
+          onResetWidths={hasCustomWidths ? resetWidths : undefined}
+        />
+      )}
     </>
   );
 }

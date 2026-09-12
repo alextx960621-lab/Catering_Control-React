@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOperations } from '../../../context/OperationsContext';
 import { dbInsertAudit } from '../../../services/supabaseClient';
 import { n } from '../../../services/planHelpers';
-import { effectiveRouteId, effectiveOrder, effectiveMaps, effectiveAddress, dispatchStatus, statusBadgeClass, myRouteIds, clientWaLink } from '../../../services/dispatchHelpers';
+import { effectiveRouteId, effectiveOrder, effectiveMaps, effectiveAddress, effectiveNotes, dispatchStatus, statusBadgeClass, myRouteIds, clientWaLink } from '../../../services/dispatchHelpers';
 import { canManage, isPagePremiumLocked } from '../../../services/panelAuth';
 import { resolveShortMapsLinkIfNeeded } from '../../../services/resolveMapsLink';
 import Modal from '../Modal';
@@ -28,7 +28,7 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes })
     if (removed?.id === activeId) setActiveId(next[0]?.id || '');
   }
   function add() {
-    const row = { id: uid('addr'), address: '', routeId: '', maps: '', order: '' };
+    const row = { id: uid('addr'), address: '', routeId: '', maps: '', order: '', notes: '' };
     setAddresses([...addresses, row]);
     if (!activeId) setActiveId(row.id);
   }
@@ -43,6 +43,13 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes })
             {routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
           <input placeholder="Link de Google Maps" value={a.maps} onChange={(e) => update(i, 'maps', e.target.value)} />
+          {/* Orden y Observaciones: mismos campos que ya se pueden editar
+              desde Día de trabajo (uno por dirección, con la misma
+              prioridad de effectiveOrder/effectiveNotes) -- ahora también
+              editables acá para no depender siempre de entrar a Día de
+              trabajo para fijar el valor inicial de un cliente nuevo. */}
+          <input placeholder="Orden" type="number" value={a.order ?? ''} onChange={(e) => update(i, 'order', e.target.value)} style={{ maxWidth: 90 }} />
+          <input placeholder="Observaciones (ej. dejar en portería)" value={a.notes ?? ''} onChange={(e) => update(i, 'notes', e.target.value)} />
           <button type="button" className="icon-btn delete" onClick={() => remove(i)}>×</button>
         </div>
       ))}
@@ -218,6 +225,13 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     const items = {};
     menuItems.forEach(({ key }) => { items[key] = n(data[`item_${key}`]); delete data[`item_${key}`]; });
     if (data.status !== 'Programado') data.returnDate = '';
+    // Igual que en togglePause: si desde este formulario se elige a mano
+    // cualquier estado que no sea "Pausado", hay que soltar pauseStart Y
+    // pauseDates -- de lo contrario un cliente pausado "solo hoy" desde Día
+    // de trabajo (pauseDates) o pausado "desde tal fecha" (pauseStart)
+    // seguía viéndose Pausado pese al cambio manual, porque dispatchStatus()
+    // revisa esos dos campos antes que status.
+    if (data.status !== 'Pausado') { data.pauseStart = ''; data.pauseDates = []; }
     const resolvedAddresses = await Promise.all(addresses.filter((a) => a.address.trim()).map(resolveShortMapsLinkIfNeeded));
     const finalAddresses = resolvedAddresses;
     const finalAddressIds = new Set(finalAddresses.map((a) => a.id));
@@ -248,7 +262,14 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
 
   function togglePause(c) {
     const current = dispatchStatus(c, currentDate, {}, false);
-    saveClients([{ ...c, status: current === 'Pausado' ? 'Activo' : 'Pausado', pauseStart: current === 'Pausado' ? '' : currentDate }]);
+    // Al reactivar hay que limpiar TAMBIÉN pauseDates (no solo pauseStart):
+    // si el cliente había quedado pausado "solo por hoy" desde Día de
+    // trabajo (Pausar hoy → agrega la fecha de hoy a pauseDates), esa fecha
+    // seguía ganándole al status/pauseStart recién puestos acá, y el
+    // cliente se veía "Pausado" hasta que cambiaba el día y la fecha ya no
+    // coincidía. Ver dispatchStatus() en services/dispatchHelpers.js: revisa
+    // pauseDates antes que status.
+    saveClients([{ ...c, status: current === 'Pausado' ? 'Activo' : 'Pausado', pauseStart: current === 'Pausado' ? '' : currentDate, pauseDates: current === 'Pausado' ? [] : (c.pauseDates || []) }]);
     showNotice(current === 'Pausado' ? 'Cliente activado.' : 'Cliente pausado.');
   }
 
@@ -317,11 +338,16 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     if (fromNote) { onReturnToNotes?.(); setFromNote(false); }
   }
 
-  const columns = [
+  // allColumns (antes se llamaba "columns") -- ahora se le pasa COMPLETA a
+  // DataTable junto con resizeGroup="clients", que se encarga de aplicar
+  // el orden/ocultas que cada usuario haya guardado y de mostrar el botón
+  // "Columnas" (mismo mecanismo que ya existía en Día de trabajo).
+  const allColumns = [
     { key: 'order', label: 'Orden', render: (c) => n(effectiveOrder(c, currentDate)) || '' },
     { key: 'name', label: 'Cliente / carnet', render: (c) => (<><b>{c.name}</b><br /><small className="muted">CI: {c.carnet || '—'}</small></>) },
     { key: 'route', label: 'Ruta', render: (c) => routeName(effectiveRouteId(c, currentDate)) },
     { key: 'address1', label: 'Dirección', render: (c) => (c.addresses || []).map((a) => a.address).filter(Boolean).join(', ') || '—' },
+    { key: 'notes', label: 'Observaciones', render: (c) => effectiveNotes(c, currentDate) || '—' },
     { key: 'maps', label: 'Google Maps', render: (c) => { const link = effectiveMaps(c, currentDate); return link ? <a href={link} target="_blank" rel="noopener">Abrir mapa</a> : '—'; } },
     { key: 'phone1', label: 'Teléfono', render: (c) => { const link = clientWaLink(c.phone1); return link ? <a href={link} target="_blank" rel="noopener" title="Abrir chat de WhatsApp">{c.phone1}</a> : (c.phone1 || '—'); } },
     { key: 'plan', label: 'Plan', render: (c) => planName(c.planId) },
@@ -354,9 +380,9 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
         <span className="spacer" />
         <span className="muted">{list.length} clientes</span>
       </div>
-      <DataTable columns={columns} rows={list} emptyText="No hay clientes registrados." resizeGroup="clients" userId={user?.id} />
+      <DataTable allColumns={allColumns} rows={list} emptyText="No hay clientes registrados." resizeGroup="clients" userId={user?.id} />
 
-      <Modal title={editing?.id ? 'Editar cliente' : 'Añadir cliente'} open={!!editing} onClose={() => { setEditing(null); setFromNote(false); }} onSubmit={handleSubmit}>
+      <Modal title={editing?.id ? 'Editar cliente' : 'Añadir cliente'} open={!!editing} onClose={() => { setEditing(null); if (fromNote) { onReturnToNotes?.(); setFromNote(false); } }} onSubmit={handleSubmit}>
         {editing && (() => {
           const isExisting = !!editing.id;
           const remaining = Math.max(0, n(editing.paidDays) - n(editing.consumedDays));
@@ -476,7 +502,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
           client={renewing.client}
           mode={renewing.mode}
           plans={plans}
-          onClose={() => { setRenewing(null); setFromNote(false); }}
+          onClose={() => { setRenewing(null); if (fromNote) { onReturnToNotes?.(); setFromNote(false); } }}
           onConfirm={confirmRenew}
         />
       )}

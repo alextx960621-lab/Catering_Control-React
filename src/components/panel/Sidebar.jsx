@@ -38,6 +38,21 @@ export default function Sidebar({ brandName, brandLogo, user, activePage, onNavi
     setMobileOpen(false);
   }
 
+  // En móvil el menú vive arriba de la página (dentro del <aside>), no
+  // como ventana flotante. Si el usuario está scrolleado hacia abajo
+  // (ej. leyendo la tabla de Día de trabajo) y toca la hamburguesa, el
+  // menú se abre pero queda fuera de la pantalla hasta que suba a mano.
+  // Por eso, al ABRIRLO (no al cerrarlo), llevamos el scroll arriba del
+  // todo para que se vea directamente, sin importar en qué parte de la
+  // web estaba.
+  function toggleMobileMenu() {
+    setMobileOpen((v) => {
+      const next = !v;
+      if (next) window.scrollTo({ top: 0, behavior: 'smooth' });
+      return next;
+    });
+  }
+
   async function handleRefresh() {
     setRefreshing(true);
     await onRefresh();
@@ -86,7 +101,7 @@ export default function Sidebar({ brandName, brandLogo, user, activePage, onNavi
           no hay dos botones distintos que hagan lo mismo con nombres
           distintos ("Sincronizar" en un lado, "Actualizar" en otro). */}
       <div className="top-actions">
-        <button className="menu-toggle" onClick={() => setMobileOpen((v) => !v)} aria-label="Abrir menú">☰</button>
+        <button className="menu-toggle" onClick={toggleMobileMenu} aria-label="Abrir menú">☰</button>
         <button className="top-refresh" onClick={handleRefresh} disabled={refreshing} title="Actualizar datos">
           {RefreshIcon}<span className="btn-text">{refreshing ? 'Actualizando…' : 'Actualizar'}</span>
         </button>

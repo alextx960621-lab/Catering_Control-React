@@ -147,7 +147,10 @@
 .panel-shell .sync-dot.error { background: var(--panel-danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--panel-danger) 20%, transparent); }
 @media (max-width: 850px) {
   .panel-shell .top-actions { top: 8px; right: 8px; padding: 5px 8px; gap: 6px; }
-  .panel-shell .top-actions .menu-toggle { display: block; }
+  /* Separa la hamburguesa de "Actualizar" con un espacio extra invisible
+     (sin agregar ningún punto/ícono nuevo), igual de criterio que el
+     puntito de sincronización que ya separa "Actualizar" de "Salir". */
+  .panel-shell .top-actions .menu-toggle { display: block; margin-right: 10px; }
   .panel-shell .top-refresh .btn-text, .panel-shell .top-logout .btn-text { display: none; }
 }
 
@@ -349,7 +352,7 @@
 .panel-shell .note-client { margin: 0; font-size: 12.5px; color: var(--panel-muted); }
 .panel-shell .note-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 
-.panel-shell .address-row { display: grid; grid-template-columns: 2fr 1fr 1.4fr auto; gap: 6px; margin-bottom: 6px; align-items: center; }
+.panel-shell .address-row { display: grid; grid-template-columns: 2fr 1fr 1.4fr 0.6fr 1.6fr auto; gap: 6px; margin-bottom: 6px; align-items: center; }
 @media (max-width: 560px) { .panel-shell .address-row { grid-template-columns: 1fr; } }
 
 .panel-shell .schedule-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; border: 1px solid var(--panel-line); border-radius: var(--panel-radius-sm); padding: 8px; margin-bottom: 8px; }
@@ -398,3 +401,17 @@
 .panel-shell .toggle-list-col label { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; }
 .panel-shell .toggle-list-col input { width: auto; min-height: auto; margin: 0; }
 @media (max-width: 850px) { .panel-shell .two-col { grid-template-columns: 1fr; } }
+
+/* Configuración: tarjetas de alto muy distinto (ej. "Tu tema" es chica,
+   "Plan de la cuenta" es grande). Con grid de 2 columnas normal, cada
+   fila se estira a la altura de la tarjeta más alta de esa fila y deja
+   huecos enormes al lado de las chicas. Con columnas tipo mampostería
+   (columns), el navegador acomoda cada tarjeta en la columna con más
+   espacio libre y las va compactando, sin huecos grandes. */
+.panel-shell .settings-grid { columns: 2; column-gap: 18px; }
+.panel-shell .settings-grid > .card {
+  break-inside: avoid; -webkit-column-break-inside: avoid; page-break-inside: avoid;
+  width: 100%; margin: 0 0 18px;
+}
+.panel-shell .settings-grid > .card:last-child { margin-bottom: 0; }
+@media (max-width: 850px) { .panel-shell .settings-grid { columns: 1; } }
