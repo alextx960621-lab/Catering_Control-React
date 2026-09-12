@@ -35,4 +35,9 @@
 .legal-summary { background: color-mix(in srgb, var(--brand) 7%, transparent); border-left: 3px solid var(--brand); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 10px 14px; margin: 8px 0 12px; font-size: .88rem; }
 .legal-summary b { color: var(--brand); }
 @media (max-width: 480px) { .legal-toc ol { columns: 1; } }
-body { background: var(--bg, #f5f7fb); }
+/* Antes `body { ... }` sin ámbito pisaba el fondo de otras páginas al
+   bundlearse todo el CSS junto (ver el mismo comentario en
+   LoginPage.css/ClientePage.css) — causa real del bug de "temas
+   mezclados". Ahora usa `body.page-legal`, agregada por
+   TerminosPage.jsx/PrivacidadPage.jsx con usePageBodyClass. */
+body.page-legal { background: var(--bg, #f5f7fb); }

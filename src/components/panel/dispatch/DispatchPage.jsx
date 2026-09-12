@@ -14,7 +14,7 @@ import {
 import { canManage, isPagePremiumLocked } from '../../../services/panelAuth';
 import './DispatchPage.css';
 
-export default function DispatchPage({ user }) {
+export default function DispatchPage({ user, onGoToClient }) {
   const { loading, clients, routes, drivers, plans, days, currentDate, settings, serverToday, setCurrentDate, saveDays, saveClients, showNotice, inventory, saveInventory } = useOperations();
 
   const [search, setSearch] = useState('');
@@ -469,6 +469,14 @@ export default function DispatchPage({ user }) {
       <input className="day-edit" type="date" defaultValue={c.returnDate || ''}
         disabled={!canEditDispatchField(c, 'returnDate', date, { role: user?.role, isDriver, myRoutes, realToday: serverToday, canEditDispatch: canEdit })}
         onBlur={(e) => handleFieldBlur(c, 'returnDate', e.target.value)} />
+    ) },
+    // Columna nueva: antes, para editar los datos completos de un cliente
+    // (no solo los campos rápidos editables en esta tabla) había que ir a
+    // Clientes y buscarlo de nuevo. Reusa el mismo mecanismo que ya usan
+    // las notas ("Editar cliente" en NotesPage) — onGoToClient navega a
+    // Clientes y abre el modal de edición para ese cliente puntual.
+    { key: 'edit', label: 'Editar', render: (c) => (
+      canEdit ? <button className="icon-btn info" onClick={() => onGoToClient?.(c.id, 'edit')}>Editar</button> : '—'
     ) },
   ];
   const columns = arrangeColumns(allColumns, colPrefs);

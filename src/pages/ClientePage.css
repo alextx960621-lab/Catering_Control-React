@@ -101,7 +101,14 @@ input[type="file"].form-control::file-selector-button:hover { background: var(--
 }
 [data-theme="night"] .btn-close:hover { background-color: #374259; }
 
-body { background: var(--page-bg, #f5f7fb); font-family: var(--font); }
+/* Antes esta regla era `body { ... }` sin ámbito: como el CSS de todas
+   las páginas se bundlea junto (no hay CSS Modules), le pisaba el fondo
+   temático a las demás páginas (login, legales) según qué archivo cayera
+   último en el bundle — esa era la causa real del bug de "temas
+   mezclados" reportado en el login. Ahora usa `body.page-cliente`, clase
+   que ClientePage.jsx agrega/saca con usePageBodyClass mientras esta
+   página está montada. */
+body.page-cliente { background: var(--page-bg, #f5f7fb); font-family: var(--font); }
 h1, h2, h3, .btn { font-family: var(--font-display); }
 
 .portal { max-width: 1080px; }

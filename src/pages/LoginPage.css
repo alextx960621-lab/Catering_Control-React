@@ -1,5 +1,17 @@
 /* Estilos del login. Los 3 temas (claro/nocturno/bosque) se activan
-   cambiando data-theme en <html> — ver src/hooks/useTheme.js */
+   cambiando data-theme en <html> — ver src/hooks/useTheme.js.
+
+   IMPORTANTE (bug real corregido): este proyecto no usa CSS Modules, así
+   que TODO el CSS de TODAS las páginas se bundlea junto y aplica global.
+   Antes esta hoja pintaba el fondo con un selector `body` sin ámbito, y
+   ClientePage.css/LegalPage.css hacían exactamente lo mismo — como los
+   tres tienen la misma especificidad, el que quedara último en el bundle
+   le terminaba pisando el fondo (con su propio degradado de tema) a las
+   demás páginas. Eso se veía como "3 temas mezclados a la vez" en el
+   login (fondo plano de otro tema, tarjeta de otro, texto de otro). Ahora
+   cada regla de fondo usa `body.page-login` — la clase la agrega/saca
+   LoginPage.jsx con el hook usePageBodyClass mientras esa página está
+   montada, así que solo aplica en esta página. */
 
 html { font-size: 15px; }
 :root {
@@ -13,7 +25,7 @@ html { font-size: 15px; }
   --bs-link-hover-color: #2a52d6;
   --bs-link-hover-color-rgb: 42, 82, 214;
 }
-body {
+body.page-login {
   min-height: 100vh;
   font-family: var(--font);
   background: radial-gradient(circle at 20% 20%, rgba(56, 103, 244, .2), transparent 34%), #f5f7fb;
@@ -87,16 +99,22 @@ body {
 
 /* Tema nocturno */
 [data-theme="night"] { --brand: #7296ff; }
-[data-theme="night"] body { background: radial-gradient(circle at 20% 20%, rgba(114, 150, 255, .25), transparent 34%), #121824; }
+[data-theme="night"] body.page-login { background: radial-gradient(circle at 20% 20%, rgba(114, 150, 255, .25), transparent 34%), #121824; }
 [data-theme="night"] .card { background: #1a2130; color: #e7ecf5; }
 [data-theme="night"] .text-secondary { color: #9aa7bd !important; }
 [data-theme="night"] .form-control, [data-theme="night"] .form-select { background: #121824; color: #e7ecf5; border-color: #2b3648; }
 [data-theme="night"] .bg-body-tertiary { background: #121824 !important; }
 
-/* Tema bosque */
+/* Tema bosque — antes solo tenía el fondo y `.card`; le faltaban las
+   mismas reglas de texto/inputs que ya tenía el tema nocturno (asimetría
+   real: con tema Bosque elegido, los inputs y textos secundarios se
+   quedaban con el estilo por defecto de Bootstrap en vez del propio del
+   tema, otro ingrediente del bug de "temas mezclados"). */
 [data-theme="forest"] { --brand: #1f7a4d; }
-[data-theme="forest"] body { background: radial-gradient(circle at 20% 20%, rgba(31, 122, 77, .25), transparent 34%), #dcefdc; }
-[data-theme="forest"] .card { background: #eef7ee; }
+[data-theme="forest"] body.page-login { background: radial-gradient(circle at 20% 20%, rgba(31, 122, 77, .25), transparent 34%), #dcefdc; }
+[data-theme="forest"] .card { background: #eef7ee; color: #163821; }
+[data-theme="forest"] .text-secondary { color: #4f7259 !important; }
+[data-theme="forest"] .form-control, [data-theme="forest"] .form-select { background: #f2faf1; color: #163821; border-color: #a9d2ab; }
 [data-theme="forest"] .bg-body-tertiary { background: #cde6cd !important; }
 
 /* Feedback explícito del botón "Compartir esta app" (ver ShareAppButton.jsx):

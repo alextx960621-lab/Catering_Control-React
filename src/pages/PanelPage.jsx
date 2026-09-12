@@ -92,7 +92,7 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
         {notice && (
           <div key={notice.key} className={`panel-toast${notice.error ? ' error' : ''}`}>{notice.text}</div>
         )}
-        {activePage === 'dispatch' && <DispatchPage user={user} />}
+        {activePage === 'dispatch' && <DispatchPage user={user} onGoToClient={goToClient} />}
         {activePage === 'notes' && (locked('notes') ? <PremiumPageLock featureLabel="Notas" premiumWhatsapp={settings.premiumWhatsapp} /> : <NotesPage user={user} onGoToClient={goToClient} renewalByClient={renewalByClient} onConsumeRenewal={consumeRenewal} />)}
         {activePage === 'drivers' && <DriversPage user={user} />}
         {activePage === 'routes' && <RoutesPage user={user} />}

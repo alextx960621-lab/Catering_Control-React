@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './LoginPage.css';
 import { useTheme } from '../hooks/useTheme';
+import { usePageBodyClass } from '../hooks/usePageBodyClass';
 import { useBranding } from '../hooks/useBranding';
 import { readStaffSession, readClientSession } from '../services/session';
 import BrandMark from '../components/login/BrandMark';
@@ -14,6 +15,7 @@ import AppFooter from '../components/login/AppFooter';
 
 export default function LoginPage() {
   const [theme, setTheme] = useTheme();
+  usePageBodyClass('page-login');
   const { name: brandName, logo: brandLogo, whatsappNumber } = useBranding();
   const [accessType, setAccessType] = useState('client');
   const [errorMsg, setErrorMsg] = useState('');

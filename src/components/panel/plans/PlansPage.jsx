@@ -204,7 +204,7 @@ export default function PlansPage({ user }) {
           <div className="head-actions">
             <button className="primary" onClick={() => openPlan(null)}>+ Crear plan</button>
             <button className="info" onClick={() => setReassigning(true)}>Reasignar clientes de plan</button>
-            <button className="outline" onClick={() => setEditingItem({})}>+ Crear artículo</button>
+            <button className="primary" onClick={() => setEditingItem({})}>+ Crear artículo</button>
           </div>
         )}
       </div>

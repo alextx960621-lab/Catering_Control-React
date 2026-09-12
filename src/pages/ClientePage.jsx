@@ -8,6 +8,7 @@ import { fetchBrandingRemote, fetchIsPremium, fetchServerSync, saveClient } from
 import { setSessionToken, dbGetClientRow, dbSaveOwnClientProfile, joinPresence, revokeSession } from '../services/supabaseClient';
 import Portal from '../components/cliente/Portal';
 import PremiumLock from '../components/cliente/PremiumLock';
+import { usePageBodyClass } from '../hooks/usePageBodyClass';
 
 // Reemplaza a cliente.html. Tres fases:
 //   'checking' → validando la sesión y trayendo los datos (spinner de texto)
@@ -22,6 +23,7 @@ export default function ClientePage() {
   const navigate = useNavigate();
   const sessionRef = useRef(null);
   const bootedRef = useRef(false);
+  usePageBodyClass('page-cliente');
 
   useEffect(() => {
     if (bootedRef.current) return;

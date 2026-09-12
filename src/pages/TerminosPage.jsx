@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
 import './LegalPage.css';
+import { usePageBodyClass } from '../hooks/usePageBodyClass';
 
 export default function TerminosPage() {
+  usePageBodyClass('page-legal');
   return (
     <div className="legal-wrap">
       <Link className="legal-back" to="/">&larr; Volver al inicio de sesión</Link>

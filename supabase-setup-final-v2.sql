@@ -1184,6 +1184,12 @@ end $do$;
 -- Dashboard → Project Settings → Realtime que esté habilitado a nivel de
 -- proyecto, o los console.warn de diagnóstico que quedan en
 -- joinPresence() desde la consola del navegador en producción.
+-- Defensivo: en proyectos donde por algún motivo esta tabla gestionada por
+-- Supabase no tuviera RLS activado, las políticas de abajo no harían nada
+-- (¡una tabla sin RLS deja pasar todo igual, política o no!). Esto es
+-- idempotente -- no rompe nada si ya estaba activado, que es lo normal.
+alter table if exists realtime.messages enable row level security;
+
 drop policy if exists "presencia: anon puede escuchar" on realtime.messages;
 create policy "presencia: anon puede escuchar"
 on realtime.messages for select
