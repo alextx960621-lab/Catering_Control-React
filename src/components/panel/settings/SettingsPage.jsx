@@ -17,7 +17,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
   const {
     settings, saveSettings, serverToday, showNotice,
     clients, notes, plans, days, drivers, routes, staffUsers, currentDate, inventory,
-    saveClients, saveNotes, saveDays,
+    saveClients, saveNotes, saveDays, saveInventory, setCurrentDate,
     saveDrivers: saveDrivers2, saveRoutes: saveRoutes2, savePlans: savePlans2, saveStaffUsers: saveStaffUsers2,
   } = useOperations();
   const isSuperAdmin = user?.role === 'superadmin';
@@ -26,7 +26,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
   const [exportScope, setExportScope] = useState('all');
   const [working, setWorking] = useState(false);
   const importInputRef = useRef(null);
-  const { counts, detail } = usePresence();
+  const { counts, detail, refresh } = usePresence();
 
   function handleThemeChange(value) {
     saveMyTheme(user.id, value); // cachea local al instante + sincroniza con la cuenta en Supabase
@@ -126,6 +126,15 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
       if (parsed.routes) saveRoutes2(parsed.routes);
       if (parsed.plans) savePlans2(parsed.plans);
       if (parsed.settings) saveSettings({ ...settings, ...parsed.settings });
+      // Estos dos venían en el "respaldo completo" (export) hace rato,
+      // pero acá nunca se leían de vuelta al restaurar -- si alguien
+      // hacía una restauración completa después de una pérdida de datos,
+      // el inventario (stock/movimientos) y la fecha operativa actual se
+      // quedaban en blanco en silencio, sin ningún aviso de que faltó
+      // algo (bug reportado 13 sep: "asegurarse que el respaldo exporte
+      // TODO para poder recuperar todo").
+      if (parsed.inventory) saveInventory(parsed.inventory);
+      if (parsed.currentDate) setCurrentDate(parsed.currentDate);
       if (hasStaffUsers) saveStaffUsers2(parsed.staffUsers);
       const [okAudit, okDelivery, okSnapshots] = await Promise.all([
         hasAuditLog ? dbInsertAuditBulk(parsed.auditLog) : Promise.resolve(true),
@@ -221,7 +230,10 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
 
       <div className="settings-grid" style={{ marginTop: 18 }}>
         <div className="card card-pad stack">
-          <h3>Conectados ahora</h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0 }}>Conectados ahora</h3>
+            <button type="button" className="primary" onClick={refresh}>Actualizar</button>
+          </div>
           <div className="summary-grid compact" style={{ marginBottom: 4 }}>
             <div className="card metric"><div className="muted" style={{ fontSize: 11 }}>Clientes</div><strong>{counts.cliente}</strong></div>
             <div className="card metric"><div className="muted" style={{ fontSize: 11 }}>Drivers</div><strong>{counts.driver}</strong></div>

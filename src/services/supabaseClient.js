@@ -156,6 +156,20 @@ export function presenceState() {
   return presenceChannel ? presenceChannel.presenceState() : {};
 }
 
+// Se llama al cerrar sesión DENTRO de la app (botón "Salir"). Antes no
+// existía: como es una SPA (no recarga la página), el canal de presencia
+// seguía vivo y con el track() de esa persona después de "Salir" -- por
+// eso "Conectados ahora" a veces se quedaba pegado mostrando a alguien que
+// ya había cerrado sesión (solo se corregía solo cuando cerraba la
+// pestaña de verdad y el socket se caía). Ahora se deja de trackear y se
+// cierra el canal explícitamente antes de volver al login.
+export function leavePresence() {
+  if (!presenceChannel) return;
+  try { presenceChannel.untrack(); } catch (_) { /* ignorar */ }
+  try { supabase.removeChannel(presenceChannel); } catch (_) { /* ignorar */ }
+  presenceChannel = null;
+}
+
 export function joinPresence(info, onChange) {
   try {
     if (presenceChannel) return presenceChannel;
@@ -172,8 +186,9 @@ export function joinPresence(info, onChange) {
     // usa Supabase en su documentación) -- es lo que activa la extensión
     // de presencia en el canal, no un simple "listener opcional". Acá
     // `onChange` de hecho nunca viene (Panel/Cliente llaman joinPresence
-    // sin ese argumento; usePresence() lee por polling), pero el binding
-    // igual tiene que existir para que .track() sirva de algo.
+    // sin ese argumento; usePresence() ahora lee bajo demanda con el botón
+    // "Actualizar", ver hooks/usePresence.js), pero el binding igual tiene
+    // que existir para que .track() sirva de algo.
     presenceChannel.on('presence', { event: 'sync' }, () => {
       if (typeof onChange === 'function') {
         try {
@@ -193,6 +208,15 @@ export function joinPresence(info, onChange) {
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         console.warn(`[presencia] canal 'catering-online-users' en estado "${status}", no se pudo suscribir:`, err);
       }
+    });
+    // Best-effort: si se cierra la pestaña/app sin pasar por "Salir", esto
+    // intenta avisar igual -- un mensaje de WebSocket en pagehide no tiene
+    // garantía de entrega (a diferencia de sendBeacon con HTTP), así que
+    // esto ayuda en algunos casos pero no reemplaza la limpieza automática
+    // por timeout que hace Supabase del lado del servidor cuando el socket
+    // se cae sin avisar.
+    window.addEventListener('pagehide', () => {
+      try { presenceChannel?.untrack(); } catch (_) { /* ignorar */ }
     });
     return presenceChannel;
   } catch (err) {

@@ -5,7 +5,7 @@ import config from '../services/config';
 import { readClientSession, clearSessions } from '../services/session';
 import { readOperations, writeOperations, readClientRow, writeClientRow, readCachedBranding, getClientTheme, saveClientTheme } from '../services/clienteStorage';
 import { fetchBrandingRemote, fetchIsPremium, fetchServerSync, saveClient } from '../services/clienteData';
-import { setSessionToken, dbGetClientRow, dbSaveOwnClientProfile, joinPresence, revokeSession } from '../services/supabaseClient';
+import { setSessionToken, dbGetClientRow, dbSaveOwnClientProfile, joinPresence, leavePresence, revokeSession } from '../services/supabaseClient';
 import Portal from '../components/cliente/Portal';
 import PremiumLock from '../components/cliente/PremiumLock';
 import { usePageBodyClass } from '../hooks/usePageBodyClass';
@@ -127,6 +127,7 @@ export default function ClientePage() {
   }
 
   function handleLogout() {
+    leavePresence();
     revokeSession();
     clearSessions();
     navigate('/', { replace: true });

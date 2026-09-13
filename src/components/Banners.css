@@ -2,17 +2,15 @@
    tenían colores/formas distintos -- "el de actualizar" es el que se
    prefirió, así que ahora los dos usan exactamente las mismas clases).
 
-   El contenedor .app-banners es el único con position:fixed -- cada
-   banner de adentro es un bloque normal, así que si algún día los dos
-   están visibles a la vez (SW con actualización lista + PWA todavía sin
-   instalar) se apilan uno debajo del otro en vez de superponerse (antes
-   cada uno tenía su propio position:fixed;top:0, y quedaban pisados). */
+   FIX (13 sep, 2da ronda): `.app-banners` tenía position:fixed -- flotaba
+   ARRIBA de todo sin reservarle espacio, así que tapaba lo que hubiera al
+   inicio de la página (el nombre de la empresa en el sidebar, sobre todo
+   con el aviso más largo de iOS, que ocupa más alto al hacer wrap en
+   pantallas angostas). Ahora es un bloque normal, de flujo, ANTES de
+   #app/.panel-shell en App.jsx -- así el contenido de abajo se corre solo
+   la altura exacta que ocupen los avisos, sea uno, los dos, o ninguno, sin
+   necesidad de calcular ni adivinar ningún alto a mano. */
 .app-banners {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 99999;
   display: flex;
   flex-direction: column;
 }
@@ -53,4 +51,11 @@
   background: transparent;
   color: #fff;
   cursor: pointer;
+}
+
+/* Menos padding y texto un toque más chico en pantallas angostas -- ayuda
+   a que el aviso ocupe menos alto en un celular (sobre todo el de iOS,
+   que tiene más texto y en pantallas chicas hace más wrap). */
+@media (max-width: 480px) {
+  .app-banner { padding: 8px 12px; font-size: 13px; gap: 8px; }
 }

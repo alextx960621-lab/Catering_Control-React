@@ -61,7 +61,7 @@ export default function InstallBanner() {
         </>
       ) : (
         <>
-          <span>Instalá esta app: tocá <b>Compartir</b> (el ícono ⬆️ de abajo) y luego <b>"Agregar a inicio"</b>.</span>
+          <span>Instalá esta app: tocá <b>Compartir</b> ⬆️ y luego <b>"Agregar a inicio"</b>.</span>
           <button type="button" onClick={() => setDismissed(true)} aria-label="Cerrar aviso" className="app-banner__btn-secondary">
             Entendido
           </button>

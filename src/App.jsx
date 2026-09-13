@@ -17,10 +17,11 @@ const PrivacidadPage = lazy(() => import('./pages/PrivacidadPage'));
 export default function App() {
   return (
     <BrowserRouter>
-      {/* Contenedor común: si algún día las dos franjas están visibles a
+      {/* En flujo normal (no position:fixed): empuja el contenido de abajo
+          en vez de taparlo. Si algún día las dos franjas están visibles a
           la vez (SW con versión lista + PWA todavía sin instalar), se
-          apilan una debajo de la otra en vez de superponerse -- cada
-          banner ya no tiene su propio position:fixed, ver Banners.css. */}
+          apilan una debajo de la otra -- ninguna tiene su propio
+          position:fixed, ver Banners.css. */}
       <div className="app-banners">
         <UpdateBanner />
         <InstallBanner />

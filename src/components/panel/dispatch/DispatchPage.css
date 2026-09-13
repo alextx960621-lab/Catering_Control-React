@@ -17,7 +17,15 @@
 .panel-shell th[aria-sort="ascending"] .th-sort-btn, .panel-shell th[aria-sort="descending"] .th-sort-btn { color: var(--panel-primary); }
 .panel-shell .th-sort-icon { font-size: 10px; opacity: .55; flex-shrink: 0; }
 .panel-shell th[aria-sort="ascending"] .th-sort-icon, .panel-shell th[aria-sort="descending"] .th-sort-icon { opacity: 1; }
-.panel-shell .col-resize-handle { position: absolute; top: 0; right: 0; width: 8px; height: 100%; cursor: col-resize; z-index: 3; }
+.panel-shell .col-resize-handle { position: absolute; top: 0; right: 0; width: 8px; height: 100%; cursor: col-resize; z-index: 3; touch-action: none; }
+/* En mobile, 8px es muy angosto para acertarle con el dedo (por debajo de
+   los ~44px que recomienda Apple/Google como mínimo táctil) -- se ensancha
+   la zona interactiva con un pseudo-elemento invisible sin cambiar el
+   ancho visual de la línea divisoria entre columnas. */
+@media (pointer: coarse) {
+  .panel-shell .col-resize-handle { width: 12px; }
+  .panel-shell .col-resize-handle::after { content: ''; position: absolute; top: 0; bottom: 0; left: -10px; right: -10px; }
+}
 .panel-shell .col-resize-handle:hover { background: color-mix(in srgb, var(--panel-primary) 30%, transparent); }
 .panel-shell th:last-child, .panel-shell td:last-child { border-right: 0; }
 .panel-shell tbody tr:nth-child(even) td { background: var(--panel-surface-2); }

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './PanelPage.css';
 import config from '../services/config';
 import { readStaffSession, clearSessions } from '../services/session';
-import { setSessionToken, revokeSession, joinPresence } from '../services/supabaseClient';
+import { setSessionToken, revokeSession, joinPresence, leavePresence } from '../services/supabaseClient';
 import { fetchBrandingRemote } from '../services/clienteData';
 import { OperationsProvider, useOperations } from '../context/OperationsContext';
 import { getTheme as getMyCachedTheme } from '../services/userPrefs';
@@ -97,12 +97,31 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
         {notice && (
           <div key={notice.key} className={`panel-toast${notice.error ? ' error' : ''}`}>{notice.text}</div>
         )}
-        {activePage === 'dispatch' && <DispatchPage user={user} onGoToClient={goToClient} />}
-        {activePage === 'notes' && (locked('notes') ? <PremiumPageLock featureLabel="Notas" premiumWhatsapp={settings.premiumWhatsapp} /> : <NotesPage user={user} onGoToClient={goToClient} renewalByClient={renewalByClient} onConsumeRenewal={consumeRenewal} />)}
+        {/* Antes estas 3 pantallas solo estaban en el DOM mientras eran la
+            página activa (montaje condicional) -- cada vez que alguien
+            editaba un cliente desde Día de trabajo o Notas y volvía, React
+            las desmontaba y volvía a montar de cero, perdiendo la búsqueda,
+            los filtros, el orden de columnas y el scroll de la tabla (quedaba
+            "como recién entrado"). Ahora quedan siempre montadas (ocultas
+            con display:none cuando no son la activa) para que todo ese
+            estado -- y el scroll de `.sheet`, que tiene su propio contenedor
+            con overflow propio -- se mantenga tal cual se dejó. */}
+        <div style={{ display: activePage === 'dispatch' ? '' : 'none' }}>
+          <DispatchPage user={user} onGoToClient={goToClient} />
+        </div>
+        {locked('notes')
+          ? (activePage === 'notes' && <PremiumPageLock featureLabel="Notas" premiumWhatsapp={settings.premiumWhatsapp} />)
+          : (
+            <div style={{ display: activePage === 'notes' ? '' : 'none' }}>
+              <NotesPage user={user} onGoToClient={goToClient} renewalByClient={renewalByClient} onConsumeRenewal={consumeRenewal} />
+            </div>
+          )}
         {activePage === 'drivers' && <DriversPage user={user} />}
         {activePage === 'routes' && <RoutesPage user={user} />}
         {activePage === 'plans' && <PlansPage user={user} />}
-        {activePage === 'clients' && <ClientsPage user={user} pendingClientAction={pendingClientAction} onConsumePendingClientAction={() => setPendingClientAction(null)} onRenewalCompleted={recordRenewal} onReturnToOrigin={(origin) => onNavigate(origin || 'notes')} />}
+        <div style={{ display: activePage === 'clients' ? '' : 'none' }}>
+          <ClientsPage user={user} pendingClientAction={pendingClientAction} onConsumePendingClientAction={() => setPendingClientAction(null)} onRenewalCompleted={recordRenewal} onReturnToOrigin={(origin) => onNavigate(origin || 'notes')} />
+        </div>
         {activePage === 'delivery' && <DeliveryPage user={user} />}
         {activePage === 'users' && <UsersPage user={user} />}
         {activePage === 'audit' && gated('audit', 'Auditoría', AuditPage)}
@@ -159,6 +178,7 @@ export default function PanelPage() {
   }, [theme]);
 
   function handleLogout() {
+    leavePresence();
     revokeSession();
     clearSessions();
     navigate('/', { replace: true });

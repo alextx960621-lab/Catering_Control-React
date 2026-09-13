@@ -78,12 +78,21 @@ export default function DataTable({ columns: fixedColumns, allColumns, rows, get
     return withValue.map((x) => x.row);
   })();
 
+  // Antes usaba mousedown/mousemove/mouseup -- eso nunca dispara con un dedo
+  // en el celular (el touch no genera esos eventos para un gesto de
+  // arrastre), por eso no se podía redimensionar ninguna columna desde
+  // mobile. Pointer Events unifica mouse/touch/lápiz en un solo set de
+  // eventos, así que ahora funciona igual en los dos. setPointerCapture
+  // hace que siga recibiendo el movimiento aunque el dedo se salga del
+  // agarradero angosto mientras arrastra.
   function startResize(e, key) {
     e.preventDefault();
-    const th = e.currentTarget.parentElement;
+    const handle = e.currentTarget;
+    const th = handle.parentElement;
     const startX = e.clientX;
     const startWidth = th.offsetWidth;
     resizeRef.current = { key, startX, startWidth };
+    handle.setPointerCapture(e.pointerId);
     function onMove(ev) {
       if (!resizeRef.current) return;
       const delta = ev.clientX - resizeRef.current.startX;
@@ -99,11 +108,13 @@ export default function DataTable({ columns: fixedColumns, allColumns, rows, get
         });
       }
       resizeRef.current = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onUp);
     }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onUp);
   }
 
   const hasCustomWidths = resizeGroup && Object.keys(widths).length > 0;
@@ -129,7 +140,7 @@ export default function DataTable({ columns: fixedColumns, allColumns, rows, get
                       <span className="th-sort-icon">{sort?.key === c.key ? (sort.dir === 'asc' ? '▲' : '▼') : '⇅'}</span>
                     </button>
                   )}
-                  <span className="col-resize-handle" onMouseDown={(e) => startResize(e, c.key)} title="Arrastrar para cambiar el ancho" />
+                  <span className="col-resize-handle" onPointerDown={(e) => startResize(e, c.key)} title="Arrastrar para cambiar el ancho" />
                 </th>
               ))}
             </tr>

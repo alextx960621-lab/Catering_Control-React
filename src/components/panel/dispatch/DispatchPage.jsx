@@ -518,12 +518,18 @@ export default function DispatchPage({ user, onGoToClient }) {
     if (an !== null && bn !== null) return an - bn;
     return String(a ?? '').localeCompare(String(b ?? ''), 'es', { sensitivity: 'base', numeric: true });
   }
+  // Mismo fix que DataTable.jsx: mousedown/mousemove/mouseup no sirve para
+  // arrastrar con el dedo en mobile, Pointer Events sí (unifica mouse/touch/
+  // lápiz), y setPointerCapture mantiene el arrastre aunque el dedo se
+  // salga del agarradero angosto.
   function startResize(e, key) {
     e.preventDefault();
-    const th = e.currentTarget.parentElement;
+    const handle = e.currentTarget;
+    const th = handle.parentElement;
     const startX = e.clientX;
     const startWidth = th.offsetWidth;
     resizeRef.current = { key, startX, startWidth };
+    handle.setPointerCapture(e.pointerId);
     function onMove(ev) {
       if (!resizeRef.current) return;
       const delta = ev.clientX - resizeRef.current.startX;
@@ -538,11 +544,13 @@ export default function DispatchPage({ user, onGoToClient }) {
         saveColumnWidths(user?.id, 'dispatch', widths);
       }
       resizeRef.current = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onUp);
     }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onUp);
   }
 
   function handleSaveColumns(order, hiddenList) {
@@ -683,7 +691,7 @@ export default function DispatchPage({ user, onGoToClient }) {
                 {c.label}
                 <span className="th-sort-icon">{sort?.key === c.key ? (sort.dir === 'asc' ? '▲' : '▼') : '⇅'}</span>
               </button>
-              <span className="col-resize-handle" onMouseDown={(e) => startResize(e, c.key)} title="Arrastrar para cambiar el ancho" />
+              <span className="col-resize-handle" onPointerDown={(e) => startResize(e, c.key)} title="Arrastrar para cambiar el ancho" />
             </th>
           ))}</tr></thead>
           <tbody>
