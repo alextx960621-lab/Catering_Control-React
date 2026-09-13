@@ -24,7 +24,8 @@ export function usePresence() {
   const [state, setState] = useState(() => computeFromState(presenceState()));
 
   useEffect(() => {
-    const interval = setInterval(() => setState(computeFromState(presenceState())), 4000);
+    // Antes refrescaba cada 4s; ahora cada 1 minuto (pedido 13 sep).
+    const interval = setInterval(() => setState(computeFromState(presenceState())), 60000);
     return () => clearInterval(interval);
   }, []);
 

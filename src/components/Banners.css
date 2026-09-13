@@ -1,0 +1,56 @@
+/* Estilo compartido por UpdateBanner e InstallBanner (pedido 13 sep: antes
+   tenían colores/formas distintos -- "el de actualizar" es el que se
+   prefirió, así que ahora los dos usan exactamente las mismas clases).
+
+   El contenedor .app-banners es el único con position:fixed -- cada
+   banner de adentro es un bloque normal, así que si algún día los dos
+   están visibles a la vez (SW con actualización lista + PWA todavía sin
+   instalar) se apilan uno debajo del otro en vez de superponerse (antes
+   cada uno tenía su propio position:fixed;top:0, y quedaban pisados). */
+.app-banners {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: #1f2a3d;
+  color: #fff;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .25);
+}
+
+.app-banner__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.app-banner__btn-primary {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(135deg, #8fb0ff, #4a72ff);
+  color: #fff;
+}
+
+.app-banner__btn-secondary {
+  border: 1px solid rgba(255, 255, 255, .35);
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}

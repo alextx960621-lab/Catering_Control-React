@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import './Banners.css';
 
 function isStandalonePwa() {
   return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -12,6 +13,11 @@ function isIos() {
 // preventDefault() para mostrarlo con nuestro propio botón.
 // iOS nunca dispara ese evento -- Apple no da forma de programar la
 // instalación, solo mostrar el instructivo de Compartir > Agregar a inicio.
+//
+// Estilo (13 sep): antes esta franja tenía su propio celeste plano
+// (#3867f4) distinto al de "hay una actualización disponible" -- ahora
+// usa las mismas clases .app-banner/.app-banner__btn-* que UpdateBanner,
+// para que las dos se vean como el mismo tipo de aviso.
 export default function InstallBanner() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showIosHint, setShowIosHint] = useState(false);
@@ -40,27 +46,15 @@ export default function InstallBanner() {
   }
 
   return (
-    <div
-      role="status"
-      style={{
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99998,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
-        flexWrap: 'wrap', padding: '10px 16px', background: '#3867f4', color: '#fff',
-        fontFamily: 'Inter, system-ui, sans-serif', fontSize: 14, boxShadow: '0 2px 10px rgba(0,0,0,.2)',
-      }}
-    >
+    <div role="status" className="app-banner">
       {deferredPrompt ? (
         <>
           <span>Instalá la app para un acceso más rápido, desde el ícono de tu pantalla.</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              type="button"
-              onClick={handleInstall}
-              style={{ border: 0, borderRadius: 999, padding: '6px 16px', fontWeight: 700, cursor: 'pointer', background: '#fff', color: '#3867f4' }}
-            >
+          <div className="app-banner__actions">
+            <button type="button" onClick={handleInstall} className="app-banner__btn-primary">
               Instalar
             </button>
-            <button type="button" onClick={() => setDismissed(true)} aria-label="Cerrar aviso" style={{ border: '1px solid rgba(255,255,255,.4)', borderRadius: 999, padding: '6px 12px', background: 'transparent', color: '#fff', cursor: 'pointer' }}>
+            <button type="button" onClick={() => setDismissed(true)} aria-label="Cerrar aviso" className="app-banner__btn-secondary">
               Ahora no
             </button>
           </div>
@@ -68,7 +62,7 @@ export default function InstallBanner() {
       ) : (
         <>
           <span>Instalá esta app: tocá <b>Compartir</b> (el ícono ⬆️ de abajo) y luego <b>"Agregar a inicio"</b>.</span>
-          <button type="button" onClick={() => setDismissed(true)} aria-label="Cerrar aviso" style={{ border: '1px solid rgba(255,255,255,.4)', borderRadius: 999, padding: '6px 12px', background: 'transparent', color: '#fff', cursor: 'pointer' }}>
+          <button type="button" onClick={() => setDismissed(true)} aria-label="Cerrar aviso" className="app-banner__btn-secondary">
             Entendido
           </button>
         </>

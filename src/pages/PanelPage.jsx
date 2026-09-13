@@ -56,8 +56,13 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
   // pueda armar el mensaje de WhatsApp al marcar "Cumplida" una solicitud.
   const [renewalByClient, setRenewalByClient] = useState({});
 
+  // origin = la pantalla desde la que se pidió esto (queda "congelada" acá
+  // porque activePage ya cambió a 'clients' para cuando el formulario se
+  // cierra) -- así al guardar/cancelar se puede volver exactamente a Día
+  // de trabajo o a Notas, según desde dónde se haya abierto, en vez de
+  // mandar siempre a Notas sin importar el origen real.
   function goToClient(clientId, action) {
-    setPendingClientAction({ clientId, action });
+    setPendingClientAction({ clientId, action, origin: activePage });
     onNavigate('clients');
   }
   function recordRenewal(clientId, info) {
@@ -97,7 +102,7 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
         {activePage === 'drivers' && <DriversPage user={user} />}
         {activePage === 'routes' && <RoutesPage user={user} />}
         {activePage === 'plans' && <PlansPage user={user} />}
-        {activePage === 'clients' && <ClientsPage user={user} pendingClientAction={pendingClientAction} onConsumePendingClientAction={() => setPendingClientAction(null)} onRenewalCompleted={recordRenewal} onReturnToNotes={() => onNavigate('notes')} />}
+        {activePage === 'clients' && <ClientsPage user={user} pendingClientAction={pendingClientAction} onConsumePendingClientAction={() => setPendingClientAction(null)} onRenewalCompleted={recordRenewal} onReturnToOrigin={(origin) => onNavigate(origin || 'notes')} />}
         {activePage === 'delivery' && <DeliveryPage user={user} />}
         {activePage === 'users' && <UsersPage user={user} />}
         {activePage === 'audit' && gated('audit', 'Auditoría', AuditPage)}

@@ -46,7 +46,7 @@ export default function AuditPage({ user }) {
           <p>{entries === null ? 'Historial de cambios: quién hizo qué y cuándo.' : showingAll ? 'Mostrando el historial completo guardado.' : 'Últimos 300 eventos.'}</p>
         </div>
         <div className="head-actions">
-          <button className="outline" onClick={refresh} disabled={loadingLog}>{loadingLog ? 'Cargando…' : 'Actualizar'}</button>
+          <button className="primary" onClick={refresh} disabled={loadingLog}>{loadingLog ? 'Cargando…' : 'Actualizar'}</button>
           {!showingAll && entries !== null && <button className="outline" onClick={loadAll} disabled={loadingLog}>Ver todos los eventos guardados</button>}
         </div>
       </div>

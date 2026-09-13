@@ -16,14 +16,23 @@ export function isShortMapsLink(value) {
 // intenta resolverlo. Si la función no está desplegada o falla, no pasa
 // nada -- la dirección se guarda igual, solo que sin coordenadas exactas
 // (el mapa cae de vuelta a buscar por texto).
+//
+// BUG (reportado 13 sep): antes se saltaba la resolución con solo mirar
+// `addr.lat != null`, así que si la dirección YA tenía coordenadas de un
+// link viejo y se pegaba un link nuevo, nunca se volvía a resolver -- se
+// quedaba con las coordenadas del link anterior. Ahora se guarda en
+// `mapsResolvedFrom` cuál fue el link que efectivamente se resolvió, y
+// solo se saltea si el link actual es EXACTAMENTE ese mismo (no cualquier
+// link con coordenadas ya cargadas).
 export async function resolveShortMapsLinkIfNeeded(addr) {
-  if (!addr?.maps || addr.lat != null || !isShortMapsLink(addr.maps)) return addr;
+  if (!addr?.maps || !isShortMapsLink(addr.maps)) return addr;
+  if (addr.lat != null && addr.mapsResolvedFrom === addr.maps) return addr;
   const direct = extractLatLngFromMapsField(addr.maps);
-  if (direct) return { ...addr, lat: direct.lat, lng: direct.lng };
+  if (direct) return { ...addr, lat: direct.lat, lng: direct.lng, mapsResolvedFrom: addr.maps };
   try {
     const { data, error } = await supabase.functions.invoke('resolve-maps-link', { body: { url: addr.maps } });
     if (error || !data || typeof data.lat !== 'number') return addr;
-    return { ...addr, lat: data.lat, lng: data.lng };
+    return { ...addr, lat: data.lat, lng: data.lng, mapsResolvedFrom: addr.maps };
   } catch (_) {
     return addr; // sin la función desplegada, sigue funcionando igual
   }
