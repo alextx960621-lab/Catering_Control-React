@@ -261,9 +261,6 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
         )}
       </div>
 
-      <p className="muted" style={{ fontSize: 12.5, marginTop: 18 }}>
-        Pendiente para una próxima parte: mapa con ruta real por calles y GPS en vivo del driver en Despacho, y foto de respaldo al marcar una entrega.
-      </p>
     </section>
   );
 }

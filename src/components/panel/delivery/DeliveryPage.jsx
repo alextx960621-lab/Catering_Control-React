@@ -14,7 +14,7 @@ import ImageField from '../ImageField';
 // deliveryCache + ensureDeliveryLoaded + saveDeliveryRecord, pero como
 // estado de React en vez de variables sueltas.
 export default function DeliveryPage({ user }) {
-  const { clients, routes, drivers, days, currentDate, settings, showNotice } = useOperations();
+  const { clients, routes, drivers, days, currentDate, settings, showNotice, saveClients } = useOperations();
   const [records, setRecords] = useState([]);
   const [marking, setMarking] = useState(null); // { client, kind }
   const [viewing, setViewing] = useState(null); // client (para el detalle)
@@ -128,6 +128,7 @@ export default function DeliveryPage({ user }) {
           date={date}
           isDriverBroadcasting={isDriver}
           driverDisplayName={user?.name}
+          saveClients={saveClients}
         />
       </section>
     );
@@ -181,6 +182,7 @@ export default function DeliveryPage({ user }) {
         date={date}
         isDriverBroadcasting={false}
         driverDisplayName={user?.name}
+        saveClients={saveClients}
       />
       {viewing && (
         <Modal title={`Detalle de entrega — ${viewing.name}`} open={!!viewing} onClose={() => setViewing(null)} hideSave>

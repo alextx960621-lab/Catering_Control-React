@@ -1,18 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
 import { n } from '../../../services/planHelpers';
-import { effectiveOrder, resolvedAddress } from '../../../services/dispatchHelpers';
+import { effectiveOrder, resolvedAddress, extractLatLngFromMapsField } from '../../../services/dispatchHelpers';
 import { fetchRoadRoute } from '../../../services/roadRoute';
 import { supabase } from '../../../services/supabaseClient';
 
 const LOCATION_CHANNEL_NAME = 'catering-driver-locations';
 const BROADCAST_MIN_INTERVAL_MS = 4000;
+const NOMINATIM_DELAY_MS = 1100; // respeta el límite de ~1 solicitud/seg de Nominatim
+
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+function srcFingerprint(addr) { return `${addr?.maps || ''}|${addr?.address || ''}`; }
+
+// Último recurso para ubicar en el mapa a un cliente sin coordenadas
+// resueltas: manda su dirección de texto a Nominatim (el geocodificador
+// gratuito de OpenStreetMap). Si no hay dirección, o Nominatim no
+// encuentra nada, o falla la red, se deja sin resolver -- no rompe nada,
+// simplemente ese cliente sigue sin aparecer en el mapa.
+async function geocodeAddress(address) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.length) return null;
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch (err) {
+    console.warn('[mapa] No se pudo geocodificar la dirección con Nominatim:', err);
+    return null;
+  }
+}
 
 // Muestra un mapa con las paradas de una ruta (numeradas por orden de
 // entrega), intenta calcular la ruta real por calles (OSRM, con línea
 // recta de respaldo si no hay internet para eso), y comparte/recibe la
 // posición GPS en vivo del driver por un canal de Supabase Realtime
 // (no es una tabla -- es solo un "susurro" en vivo, no queda guardado).
-export default function RouteMapModal({ open, onClose, routeId, routeName, clients, date, isDriverBroadcasting, driverDisplayName }) {
+export default function RouteMapModal({ open, onClose, routeId, routeName, clients, date, isDriverBroadcasting, driverDisplayName, saveClients }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const layersRef = useRef({});
@@ -44,11 +68,13 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
 
       const withAddr = clients.map((c) => ({ c, addr: resolvedAddress(c, date) })).filter((t) => t.addr);
       const withCoords = withAddr.filter(({ addr }) => addr.lat != null && addr.lng != null);
-      const sorted = [...withCoords].sort((a, b) => (n(effectiveOrder(a.c, date)) || 9999) - (n(effectiveOrder(b.c, date)) || 9999));
       const latlngs = [];
       const stopLatlngs = [];
 
-      sorted.forEach(({ c, addr }) => {
+      // Dibuja (o re-dibuja, si se llama de nuevo después de geocodificar)
+      // el marcador numerado de una parada, y acumula sus coordenadas
+      // para el ajuste de zoom y la línea recta de respaldo.
+      function plotStop(c, addr) {
         const ord = n(effectiveOrder(c, date));
         const pending = !ord;
         const icon = L.divIcon({
@@ -59,21 +85,61 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
         L.marker([addr.lat, addr.lng], { icon }).addTo(markersLayer).bindPopup(`<b>${escapeHtml(c.name)}</b><br>Orden: ${pending ? 'Pendiente de asignar' : ord}<br>${escapeHtml(addr.address || '')}`);
         latlngs.push([addr.lat, addr.lng]);
         if (ord) stopLatlngs.push([addr.lat, addr.lng]);
-      });
+      }
+
+      const sorted = [...withCoords].sort((a, b) => (n(effectiveOrder(a.c, date)) || 9999) - (n(effectiveOrder(b.c, date)) || 9999));
+      sorted.forEach(({ c, addr }) => plotStop(c, addr));
       layersRef.current.stops = stopLatlngs;
 
-      const withoutCoords = clients.length - withCoords.length;
-      const pendingCount = sorted.length - stopLatlngs.length;
-      setLegend(`Números = orden del cliente. Naranja con "P" = todavía sin número asignado (no participa en la ruta).${pendingCount ? ` ${pendingCount} cliente(s) pendiente(s) de orden.` : ''}${withoutCoords ? ` ${withoutCoords} cliente(s) sin ubicación resuelta.` : ''}`);
+      const updateLegendAndStatus = () => {
+        const withoutCoords = clients.length - latlngs.length;
+        const pendingCount = latlngs.length - stopLatlngs.length;
+        setLegend(`Números = orden del cliente. Naranja con "P" = todavía sin número asignado (no participa en la ruta).${pendingCount ? ` ${pendingCount} cliente(s) pendiente(s) de orden.` : ''}${withoutCoords ? ` ${withoutCoords} cliente(s) sin ubicación resuelta.` : ''}`);
+        setStatus(latlngs.length ? `${latlngs.length}/${clients.length} puntos en el mapa.` : 'No se pudo ubicar a ningún cliente en el mapa todavía.');
+      };
 
+      updateLegendAndStatus();
       if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs).pad(0.2));
       else map.setView([-16.5, -68.15], 12);
-      setStatus(withCoords.length ? `${withCoords.length}/${clients.length} puntos en el mapa.` : 'No se pudo ubicar a ningún cliente en el mapa todavía.');
 
       setTimeout(() => map.invalidateSize(), 60);
       drawStraightLine();
       loadRealRoute(false);
       setupLocationChannel();
+
+      // Último recurso para los que quedaron sin coordenadas: mandar su
+      // dirección de texto a Nominatim. Se hace DESPUÉS de mostrar el
+      // mapa (no bloquea la carga inicial) y de a una por vez, con una
+      // pausa entre pedidos para respetar el límite de uso gratuito.
+      const stillMissing = withAddr.filter(({ addr }) => addr.lat == null || addr.lng == null);
+      if (stillMissing.length) {
+        const changedClients = new Map();
+        let geocodedSoFar = 0;
+        for (const { c, addr } of stillMissing) {
+          if (cancelled || !mapRef.current) break;
+          let coords = extractLatLngFromMapsField(addr.maps) || extractLatLngFromMapsField(addr.address);
+          if (!coords && addr.address) {
+            setStatus(`Resolviendo direcciones… (${geocodedSoFar + 1}/${stillMissing.length})`);
+            coords = await geocodeAddress(addr.address);
+            await sleep(NOMINATIM_DELAY_MS);
+          }
+          if (!coords || cancelled || !mapRef.current) continue;
+          addr.lat = coords.lat; addr.lng = coords.lng; addr.geoSrc = srcFingerprint(addr);
+          geocodedSoFar++;
+          plotStop(c, addr);
+          changedClients.set(c.id, c);
+        }
+        layersRef.current.stops = stopLatlngs;
+        if (!cancelled && mapRef.current) {
+          updateLegendAndStatus();
+          if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs).pad(0.2));
+          drawStraightLine();
+          loadRealRoute(false);
+        }
+        // Guarda las coordenadas resueltas para no tener que volver a
+        // pedírselas a Nominatim la próxima vez que se abra este mapa.
+        if (changedClients.size && saveClients) saveClients([...changedClients.values()]);
+      }
     })();
 
     return () => {

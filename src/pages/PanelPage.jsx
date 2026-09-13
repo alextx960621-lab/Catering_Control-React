@@ -165,7 +165,7 @@ export default function PanelPage() {
 
   return (
     <div className="panel-shell">
-      <OperationsProvider userId={user?.id} onThemeFromSettings={setTheme}>
+      <OperationsProvider userId={user?.id} user={user} onThemeFromSettings={setTheme}>
         <PanelShell
           user={user} branding={branding} theme={theme} onThemeChange={setTheme} activePage={activePage}
           onNavigate={setActivePage} onLogout={handleLogout}

@@ -12,6 +12,7 @@ import {
   myRouteIds, canEditDispatchField, lastProcessedDate,
 } from '../../../services/dispatchHelpers';
 import { canManage, isPagePremiumLocked } from '../../../services/panelAuth';
+import { isShortMapsLink, resolveShortMapsLinkIfNeeded } from '../../../services/resolveMapsLink';
 import './DispatchPage.css';
 
 export default function DispatchPage({ user, onGoToClient }) {
@@ -91,10 +92,11 @@ export default function DispatchPage({ user, onGoToClient }) {
 
   function updateClient(id, mutate) {
     const client = clients.find((c) => c.id === id);
-    if (!client) return;
+    if (!client) return null;
     const updated = { ...client };
     mutate(updated);
     saveClients([updated]);
+    return updated;
   }
 
   function handleFieldBlur(client, field, value, inputEl) {
@@ -114,7 +116,7 @@ export default function DispatchPage({ user, onGoToClient }) {
       return;
     }
 
-    updateClient(client.id, (c) => {
+    const updated = updateClient(client.id, (c) => {
       if (field === 'notes' || field === 'maps') {
         const addr = resolvedAddress(c, date);
         if (addr) addr[field] = value;
@@ -131,6 +133,26 @@ export default function DispatchPage({ user, onGoToClient }) {
         c[field] = value;
       }
     });
+
+    // Si el link de Maps que se acaba de pegar ACÁ (no desde el
+    // formulario completo de Clientes) es un link corto
+    // (maps.app.goo.gl/...), no trae coordenadas en el texto todavía --
+    // se resuelve aparte, después de guardar el texto tal cual (para no
+    // demorar el guardado normal esperando la red), igual que ya se
+    // hace al guardar desde el formulario de Clientes. Sin esto, un
+    // cliente cuyo link se pega desde acá se queda sin ubicación en el
+    // mapa de ruta hasta que alguien lo vuelva a guardar desde Clientes.
+    if (field === 'maps' && updated && isShortMapsLink(value)) {
+      resolveShortMapsLinkIfNeeded({ maps: value }).then((resolved) => {
+        if (resolved.lat == null) return; // no se pudo resolver, se deja como está
+        const patched = { ...updated };
+        const target = resolvedAddress(patched, date) || patched;
+        if (target.maps !== value) return; // el campo cambió de nuevo mientras tanto, no pisar lo nuevo
+        target.lat = resolved.lat;
+        target.lng = resolved.lng;
+        saveClients([patched]);
+      });
+    }
   }
 
   function resolveOrderConflict(choice) {
@@ -639,7 +661,7 @@ export default function DispatchPage({ user, onGoToClient }) {
         <label className="field">Estado del pedido
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="all">Todos</option>
-            {['Activo', 'Pausado', 'Programado', 'Retorno pendiente', 'No laborable'].map((s) => <option key={s} value={s}>{s}</option>)}
+            {['Activo', 'Pausado', 'Programado', 'Retorno pendiente', 'No laborable', 'Fuera de horario'].map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
         <label className="field">Estado del día

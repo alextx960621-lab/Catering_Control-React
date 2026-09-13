@@ -4,6 +4,7 @@ import { dbGetDeliveryRows } from '../../../services/db';
 import { n } from '../../../services/planHelpers';
 import { effectiveRouteId, effectiveDriverId, effectiveOrder, dispatchStatus, resolvedAddress, driverForRoute } from '../../../services/dispatchHelpers';
 import { isAdmin } from '../../../services/panelAuth';
+import { fetchRoadRoute } from '../../../services/roadRoute';
 
 function dateRangeArray(start, end) {
   const out = [];
@@ -24,6 +25,11 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   const dLng = toRad(lng2 - lng1);
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+function sumHaversine(withCoords) {
+  let km = 0;
+  for (let i = 1; i < withCoords.length; i++) km += haversineKm(withCoords[i - 1].addr.lat, withCoords[i - 1].addr.lng, withCoords[i].addr.lat, withCoords[i].addr.lng);
+  return km;
 }
 function presetRange(preset, today) {
   if (preset === 'week') {
@@ -55,6 +61,7 @@ export default function MetricsPage({ user }) {
   const [compareOn, setCompareOn] = useState(false);
   const [compareRange, setCompareRange] = useState({ start: '', end: '' });
   const [compareMetrics, setCompareMetrics] = useState(null);
+  const [useRealDistance, setUseRealDistance] = useState(false);
   const canSetCost = isAdmin(user?.role);
 
   function routeName(id) { return routes.find((r) => r.id === id)?.name || 'Sin ruta'; }
@@ -136,7 +143,12 @@ export default function MetricsPage({ user }) {
           .sort((a, b) => (n(effectiveOrder(a.c, date)) || 9999) - (n(effectiveOrder(b.c, date)) || 9999));
         if (withCoords.length >= 2) {
           let km = 0;
-          for (let i = 1; i < withCoords.length; i++) km += haversineKm(withCoords[i - 1].addr.lat, withCoords[i - 1].addr.lng, withCoords[i].addr.lat, withCoords[i].addr.lng);
+          if (useRealDistance) {
+            const road = await fetchRoadRoute(withCoords.map(({ addr }) => [addr.lat, addr.lng]), false);
+            km = road ? road.km : sumHaversine(withCoords);
+          } else {
+            km = sumHaversine(withCoords);
+          }
           rs.km += km; rs.kmDays++;
           driversInvolved.forEach((did) => { if (driverStats[did]) driverStats[did].km += km / driversInvolved.size; });
         }
@@ -179,7 +191,7 @@ export default function MetricsPage({ user }) {
     setComputing(false);
   }
 
-  useEffect(() => { compute(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [range.start, range.end, routeFilter, driverFilter, compareOn, compareRange.start, compareRange.end]);
+  useEffect(() => { compute(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [range.start, range.end, routeFilter, driverFilter, compareOn, compareRange.start, compareRange.end, useRealDistance]);
 
   const maxWeek = metrics ? Math.max(1, ...metrics.weeklyTrend.map((w) => w.count)) : 1;
 
@@ -237,7 +249,7 @@ export default function MetricsPage({ user }) {
     ['Tiempo promedio por ruta', mins(metrics.avgRouteMinutes), 'inicio → última entrega'],
     ['Espera entre paradas', metrics.avgGapMinutes ? `${Math.round(metrics.avgGapMinutes)} min` : '—', 'promedio'],
     ['Clientes promedio por ruta', metrics.avgClientsPerRoute.toFixed(1), ''],
-    ['Km estimados (periodo)', metrics.totalKm.toFixed(1), 'línea recta entre direcciones'],
+    ['Km estimados (periodo)', metrics.totalKm.toFixed(1), useRealDistance ? 'ruta real por calles (OSRM)' : 'línea recta entre direcciones'],
     ['Km promedio por ruta/día', metrics.avgKmPerRouteDay.toFixed(1), ''],
     ['Costo estimado del periodo', metrics.costPerKm ? `Bs ${metrics.estCost.toFixed(2)}` : '—', metrics.costPerKm ? `Bs ${metrics.costPerKm}/km` : 'definir costo por km'],
     ['Costo promedio por ruta', metrics.costPerKm ? `Bs ${metrics.avgCostPerRoute.toFixed(2)}` : '—', ''],
@@ -246,7 +258,7 @@ export default function MetricsPage({ user }) {
 
   return (
     <section className="page active">
-      <div className="page-head"><div><h1>Métricas</h1><p>Estadísticas de reparto calculadas a partir de las marcas de entrega. Los km son una estimación en línea recta entre direcciones, no una ruta real por calles.</p></div></div>
+      <div className="page-head"><div><h1>Métricas</h1><p>Estadísticas de reparto calculadas a partir de las marcas de entrega. {useRealDistance ? 'Los km son la ruta real por calles (OSRM), reutilizando lo ya calculado en el mapa cuando coincide.' : 'Los km son una estimación en línea recta entre direcciones, no una ruta real por calles.'}</p></div></div>
 
       <div className="toolbar" style={{ flexWrap: 'wrap' }}>
         <label className="field">Periodo
@@ -274,6 +286,9 @@ export default function MetricsPage({ user }) {
         <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, width: 'auto' }}>
           <input type="checkbox" style={{ width: 'auto' }} checked={compareOn} onChange={(e) => toggleCompare(e.target.checked)} /> Comparar con otro periodo
         </label>
+        <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, width: 'auto' }} title="Más lento la primera vez (pide a OSRM); reutiliza el mismo caché que el mapa de rutas para lo que ya se haya calculado antes.">
+          <input type="checkbox" style={{ width: 'auto' }} checked={useRealDistance} onChange={(e) => setUseRealDistance(e.target.checked)} /> Usar distancia real por calles (más lento)
+        </label>
         {compareOn && (
           <>
             <label className="field">Comparar desde<div className="date-input-wrap"><input type="date" value={compareRange.start} onChange={(e) => setCompareRange({ ...compareRange, start: e.target.value })} /></div></label>
@@ -282,7 +297,7 @@ export default function MetricsPage({ user }) {
           </>
         )}
       </div>
-      <p className="muted" style={{ fontSize: 12, marginTop: -6, marginBottom: 14 }}>Los km son una estimación en línea recta entre direcciones.</p>
+      <p className="muted" style={{ fontSize: 12, marginTop: -6, marginBottom: 14 }}>{useRealDistance ? 'Los km son ruta real por calles (OSRM).' : 'Los km son una estimación en línea recta entre direcciones.'}</p>
 
       {computing || !metrics ? <p className="muted">Calculando métricas del periodo…</p> : (
         <>

@@ -1,9 +1,11 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { dbGet, dbSet, dbGetClientRows, dbGetFields, dbSetFields, dbUpsertClientRows, dbDeleteClientRows, dbGetNoteRows, dbUpsertNoteRows, dbDeleteNoteRows } from '../services/db';
+import { dbGet, dbSet, dbGetClientRows, dbGetFields, dbSetFields, dbUpsertClientRows, dbDeleteClientRows, dbGetNoteRows, dbUpsertNoteRows, dbDeleteNoteRows, dbInsertAuditBulk } from '../services/db';
 import { rpc } from '../services/supabaseClient';
 import { DEFAULT_MENU_ITEMS, addDays } from '../services/planHelpers';
 import { lastProcessedDate } from '../services/dispatchHelpers';
 import { hydrateFromServer as hydrateUserPrefsFromServer, getTheme as getMyTheme } from '../services/userPrefs';
+import { cleanupOldProofImages, cleanupOldDeliveryPhotos, findInactiveClientsToDelete } from '../services/dataCleanup';
+import { canManage, canManageDelivery } from '../services/panelAuth';
 
 // "Operaciones" son los datos que casi todas las pantallas del Panel
 // necesitan al mismo tiempo: clientes, rutas, drivers, planes, el
@@ -59,7 +61,7 @@ function normalizeSettings(settings) {
 // niega a subir nada si su campo todavía no fue confirmado.
 const BLOCK_FIELDS = ['plans', 'days', 'currentDate', 'drivers', 'routes', 'settings', 'staffUsers', 'inventory'];
 
-export function OperationsProvider({ children, userId, onThemeFromSettings }) {
+export function OperationsProvider({ children, userId, user, onThemeFromSettings }) {
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState([]);
   const [routes, setRoutes] = useState([]);
@@ -111,86 +113,6 @@ export function OperationsProvider({ children, userId, onThemeFromSettings }) {
     return { settings: settingsOut, settingsChanged: settingsOut !== settingsIn, days: daysOut, daysChanged: daysOut !== daysIn };
   }
 
-  useEffect(() => {
-    if (booted.current) return;
-    booted.current = true;
-    (async () => {
-      const [clientRows, clientesFields, personalFields, srvDate, noteRows, inventoryBlock] = await Promise.all([
-        dbGetClientRows(),
-        dbGetFields('clientes', ['plans', 'days', 'currentDate']),
-        dbGetFields('personal', ['drivers', 'routes', 'settings', 'staffUsers', 'userPrefs']),
-        rpc('get_server_date', {}),
-        dbGetNoteRows(),
-        dbGet('inventario'),
-      ]);
-
-      // null = la llamada falló de verdad. Si falló, NO se toca el
-      // estado (se queda con los valores por defecto en memoria) y NO se
-      // marca como confirmado -- así ningún saveX() de ese campo va a
-      // subir nada hasta que se recargue con éxito.
-      if (clientRows !== null) { setClients(clientRows.map(normalizeClient)); clientsConfirmed.current = true; }
-      if (noteRows !== null) { setNotes(noteRows.map((nt) => ({ status: 'pendiente', dueDate: new Date().toISOString().slice(0, 10), source: 'staff', ...nt }))); notesConfirmed.current = true; }
-      if (inventoryBlock !== null) { setInventory({ items: inventoryBlock?.items || [], links: inventoryBlock?.links || [], movements: inventoryBlock?.movements || [] }); confirmed.current.inventory = true; }
-
-      let days = clientesFields?.days || {};
-      let settingsNormalized = normalizeSettings(personalFields?.settings);
-
-      if (clientesFields !== null) {
-        setPlans(clientesFields.plans || []);
-        if (clientesFields.currentDate) setCurrentDateState(clientesFields.currentDate);
-        confirmed.current.plans = true;
-        confirmed.current.days = true;
-        confirmed.current.currentDate = true;
-      }
-
-      if (personalFields !== null) {
-        setDrivers(personalFields.drivers || []);
-        setRoutes(personalFields.routes?.length ? personalFields.routes : [{ id: 'r_open', name: 'Ruta abierta', description: 'Drivers disponibles sin ruta de trabajo', open: true, order: 0 }]);
-        setStaffUsers(personalFields.staffUsers || []);
-        // Preferencias PERSONALES (tema + columnas): se confirman con el
-        // servidor acá (hydrateFromServer), lo que además habilita que de
-        // ahora en más los cambios de este usuario se empiecen a
-        // sincronizar (ver services/userPrefs.js). El tema propio, si
-        // existe, tiene prioridad sobre el tema de empresa (settings.theme,
-        // que sigue siendo el default para quien nunca eligió uno propio).
-        if (userId) hydrateUserPrefsFromServer(userId, personalFields.userPrefs?.[userId]);
-        const myTheme = userId ? getMyTheme(userId) : null;
-        if (myTheme) onThemeFromSettings?.(myTheme);
-        else if (personalFields.settings?.theme) onThemeFromSettings?.(personalFields.settings.theme);
-        confirmed.current.drivers = true;
-        confirmed.current.routes = true;
-        confirmed.current.settings = true;
-        confirmed.current.staffUsers = true;
-      } else {
-        // Sin esto no hay ni rutas ni drivers reales: al menos deja la
-        // ruta abierta para que la app no se vea completamente vacía,
-        // aunque esto NUNCA se guarda (confirmed.routes sigue en false).
-        setRoutes([{ id: 'r_open', name: 'Ruta abierta', description: 'Drivers disponibles sin ruta de trabajo', open: true, order: 0 }]);
-      }
-
-      let refDate = null;
-      if (typeof srvDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(srvDate)) { refDate = srvDate.slice(0, 10); setServerToday(refDate); }
-
-      // El backfill/vencimiento de Premium solo se aplica si los dos
-      // bloques de los que depende (días y configuración) y la fecha del
-      // servidor se confirmaron -- si algo de eso falló, mejor no tocar
-      // nada a ciegas.
-      if (clientesFields !== null && personalFields !== null && refDate) {
-        const fixed = applyBackfillAndPremiumExpiry(days, settingsNormalized, refDate);
-        days = fixed.days;
-        settingsNormalized = fixed.settings;
-        if (fixed.daysChanged) dbSetFields('clientes', { days });
-        if (fixed.settingsChanged) dbSetFields('personal', { settings: settingsNormalized });
-      }
-      setDays(days);
-      setSettings(settingsNormalized);
-
-      const anyFailed = clientRows === null || noteRows === null || inventoryBlock === null || clientesFields === null || personalFields === null;
-      if (anyFailed) showNotice('No se pudo sincronizar todo con la base de datos. Algunos cambios no se guardarán hasta reconectar (recargá la página).', true);
-
-      setLoading(false);
-    })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Guarda uno o más campos del bloque "clientes" (plans/days/currentDate)
   // o "personal" (drivers/routes/settings/staffUsers) -- solo lo que
@@ -253,6 +175,145 @@ export function OperationsProvider({ children, userId, onThemeFromSettings }) {
     return dbDeleteClientRows(ids);
   }, [notConfirmedNotice]);
 
+  // Reglas de retención de datos (ver services/dataCleanup.js): comprobantes
+  // de pago y fotos de entrega de más de 7 días, y clientes sin actividad
+  // hace 2 años. Corre sola al cargar el Panel y cada vez que se toca
+  // "Actualizar" -- nadie tiene que acordarse de hacerlo a mano, e
+  // igual que en la vanilla (panel.html), cada rutina se salta sola si
+  // el rol de quien está logueado no tiene permiso de editar esa
+  // pantalla (un driver, por ejemplo, no dispara el borrado de
+  // clientes). Nunca debe poder romper la carga normal de la app --
+  // por eso cada parte tiene su propio try/catch, y nunca se espera
+  // (await) desde quien la llama.
+  const runDataCleanup = useCallback(async ({ clientsList, notesList, daysMap, refDate, customRoles }) => {
+    const role = user?.role;
+    try {
+      if (canManage(role, customRoles, 'notes')) {
+        const updatedNotes = cleanupOldProofImages(notesList);
+        if (updatedNotes?.length) {
+          const ok = await saveNotes(updatedNotes);
+          if (!ok) console.warn('[limpieza] No se pudo guardar la limpieza de comprobantes de pago vencidos.');
+        }
+      }
+    } catch (err) {
+      console.warn('[limpieza] Error limpiando comprobantes de pago vencidos:', err);
+    }
+
+    try {
+      if (canManageDelivery(role, customRoles)) await cleanupOldDeliveryPhotos();
+    } catch (err) {
+      console.warn('[limpieza] Error limpiando fotos de entrega vencidas:', err);
+    }
+
+    try {
+      if (canManage(role, customRoles, 'clients') && refDate) {
+        const toDelete = await findInactiveClientsToDelete(clientsList, daysMap, refDate);
+        if (toDelete.length) {
+          const ok = await deleteClients(toDelete.map((c) => c.id));
+          if (ok) {
+            await dbInsertAuditBulk(toDelete.map((c) => ({
+              actor_id: user?.id, actor_name: user?.name, actor_role: user?.role,
+              action: 'Cliente eliminado automáticamente', entity_type: 'client', entity_label: c.name, entity_id: c.id,
+              details: { motivo: '2 años sin entregas ni renovación de plan (Retorno pendiente)' },
+            })));
+          } else {
+            console.warn('[limpieza] No se pudo borrar automáticamente a los clientes inactivos.');
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[limpieza] Error borrando clientes inactivos:', err);
+    }
+  }, [user, saveNotes, deleteClients]);
+
+  useEffect(() => {
+    if (booted.current) return;
+    booted.current = true;
+    (async () => {
+      const [clientRows, clientesFields, personalFields, srvDate, noteRows, inventoryBlock] = await Promise.all([
+        dbGetClientRows(),
+        dbGetFields('clientes', ['plans', 'days', 'currentDate']),
+        dbGetFields('personal', ['drivers', 'routes', 'settings', 'staffUsers', 'userPrefs']),
+        rpc('get_server_date', {}),
+        dbGetNoteRows(),
+        dbGet('inventario'),
+      ]);
+
+      // null = la llamada falló de verdad. Si falló, NO se toca el
+      // estado (se queda con los valores por defecto en memoria) y NO se
+      // marca como confirmado -- así ningún saveX() de ese campo va a
+      // subir nada hasta que se recargue con éxito.
+      if (clientRows !== null) { setClients(clientRows.map(normalizeClient)); clientsConfirmed.current = true; }
+      if (noteRows !== null) { setNotes(noteRows.map((nt) => ({ status: 'pendiente', dueDate: new Date().toISOString().slice(0, 10), source: 'staff', ...nt }))); notesConfirmed.current = true; }
+      if (inventoryBlock !== null) { setInventory({ items: inventoryBlock?.items || [], links: inventoryBlock?.links || [], movements: inventoryBlock?.movements || [] }); confirmed.current.inventory = true; }
+      const normalizedClients = clientRows !== null ? clientRows.map(normalizeClient) : null;
+      const normalizedNotes = noteRows !== null ? noteRows.map((nt) => ({ status: 'pendiente', dueDate: new Date().toISOString().slice(0, 10), source: 'staff', ...nt })) : null;
+      let days = clientesFields?.days || {};
+      let settingsNormalized = normalizeSettings(personalFields?.settings);
+
+      if (clientesFields !== null) {
+        setPlans(clientesFields.plans || []);
+        if (clientesFields.currentDate) setCurrentDateState(clientesFields.currentDate);
+        confirmed.current.plans = true;
+        confirmed.current.days = true;
+        confirmed.current.currentDate = true;
+      }
+
+      if (personalFields !== null) {
+        setDrivers(personalFields.drivers || []);
+        setRoutes(personalFields.routes?.length ? personalFields.routes : [{ id: 'r_open', name: 'Ruta abierta', description: 'Drivers disponibles sin ruta de trabajo', open: true, order: 0 }]);
+        setStaffUsers(personalFields.staffUsers || []);
+        // Preferencias PERSONALES (tema + columnas): se confirman con el
+        // servidor acá (hydrateFromServer), lo que además habilita que de
+        // ahora en más los cambios de este usuario se empiecen a
+        // sincronizar (ver services/userPrefs.js). El tema propio, si
+        // existe, tiene prioridad sobre el tema de empresa (settings.theme,
+        // que sigue siendo el default para quien nunca eligió uno propio).
+        if (userId) hydrateUserPrefsFromServer(userId, personalFields.userPrefs?.[userId]);
+        const myTheme = userId ? getMyTheme(userId) : null;
+        if (myTheme) onThemeFromSettings?.(myTheme);
+        else if (personalFields.settings?.theme) onThemeFromSettings?.(personalFields.settings.theme);
+        confirmed.current.drivers = true;
+        confirmed.current.routes = true;
+        confirmed.current.settings = true;
+        confirmed.current.staffUsers = true;
+      } else {
+        // Sin esto no hay ni rutas ni drivers reales: al menos deja la
+        // ruta abierta para que la app no se vea completamente vacía,
+        // aunque esto NUNCA se guarda (confirmed.routes sigue en false).
+        setRoutes([{ id: 'r_open', name: 'Ruta abierta', description: 'Drivers disponibles sin ruta de trabajo', open: true, order: 0 }]);
+      }
+
+      let refDate = null;
+      if (typeof srvDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(srvDate)) { refDate = srvDate.slice(0, 10); setServerToday(refDate); }
+
+      // El backfill/vencimiento de Premium solo se aplica si los dos
+      // bloques de los que depende (días y configuración) y la fecha del
+      // servidor se confirmaron -- si algo de eso falló, mejor no tocar
+      // nada a ciegas.
+      if (clientesFields !== null && personalFields !== null && refDate) {
+        const fixed = applyBackfillAndPremiumExpiry(days, settingsNormalized, refDate);
+        days = fixed.days;
+        settingsNormalized = fixed.settings;
+        if (fixed.daysChanged) dbSetFields('clientes', { days });
+        if (fixed.settingsChanged) dbSetFields('personal', { settings: settingsNormalized });
+      }
+      setDays(days);
+      setSettings(settingsNormalized);
+
+      const anyFailed = clientRows === null || noteRows === null || inventoryBlock === null || clientesFields === null || personalFields === null;
+      if (anyFailed) showNotice('No se pudo sincronizar todo con la base de datos. Algunos cambios no se guardarán hasta reconectar (recargá la página).', true);
+
+      // Nunca se espera (sin await): no debe demorar el arranque normal
+      // de la app por la vuelta de red a Storage/Nominatim/etc.
+      if (normalizedClients !== null && normalizedNotes !== null) {
+        runDataCleanup({ clientsList: normalizedClients, notesList: normalizedNotes, daysMap: days, refDate, customRoles: settingsNormalized.customRoles });
+      }
+
+      setLoading(false);
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const saveInventory = useCallback((inv) => {
     if (!confirmed.current.inventory) { notConfirmedNotice(); return Promise.resolve(false); }
     setInventory(inv);
@@ -274,24 +335,42 @@ export function OperationsProvider({ children, userId, onThemeFromSettings }) {
     if (clientRows !== null) { setClients(clientRows.map(normalizeClient)); clientsConfirmed.current = true; }
     if (noteRows !== null) { setNotes(noteRows.map((nt) => ({ status: 'pendiente', dueDate: new Date().toISOString().slice(0, 10), source: 'staff', ...nt }))); notesConfirmed.current = true; }
     if (inventoryBlock !== null) { setInventory({ items: inventoryBlock?.items || [], links: inventoryBlock?.links || [], movements: inventoryBlock?.movements || [] }); confirmed.current.inventory = true; }
+    const normalizedClients = clientRows !== null ? clientRows.map(normalizeClient) : null;
+    const normalizedNotes = noteRows !== null ? noteRows.map((nt) => ({ status: 'pendiente', dueDate: new Date().toISOString().slice(0, 10), source: 'staff', ...nt })) : null;
+    let refreshedDays = null;
+    let refreshedCustomRoles = null;
     if (clientesFields !== null) {
       setPlans(clientesFields.plans || []);
       setDays(clientesFields.days || {});
+      refreshedDays = clientesFields.days || {};
       if (clientesFields.currentDate) setCurrentDateState(clientesFields.currentDate);
       confirmed.current.plans = true; confirmed.current.days = true; confirmed.current.currentDate = true;
     }
     if (personalFields !== null) {
       setDrivers(personalFields.drivers || []);
       if (personalFields.routes?.length) setRoutes(personalFields.routes);
-      setSettings(normalizeSettings(personalFields.settings));
+      const normalizedSettings = normalizeSettings(personalFields.settings);
+      setSettings(normalizedSettings);
+      refreshedCustomRoles = normalizedSettings.customRoles;
       setStaffUsers(personalFields.staffUsers || []);
       confirmed.current.drivers = true; confirmed.current.routes = true; confirmed.current.settings = true; confirmed.current.staffUsers = true;
     }
-    if (typeof srvDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(srvDate)) setServerToday(srvDate.slice(0, 10));
+    let refreshedDate = null;
+    if (typeof srvDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(srvDate)) { refreshedDate = srvDate.slice(0, 10); setServerToday(refreshedDate); }
     const anyFailed = clientRows === null || noteRows === null || inventoryBlock === null || clientesFields === null || personalFields === null;
     showNotice(anyFailed ? 'No se pudo sincronizar todo. Revisa tu internet e intenta de nuevo.' : 'Datos actualizados.', anyFailed);
+    if (normalizedClients !== null && normalizedNotes !== null && clientesFields !== null && personalFields !== null && refreshedDate) {
+      // Ojo: refreshAll está memoizada con deps=[showNotice] (fijas), así
+      // que NO puede confiar en las variables de estado (days/settings/
+      // serverToday) para nada que dependa del valor más reciente -- ese
+      // closure quedaría pegado para siempre al primer render. Por eso
+      // solo se corre la limpieza automática cuando ESTE refresh trajo
+      // los 3 datos que necesita de cero (clientesFields, personalFields
+      // y la fecha del servidor), nunca mezclando con el estado viejo.
+      runDataCleanup({ clientsList: normalizedClients, notesList: normalizedNotes, daysMap: refreshedDays, refDate: refreshedDate, customRoles: refreshedCustomRoles || [] });
+    }
     return !anyFailed;
-  }, [showNotice]);
+  }, [showNotice, runDataCleanup]);
 
   const value = {
     loading, clients, routes, drivers, plans, days, notes, inventory, currentDate, settings, staffUsers, serverToday, notice, showNotice, refreshAll,

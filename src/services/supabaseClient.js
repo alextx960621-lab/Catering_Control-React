@@ -160,24 +160,20 @@ export function joinPresence(info, onChange) {
   try {
     if (presenceChannel) return presenceChannel;
     const sessionId = `${info.role}-${info.id || 'anon'}-${Math.random().toString(36).slice(2, 9)}`;
-    // private: true -- modo recomendado por Supabase para canales de
-    // Presence/Broadcast: hace que las policies de la sección 14 de
-    // supabase-setup-final-v2.sql (RLS sobre realtime.messages) se
-    // apliquen de verdad. Con el canal público, esas policies pueden
-    // terminar siendo irrelevantes según cómo esté configurado "Allow
-    // public access" en el dashboard de Realtime -- una config de
-    // interfaz que no se puede confirmar ni forzar desde el código.
+    // Canal público (sin "private: true"): esta app no usa Supabase Auth
+    // real (login propio validado contra db_sessions), siempre se conecta
+    // con la clave anónima -- un canal privado necesitaría un JWT que acá
+    // no existe. Igual que panel.html, que nunca tuvo "private: true" y
+    // nunca tuvo este problema.
     presenceChannel = supabase.channel('catering-online-users', {
-      config: { presence: { key: sessionId }, private: true },
+      config: { presence: { key: sessionId } },
     });
-    // IMPORTANTE: este .on('presence', 'sync') hay que registrarlo SIEMPRE,
-    // haya o no un onChange -- no es solo un "listener" opcional, es lo que
-    // activa/engancha la extensión de presencia en el canal del lado del
-    // cliente (así lo hacen todos los ejemplos oficiales de Supabase,
-    // siempre encadenado ANTES de .subscribe()). Sin esto, .track() queda
-    // "huérfano": no tira error, pero el estado de presencia nunca termina
-    // de sincronizarse -- por eso "Conectados ahora" podía marcar 0 incluso
-    // para uno mismo, con RLS y Realtime perfectamente configurados.
+    // Se registra SIEMPRE, encadenado antes de .subscribe() (patrón que
+    // usa Supabase en su documentación) -- es lo que activa la extensión
+    // de presencia en el canal, no un simple "listener opcional". Acá
+    // `onChange` de hecho nunca viene (Panel/Cliente llaman joinPresence
+    // sin ese argumento; usePresence() lee por polling), pero el binding
+    // igual tiene que existir para que .track() sirva de algo.
     presenceChannel.on('presence', { event: 'sync' }, () => {
       if (typeof onChange === 'function') {
         try {
@@ -192,18 +188,9 @@ export function joinPresence(info, onChange) {
         try {
           await presenceChannel.track({ role: info.role, name: info.name || '', id: info.id || '', device: deviceLabel(), at: new Date().toISOString() });
         } catch (trackErr) {
-          // TEMPORAL: antes se tragaba en silencio. "Conectados ahora" siempre
-          // en 0 puede deberse a que .track() falla (ej. RLS de
-          // realtime.messages si el proyecto tiene "Realtime Authorization"
-          // activado, que exige políticas para canales — ver RLS lockdown
-          // arriba en este archivo) o a que Realtime no está habilitado para
-          // este proyecto de Supabase. Quitar este console.warn una vez
-          // diagnosticado.
           console.warn('[presencia] track() falló, "Conectados ahora" no va a contar a este dispositivo:', trackErr);
         }
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        // TEMPORAL: mismo diagnóstico que arriba, para el caso en que el
-        // canal ni siquiera llegue a SUBSCRIBED.
         console.warn(`[presencia] canal 'catering-online-users' en estado "${status}", no se pudo suscribir:`, err);
       }
     });

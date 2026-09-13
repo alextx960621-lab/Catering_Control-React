@@ -1175,36 +1175,11 @@ end $do$;
 -- joinPresence()) ahora se abre con private:true (modo recomendado por
 -- Supabase para Presence/Broadcast) -- eso hace que esta política sí se
 -- aplique de verdad, en vez de depender de si "Allow public access" está
--- prendido en Realtime Settings del dashboard (una config de interfaz que
--- no se puede confirmar ni forzar desde acá). Esta política es de solo
--- lectura/escritura de mensajes de presencia (no toca ninguna tabla de
--- datos), así que no baja el nivel de seguridad del resto de la app.
---
--- Si después de correr esto "Conectados ahora" sigue en 0, revisar
--- Dashboard → Project Settings → Realtime que esté habilitado a nivel de
--- proyecto, o los console.warn de diagnóstico que quedan en
--- joinPresence() desde la consola del navegador en producción.
--- (14 sep 2026) Se QUITA el `alter table realtime.messages enable row level
--- security` que estaba acá antes: Supabase bloqueó por completo (changelog
--- del 14 jul 2026) cualquier modificación estructural al esquema `realtime`,
--- incluso para el rol postgres -- por eso el script fallaba con
--- "ERROR 42501: must be owner of table messages" apenas llegaba a esta
--- línea, y ninguna sentencia posterior (secciones 15 y 16 incluidas) llegaba
--- a correr. No hace falta de todos modos: Supabase mantiene RLS activado
--- por defecto en `realtime.messages` desde que existe la tabla -- lo único
--- que hay que crear son las policies de abajo, y crear/reemplazar policies
--- SÍ está permitido (no es una alteración estructural de la tabla).
-drop policy if exists "presencia: anon puede escuchar" on realtime.messages;
-create policy "presencia: anon puede escuchar"
-on realtime.messages for select
-to anon, authenticated
-using (realtime.messages.extension in ('presence', 'broadcast'));
-
-drop policy if exists "presencia: anon puede trackear" on realtime.messages;
-create policy "presencia: anon puede trackear"
-on realtime.messages for insert
-to anon, authenticated
-with check (realtime.messages.extension in ('presence', 'broadcast'));
+-- (Ya no hace falta ninguna policy de presencia acá: el canal de
+-- "Conectados ahora" se abre público, sin `private: true` -- ver
+-- joinPresence() en supabaseClient.js. Un canal público no evalúa
+-- policies de RLS sobre realtime.messages, así que no hay nada que
+-- crear en esta sección.)
 
 -- --------------------------------------------------------------------------
 -- 15. Preferencias personales por cuenta (tema + orden de columnas), para

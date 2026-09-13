@@ -21,6 +21,9 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes })
   function update(i, field, value) {
     setAddresses(addresses.map((a, idx) => (idx === i ? { ...a, [field]: value } : a)));
   }
+  function updateAddr(i, patch) {
+    setAddresses((prev) => prev.map((a, idx) => (idx === i ? { ...a, ...patch } : a)));
+  }
   function remove(i) {
     const removed = addresses[i];
     const next = addresses.filter((_, idx) => idx !== i);
@@ -28,9 +31,32 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes })
     if (removed?.id === activeId) setActiveId(next[0]?.id || '');
   }
   function add() {
-    const row = { id: uid('addr'), address: '', routeId: '', maps: '', order: '', notes: '' };
+    const row = { id: uid('addr'), address: '', routeId: '', maps: '', order: '', notes: '', lat: null, lng: null };
     setAddresses([...addresses, row]);
     if (!activeId) setActiveId(row.id);
+  }
+
+  // Se resuelve al salir del campo de Maps, no recién al Guardar -- así
+  // "Coordenadas" (lo que usa el mapa para ubicar al cliente) aparece de una.
+  async function handleMapsBlur(i) {
+    const addr = addresses[i];
+    if (!addr?.maps) return;
+    const resolved = await resolveShortMapsLinkIfNeeded(addr);
+    if (resolved.lat != null && (resolved.lat !== addr.lat || resolved.lng !== addr.lng)) {
+      updateAddr(i, { lat: resolved.lat, lng: resolved.lng });
+    }
+  }
+
+  // "Coordenadas" se edita como un solo texto "lat, lng" (más cómodo
+  // para copiar/pegar desde Google Maps que dos campos separados). Tolera
+  // espacios de más; si no se puede leer como dos números, no rompe nada,
+  // simplemente no actualiza lat/lng todavía (se puede seguir editando).
+  function formatCoords(a) {
+    return a.lat != null && a.lng != null ? `${a.lat}, ${a.lng}` : '';
+  }
+  function handleCoordsChange(i, text) {
+    const m = text.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+    updateAddr(i, m ? { lat: parseFloat(m[1]), lng: parseFloat(m[2]), _coordsDraft: undefined } : { _coordsDraft: text });
   }
 
   return (
@@ -64,7 +90,16 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes })
 
           <label className="address-field address-field-wide">
             <span>Link de Google Maps</span>
-            <input placeholder="https://maps.app.goo.gl/…" value={a.maps} onChange={(e) => update(i, 'maps', e.target.value)} />
+            <input placeholder="https://maps.app.goo.gl/…" value={a.maps} onChange={(e) => update(i, 'maps', e.target.value)} onBlur={() => handleMapsBlur(i)} />
+          </label>
+
+          <label className="address-field">
+            <span>Coordenadas {a.lat != null && <span className="address-coords-ok" title="Esto es lo que usa el mapa para ubicar al cliente">✓ resuelto</span>}</span>
+            <input
+              placeholder="Se completa solo al pegar el link"
+              value={a._coordsDraft !== undefined ? a._coordsDraft : formatCoords(a)}
+              onChange={(e) => handleCoordsChange(i, e.target.value)}
+            />
           </label>
 
           <label className="address-field address-field-wide">
