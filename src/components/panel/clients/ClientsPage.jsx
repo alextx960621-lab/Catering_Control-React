@@ -42,8 +42,13 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes })
     const addr = addresses[i];
     if (!addr?.maps) return;
     const resolved = await resolveShortMapsLinkIfNeeded(addr);
-    if (resolved.lat != null && (resolved.lat !== addr.lat || resolved.lng !== addr.lng)) {
-      updateAddr(i, { lat: resolved.lat, lng: resolved.lng });
+    // OJO (encontrado 13 sep): antes solo se guardaba lat/lng acá y se
+    // descartaba `mapsResolvedFrom` -- no causaba coordenadas viejas (el
+    // resultado final siempre terminaba bien igual), pero sí hacía que se
+    // volviera a pedir la resolución a la función de Supabase cada vez que
+    // se guardaba el formulario, aunque el link no hubiera cambiado.
+    if (resolved.lat != null && (resolved.lat !== addr.lat || resolved.lng !== addr.lng || resolved.mapsResolvedFrom !== addr.mapsResolvedFrom)) {
+      updateAddr(i, { lat: resolved.lat, lng: resolved.lng, mapsResolvedFrom: resolved.mapsResolvedFrom });
     }
   }
 
@@ -242,7 +247,16 @@ function RenewPlanModal({ client, mode, plans, onClose, onConfirm }) {
 }
 
 export default function ClientsPage({ user, pendingClientAction, onConsumePendingClientAction, onRenewalCompleted, onReturnToOrigin }) {
-  const { clients, routes, plans, drivers, settings, currentDate, saveClients, deleteClients, showNotice, loading } = useOperations();
+  const { clients, routes, plans, drivers, settings, currentDate, days, saveClients, deleteClients, showNotice, loading } = useOperations();
+  // BUG (reportado 13 sep): acá se pasaba `{}` como dayInfo a
+  // dispatchStatus() -- como esa función arranca con
+  // `if (!dayInfo?.laborable) return 'No laborable'`, un objeto vacío
+  // (sin `laborable`) le gana a CUALQUIER otro estado real del cliente:
+  // esta tabla mostraba "No laborable" para todos los clientes, todo el
+  // tiempo, sin importar lo que dijera Día de trabajo o el propio
+  // formulario del cliente. Mismo patrón que ya usa DispatchPage.jsx: si
+  // el día todavía no tiene un registro propio, se asume laborable.
+  const dayInfo = days[currentDate] || { laborable: true };
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
   const [addresses, setAddresses] = useState([]);
@@ -321,7 +335,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
   }
 
   function togglePause(c) {
-    const current = dispatchStatus(c, currentDate, {}, false);
+    const current = dispatchStatus(c, currentDate, dayInfo, false);
     // Al reactivar hay que limpiar TAMBIÉN pauseDates (no solo pauseStart):
     // si el cliente había quedado pausado "solo por hoy" desde Día de
     // trabajo (Pausar hoy → agrega la fecha de hoy a pauseDates), esa fecha
@@ -413,13 +427,13 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     { key: 'phone1', label: 'Teléfono', render: (c) => { const link = clientWaLink(c.phone1); return link ? <a href={link} target="_blank" rel="noopener" title="Abrir chat de WhatsApp">{c.phone1}</a> : (c.phone1 || '—'); } },
     { key: 'plan', label: 'Plan', render: (c) => planName(c.planId) },
     { key: 'driver', label: 'Driver', render: (c) => driverName(c.driverId) },
-    { key: 'status', label: 'Estado', render: (c) => <span className={`badge ${statusBadgeClass(dispatchStatus(c, currentDate, {}, false))}`}>{dispatchStatus(c, currentDate, {}, false)}</span> },
+    { key: 'status', label: 'Estado', render: (c) => <span className={`badge ${statusBadgeClass(dispatchStatus(c, currentDate, dayInfo, false))}`}>{dispatchStatus(c, currentDate, dayInfo, false)}</span> },
     { key: 'paidDays', label: 'Días pagados', render: (c) => n(c.paidDays) },
     { key: 'consumedDays', label: 'Consumidos', render: (c) => n(c.consumedDays) },
     { key: 'specialDiet', label: 'Dieta especial', render: (c) => c.specialDiet || '—' },
     { key: 'id', label: 'Acciones', render: (c) => canEdit ? (
       <>
-        <button className="icon-btn warning" onClick={() => togglePause(c)}>{dispatchStatus(c, currentDate, {}, false) === 'Pausado' ? 'Activar' : 'Pausar'}</button>
+        <button className="icon-btn warning" onClick={() => togglePause(c)}>{dispatchStatus(c, currentDate, dayInfo, false) === 'Pausado' ? 'Activar' : 'Pausar'}</button>
         <button className="icon-btn violet" onClick={() => openRenew(c, 'renew')}>Renovar</button>
         <button className="icon-btn info" onClick={() => openEdit(c)}>Editar</button>
         <button className="icon-btn delete" onClick={() => handleDelete(c)}>×</button>

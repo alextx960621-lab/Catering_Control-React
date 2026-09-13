@@ -63,9 +63,16 @@ export default function LoginPage() {
                   <h1 className="h5 mb-1" id="brand-title">
                     {brandName}
                   </h1>
-                  <ThemeSelect theme={theme} onChange={setTheme} />
+                  {/* Compartir solo se muestra en la app instalada (ver
+                      ShareAppButton), al lado del selector de tema en vez
+                      de quedar solo a la derecha de toda la fila --
+                      quedan juntos como "las 2 acciones chicas" del
+                      encabezado. */}
+                  <div className="d-inline-flex align-items-center justify-content-center flex-wrap gap-2">
+                    <ThemeSelect theme={theme} onChange={setTheme} />
+                    <ShareAppButton brandName={brandName} />
+                  </div>
                 </div>
-                <ShareAppButton brandName={brandName} />
               </div>
 
               <nav className="nav nav-pills nav-fill bg-body-tertiary rounded-pill p-1 mb-4" aria-label="Tipo de acceso">

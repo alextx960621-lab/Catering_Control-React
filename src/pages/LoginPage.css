@@ -73,8 +73,14 @@ button, .btn, .nav-pills .nav-link {
 
 .login-card { max-width: 420px; margin: 0 auto; }
 .login-card .card { overflow: hidden; }
-.brand-row { display: flex; align-items: center; gap: 16px; }
-.brand-info { min-width: 0; flex: 1; }
+/* Pedido 13 sep: antes el botón de Compartir vivía como 3er elemento de
+   esta fila (empujado del todo a la derecha por `.brand-info{flex:1}`),
+   dejando el logo+nombre pegados a la izquierda. Ahora Compartir se movió
+   adentro de `.brand-info` (al lado de Tema, ver LoginPage.jsx) y esta
+   fila queda con solo 2 elementos (logo + info) -- se centran como grupo
+   en vez de ocupar todo el ancho de la tarjeta. */
+.brand-row { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.brand-info { min-width: 0; text-align: center; }
 .brand-mark {
   width: 72px; height: 72px; flex: 0 0 auto; border-radius: 1rem;
   overflow: hidden; background: var(--brand); transition: background .2s;

@@ -51,11 +51,16 @@ export function cleanupOldProofImages(notes) {
 // solas -- si nadie las revisa, se quedan para siempre en Storage. Por
 // eso se revisa TODO el historial de `db_delivery_status` (todas las
 // fechas), no solo lo que algún componente tenga cargado en caché.
-export async function cleanupOldDeliveryPhotos() {
-  const rows = await dbGetAllDeliveryStatus(null);
-  if (!Array.isArray(rows) || !rows.length) return;
+//
+// `rows` es opcional: si quien llama ya trajo el historial completo (ver
+// runDataCleanup en OperationsContext.jsx, que lo comparte con
+// findInactiveClientsToDelete para no pedirlo 2 veces seguidas), se
+// puede pasar directo acá en vez de volver a pedirlo.
+export async function cleanupOldDeliveryPhotos(rows) {
+  const list = rows || (await dbGetAllDeliveryStatus(null));
+  if (!Array.isArray(list) || !list.length) return;
   const now = Date.now();
-  const stale = rows.filter((r) => {
+  const stale = list.filter((r) => {
     const img = r.payload?.image;
     const at = r.payload?.at;
     if (!img || !at) return false;
@@ -79,11 +84,13 @@ export async function cleanupOldDeliveryPhotos() {
 // Solo CALCULA quiénes hay que borrar y borra sus fotos de Storage de
 // paso -- el borrado real (base de datos + estado + auditoría) lo hace
 // quien llama, con las mismas funciones de siempre.
-export async function findInactiveClientsToDelete(clients, days, refDate) {
-  const rows = await dbGetAllDeliveryStatus(null);
+//
+// `rows` opcional, mismo motivo que en cleanupOldDeliveryPhotos.
+export async function findInactiveClientsToDelete(clients, days, refDate, rows) {
+  const list = rows || (await dbGetAllDeliveryStatus(null));
   const lastDeliveryByClient = {};
-  if (Array.isArray(rows)) {
-    rows.forEach((r) => {
+  if (Array.isArray(list)) {
+    list.forEach((r) => {
       if (!r.date) return;
       if (!lastDeliveryByClient[r.clientId] || r.date > lastDeliveryByClient[r.clientId]) lastDeliveryByClient[r.clientId] = r.date;
     });
@@ -97,7 +104,7 @@ export async function findInactiveClientsToDelete(clients, days, refDate) {
     const d = daysSince(lastActivity, refDate);
     if (d !== null && d >= INACTIVE_CLIENT_DAYS) {
       toDelete.push(c);
-      if (Array.isArray(rows)) rows.filter((r) => r.clientId === c.id && r.payload?.image).forEach((r) => removeStoredImage(r.payload.image));
+      if (Array.isArray(list)) list.filter((r) => r.clientId === c.id && r.payload?.image).forEach((r) => removeStoredImage(r.payload.image));
     }
   });
   return toDelete;

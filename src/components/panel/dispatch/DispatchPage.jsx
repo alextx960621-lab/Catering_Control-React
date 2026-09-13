@@ -150,6 +150,14 @@ export default function DispatchPage({ user, onGoToClient }) {
         if (target.maps !== value) return; // el campo cambió de nuevo mientras tanto, no pisar lo nuevo
         target.lat = resolved.lat;
         target.lng = resolved.lng;
+        // Sin esto (encontrado 13 sep) el registro quedaba guardado en la
+        // base sin `mapsResolvedFrom` -- no causaba coordenadas viejas
+        // (esta llamada siempre resuelve de nuevo porque se dispara
+        // solo cuando de verdad se edita el campo), pero si después se
+        // abría el mismo cliente desde el formulario de Clientes y se
+        // guardaba sin tocar el link, se volvía a pedir la resolución de
+        // más -- exactamente el mismo desperdicio que en ClientsPage.
+        target.mapsResolvedFrom = resolved.mapsResolvedFrom;
         saveClients([patched]);
       });
     }

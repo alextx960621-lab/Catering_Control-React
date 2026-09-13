@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { dbGet, dbSet, dbGetClientRows, dbGetFields, dbSetFields, dbUpsertClientRows, dbDeleteClientRows, dbGetNoteRows, dbUpsertNoteRows, dbDeleteNoteRows, dbInsertAuditBulk } from '../services/db';
+import { dbGet, dbSet, dbGetClientRows, dbGetFields, dbSetFields, dbUpsertClientRows, dbDeleteClientRows, dbGetNoteRows, dbUpsertNoteRows, dbDeleteNoteRows, dbInsertAuditBulk, dbGetAllDeliveryStatus } from '../services/db';
 import { rpc } from '../services/supabaseClient';
 import { DEFAULT_MENU_ITEMS, addDays } from '../services/planHelpers';
 import { lastProcessedDate } from '../services/dispatchHelpers';
@@ -199,15 +199,30 @@ export function OperationsProvider({ children, userId, user, onThemeFromSettings
       console.warn('[limpieza] Error limpiando comprobantes de pago vencidos:', err);
     }
 
+    // Antes cleanupOldDeliveryPhotos() y findInactiveClientsToDelete()
+    // pedían CADA UNA por su lado todo el historial de
+    // db_delivery_status -- si las 2 corrían (alguien con permiso de
+    // Despacho Y de Clientes), se pedía 2 veces seguidas exactamente lo
+    // mismo. Ahora se pide una sola vez acá y se comparte con las 2.
+    const needsDeliveryHistory = canManageDelivery(role, customRoles) || (canManage(role, customRoles, 'clients') && refDate);
+    let deliveryHistory = null;
+    if (needsDeliveryHistory) {
+      try {
+        deliveryHistory = await dbGetAllDeliveryStatus(null);
+      } catch (err) {
+        console.warn('[limpieza] No se pudo traer el historial de entregas para la limpieza automática:', err);
+      }
+    }
+
     try {
-      if (canManageDelivery(role, customRoles)) await cleanupOldDeliveryPhotos();
+      if (canManageDelivery(role, customRoles)) await cleanupOldDeliveryPhotos(deliveryHistory);
     } catch (err) {
       console.warn('[limpieza] Error limpiando fotos de entrega vencidas:', err);
     }
 
     try {
       if (canManage(role, customRoles, 'clients') && refDate) {
-        const toDelete = await findInactiveClientsToDelete(clientsList, daysMap, refDate);
+        const toDelete = await findInactiveClientsToDelete(clientsList, daysMap, refDate, deliveryHistory);
         if (toDelete.length) {
           const ok = await deleteClients(toDelete.map((c) => c.id));
           if (ok) {
