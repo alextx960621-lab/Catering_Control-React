@@ -1,45 +1,51 @@
-# Catering Control (versión React)
+# Catering Control (React)
 
-Migración de la PWA original (HTML + JS sueltos) a React + Vite, manteniendo
-el mismo comportamiento: multi-empresa por archivo `config.js`, Supabase como
-backend, e instalable como PWA.
-
-## Cómo se organiza
-
-```
-public/
-  config.js       ← ÚNICO archivo que se edita por cada empresa nueva
-                     (nombre, logo, WhatsApp, credenciales de Supabase)
-  manifest.json   ← igual que antes, apunta a "/" en vez de "index.html"
-  icons/          ← mismos íconos de siempre
-
-src/
-  pages/          ← LoginPage, PanelPage, ClientePage
-                     (reemplazan a login.html, panel.html, cliente.html)
-  components/     ← piezas reutilizables entre páginas (se va llenando en
-                     las próximas partes de la migración)
-  services/
-    config.js         ← lee window.APP_CONFIG (de public/config.js)
-    supabaseClient.js ← el cliente de Supabase, compartido por toda la app
-  context/        ← estado compartido (ej. sesión del usuario logueado)
-  App.jsx         ← define las 3 rutas: "/", "/panel", "/cliente"
-  main.jsx        ← arranque de React
-```
+Panel de control + portal de clientes para una empresa de catering/reparto a
+domicilio: gestión de clientes, planes, rutas, drivers, despacho diario,
+inventario, facturación y métricas. Multi-empresa por archivo de
+configuración, con Supabase como backend y PWA instalable.
 
 ## Cómo correrlo
 
 ```
 npm install
 npm run dev       # desarrollo, con recarga automática
-npm run build     # genera la carpeta dist/ lista para subir a Vercel/Hostinger
+npm run build     # genera dist/, lista para desplegar
+npm run lint      # oxlint
 ```
 
-## Qué falta (próximas partes)
+## Estructura
 
-1. Migrar la lógica de `app.js` a `src/services/` (funciones puras, sin
-   tocar el DOM directamente — eso ya lo hace React).
-2. Construir `LoginPage` real (login de equipo + login de cliente).
-3. Construir `ClientePage` real (portal de autoservicio).
-4. Construir `PanelPage` real — es la más grande, se va a dividir en varios
-   componentes por sección (Despacho, Clientes, Usuarios, etc.).
-5. Word con el paso a paso actualizado a este flujo en React.
+```
+public/
+  config.js       ← datos propios de la empresa (nombre, logo, WhatsApp,
+                     credenciales de Supabase) -- es lo único que cambia
+                     al instalar esto para una empresa nueva
+  manifest.json, icons/
+
+src/
+  pages/          ← LoginPage, PanelPage, ClientePage (una por ruta)
+  components/     ← todo lo demás, organizado por sección del panel
+                     (clients, dispatch, plans, drivers, routes, notes,
+                     inventory, settings, audit, payroll, metrics...)
+  context/        ← OperationsContext: estado y datos compartidos por
+                     todo el panel (clientes, planes, rutas, etc.)
+  hooks/          ← lógica reutilizable (presencia en línea, tema, PWA...)
+  services/       ← acceso a datos (Supabase), helpers de negocio puros
+
+supabase/functions/  ← Edge Functions desplegadas en Supabase
+  image-storage        subida de imágenes (logo, fotos de perfil/entrega)
+  resolve-maps-link     resuelve links cortos de Google Maps a lat/lng
+
+supabase-setup-final.sql  ← esquema completo de la base (tablas, RLS,
+                            funciones RPC) para levantar un proyecto de
+                            Supabase nuevo desde cero
+```
+
+## Desplegar una Edge Function
+
+```
+supabase login
+supabase link --project-ref TU_PROJECT_REF
+supabase functions deploy resolve-maps-link --no-verify-jwt
+```

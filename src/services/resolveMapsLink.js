@@ -22,7 +22,15 @@ export function isShortMapsLink(value) {
 // "tiene coordenadas de un link viejo que se acaba de reemplazar" -- solo
 // en el primer caso conviene saltarse la resolución.
 export async function resolveShortMapsLinkIfNeeded(addr) {
-  if (!addr?.maps) return addr;
+  if (!addr?.maps) {
+    // BUG (reportado 13 sep): si se borraba el link de Maps, las
+    // coordenadas viejas se quedaban pegadas en vez de volver a blanco.
+    // Solo se limpian acá si vinieron de un link resuelto antes
+    // (`mapsResolvedFrom`) -- si en cambio se cargaron a mano (sin haber
+    // link nunca), no se tocan: es información válida a propósito.
+    if (addr?.mapsResolvedFrom) return { ...addr, lat: null, lng: null, mapsResolvedFrom: null };
+    return addr;
+  }
   if (addr.lat != null && addr.mapsResolvedFrom === addr.maps) return addr;
   const direct = extractLatLngFromMapsField(addr.maps);
   if (direct) return { ...addr, lat: direct.lat, lng: direct.lng, mapsResolvedFrom: addr.maps };

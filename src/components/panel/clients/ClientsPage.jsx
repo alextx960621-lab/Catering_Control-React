@@ -40,13 +40,28 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes })
   // "Coordenadas" (lo que usa el mapa para ubicar al cliente) aparece de una.
   async function handleMapsBlur(i) {
     const addr = addresses[i];
-    if (!addr?.maps) return;
+    if (!addr) return;
+    if (!addr.maps) {
+      // BUG (reportado 13 sep): al borrar el link, las coordenadas viejas
+      // se quedaban pegadas. Solo se limpian si vinieron de un link
+      // resuelto antes -- si se cargaron a mano, se respetan.
+      if (addr.mapsResolvedFrom) updateAddr(i, { lat: null, lng: null, mapsResolvedFrom: null, _coordsDraft: undefined });
+      return;
+    }
     const resolved = await resolveShortMapsLinkIfNeeded(addr);
     // Guarda mapsResolvedFrom junto con lat/lng: sin eso, el formulario
     // volvería a pedir la resolución a la función de Supabase cada vez
     // que se guarda, aunque el link no haya cambiado.
     if (resolved.lat != null && (resolved.lat !== addr.lat || resolved.lng !== addr.lng || resolved.mapsResolvedFrom !== addr.mapsResolvedFrom)) {
-      updateAddr(i, { lat: resolved.lat, lng: resolved.lng, mapsResolvedFrom: resolved.mapsResolvedFrom });
+      // BUG (reportado 13 sep, "dice resuelto en verde pero no rellena
+      // nada"): el tilde verde lee `a.lat` (que sí se actualizaba bien),
+      // pero el campo de texto de Coordenadas prioriza `_coordsDraft`
+      // por sobre `lat/lng` -- si esa persona había escrito algo a mano
+      // ahí antes (o el campo había quedado en '' por tocarlo sin
+      // querer), `_coordsDraft` se quedaba pegado y tapaba el valor
+      // recién resuelto. Hay que limpiarlo acá también, no solo cuando
+      // se escribe manualmente (handleCoordsChange ya lo hacía bien).
+      updateAddr(i, { lat: resolved.lat, lng: resolved.lng, mapsResolvedFrom: resolved.mapsResolvedFrom, _coordsDraft: undefined });
     }
   }
 
@@ -255,6 +270,15 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
   const [addresses, setAddresses] = useState([]);
   const [activeAddressId, setActiveAddressId] = useState('');
   const [schedule, setSchedule] = useState([]);
+  // Plan elegido en el <select> de "Plan asignado" al CREAR un cliente
+  // nuevo (los clientes existentes no usan ese selector, cambian de plan
+  // con los botones "Renovar"/"Añadir nuevo plan"). Antes ese <select>
+  // era no controlado (`defaultValue`), así que elegir un plan ahí no
+  // disparaba nada -- ni el autorrelleno de "Artículos incluidos" (que
+  // el propio formulario prometía: "Se autorrellenan al elegir un plan
+  // arriba"), ni los días pagados, ni la cantidad de bolsas. Bug
+  // reportado 13 sep.
+  const [selectedPlanId, setSelectedPlanId] = useState('');
   const [renewing, setRenewing] = useState(null); // { client, mode: 'renew'|'change' }
   // Si se llegó a editar/renovar este cliente desde un botón de OTRA
   // pantalla (Día de trabajo o Notas), al terminar (guardar o cancelar)
@@ -283,6 +307,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     setAddresses(c?.addresses?.length ? c.addresses : []);
     setActiveAddressId(c?.activeAddressId || c?.addresses?.[0]?.id || '');
     setSchedule(c?.schedule?.length ? c.schedule : []);
+    setSelectedPlanId(c?.planId || '');
   }
 
   async function handleSubmit(form) {
@@ -298,7 +323,14 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     // revisa esos dos campos antes que status.
     if (data.status !== 'Pausado') { data.pauseStart = ''; data.pauseDates = []; }
     const resolvedAddresses = await Promise.all(addresses.filter((a) => a.address.trim()).map(resolveShortMapsLinkIfNeeded));
-    const finalAddresses = resolvedAddresses;
+    // `_coordsDraft` es un campo interno solo para mientras se escribe a
+    // mano en el campo de Coordenadas (ver AddressRows más abajo) -- si
+    // se guardaba tal cual en la base, la próxima vez que se abriera este
+    // cliente el campo de texto mostraba ese draft viejo (a veces una
+    // simple string vacía) en vez de las coordenadas reales -- una de las
+    // formas en que se producía el bug "dice resuelto en verde pero no
+    // rellena nada" reportado el 13 sep.
+    const finalAddresses = resolvedAddresses.map(({ _coordsDraft, ...a }) => a);
     const finalAddressIds = new Set(finalAddresses.map((a) => a.id));
     const finalSchedule = schedule.filter((row) => row.days.length && finalAddressIds.has(row.addressId));
     const isNew = !editing?.id;
@@ -496,7 +528,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
                       </>
                     ) : (
                       <label>Plan asignado
-                        <select name="planId" defaultValue={editing.planId || ''}>
+                        <select name="planId" value={selectedPlanId} onChange={(e) => setSelectedPlanId(e.target.value)}>
                           <option value="">Sin plan</option>
                           {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
@@ -518,14 +550,14 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
                   </label>
                   <label>Fecha de inicio<input name="startDate" type="date" defaultValue={editing.startDate} /></label>
                   <label>Fecha de retorno<input name="returnDate" type="date" defaultValue={editing.returnDate} /></label>
-                  <label>Días pagados<input name="paidDays" type="number" min="0" defaultValue={n(editing.paidDays)} /></label>
+                  <label>Días pagados<input key={`paidDays-${selectedPlanId}`} name="paidDays" type="number" min="0" defaultValue={editing.paidDays != null ? n(editing.paidDays) : (isExisting ? 0 : (n(plans.find((p) => p.id === selectedPlanId)?.serviceDays) || 0))} /></label>
                   <label>Días consumidos<input name="consumedDays" type="number" min="0" defaultValue={n(editing.consumedDays)} /></label>
                   <label>Carreras por entrega
                     <select name="career" defaultValue={String(n(editing.career) || 1)}>
                       <option value="1">Corto (1)</option><option value="2">Largo (2)</option><option value="3">Muy Largo (3)</option>
                     </select>
                   </label>
-                  <label>Cantidad de bolsas<input name="bags" type="number" min="0" defaultValue={n(editing.bags)} /></label>
+                  <label>Cantidad de bolsas<input name="bags" type="number" min="0" defaultValue={editing.bags != null ? n(editing.bags) : (isExisting ? 0 : 1)} /></label>
                   <label className="wide">Dieta especial<textarea name="specialDiet" defaultValue={editing.specialDiet} /></label>
                 </div>
               </div>
@@ -533,9 +565,9 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
               <div className="form-section tone-accent">
                 <div className="form-section-title">🥗 Artículos incluidos</div>
                 <p className="muted" style={{ margin: '2px 0 8px' }}>Se autorrellenan al elegir un plan arriba; puedes editarlos manualmente después.</p>
-                <div className="form-section-grid items-grid">
+                <div className="form-section-grid items-grid" key={`items-${selectedPlanId}`}>
                   {menuItems.map(({ key, label }) => (
-                    <label key={key}>{label}<input type="number" min="0" name={`item_${key}`} defaultValue={n(editing.items?.[key] ?? plans.find((p) => p.id === editing.planId)?.items?.[key])} /></label>
+                    <label key={key}>{label}<input type="number" min="0" name={`item_${key}`} defaultValue={n(editing.items?.[key] ?? plans.find((p) => p.id === selectedPlanId)?.items?.[key])} /></label>
                   ))}
                 </div>
               </div>

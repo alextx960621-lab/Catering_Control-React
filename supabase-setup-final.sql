@@ -1204,8 +1204,8 @@ end $do$;
 -- (jsonb_set sobre un solo path dentro de la fila) para que dos personas
 -- guardando su propio tema al mismo tiempo no se pisen entre sí -- a
 -- diferencia de staff_set_fields, que sobreescribe la fila entera y por
--- eso no es seguro para esto (ver riesgo de concurrencia documentado en
--- PROMPT_CONTINUAR.md, pendiente #7).
+-- eso no es seguro para esto (2 personas guardando su propio tema al
+-- mismo tiempo podrían pisarse si se usara ese otro camino).
 create or replace function public.staff_save_own_prefs(p_token text, p_prefs jsonb)
 returns boolean
 language plpgsql

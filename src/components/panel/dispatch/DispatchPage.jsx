@@ -119,8 +119,16 @@ export default function DispatchPage({ user, onGoToClient }) {
     const updated = updateClient(client.id, (c) => {
       if (field === 'notes' || field === 'maps') {
         const addr = resolvedAddress(c, date);
-        if (addr) addr[field] = value;
-        else c[field] = value;
+        if (addr) {
+          addr[field] = value;
+          // Mismo bug que en ClientsPage.jsx: si se borra el link acá y
+          // las coordenadas actuales venían de un link ya resuelto, hay
+          // que borrarlas también -- si no, quedan pegadas mostrando un
+          // lugar que ya no corresponde a ningún link cargado.
+          if (field === 'maps' && !value && addr.mapsResolvedFrom) {
+            addr.lat = null; addr.lng = null; addr.mapsResolvedFrom = null;
+          }
+        } else c[field] = value;
       } else if (field === 'returnDate') {
         c.returnDate = value;
         if (value) {
