@@ -232,6 +232,14 @@
 .panel-shell .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
 .panel-shell .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--panel-muted); font-weight: 600; }
 .panel-shell .form-grid label.wide { grid-column: 1 / -1; }
+/* BUG (reportado 13 sep, "fecha de retorno/inicio se salen de la
+   columna"): los inputs de fecha/hora nativos tienen un ancho mínimo
+   propio que puede ser más ancho que la columna del grid donde viven --
+   como el default de los form elements es `min-width:auto` (nunca se
+   achican más que su contenido), se salían de la celda y se desfasaban.
+   Mismo fix que ya tenía ClientePage.css para el portal del cliente,
+   acá faltaba para el panel. */
+.panel-shell input[type="date"], .panel-shell input[type="month"], .panel-shell input[type="time"], .panel-shell input[type="datetime-local"] { min-width: 0; }
 .panel-shell .form-grid small { font-weight: 400; color: var(--panel-muted); }
 @media (max-width: 560px) { .panel-shell .form-grid { grid-template-columns: 1fr; } }
 

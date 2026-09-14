@@ -8,6 +8,7 @@
 .panel-shell .sheet { overflow: auto; max-height: calc(100vh - 300px); min-height: 340px; border: 1px solid var(--panel-line); border-radius: var(--panel-radius); background: var(--panel-surface); }
 .panel-shell table { border-collapse: separate; border-spacing: 0; table-layout: fixed; width: max-content; min-width: 100%; }
 .panel-shell th, .panel-shell td { border-right: 1px solid var(--panel-line); border-bottom: 1px solid var(--panel-line); padding: 8px 10px; vertical-align: middle; width: 150px; }
+.panel-shell td { position: relative; }
 .panel-shell th { position: sticky; top: 0; z-index: 2; background: var(--panel-surface-2); text-align: left; font-size: 11px; letter-spacing: .02em; color: var(--panel-muted); text-transform: uppercase; }
 .panel-shell th { position: relative; }
 .panel-shell th.th-sortable { padding: 0; }
@@ -31,6 +32,23 @@
 .panel-shell tbody tr:nth-child(even) td { background: var(--panel-surface-2); }
 .panel-shell tbody tr:hover td { background: color-mix(in srgb, var(--panel-primary) 4%, transparent); }
 .panel-shell td .day-edit { min-height: 30px; padding: 4px 6px; }
+/* Pedido 13 sep: en columnas angostas (sobre todo en mobile), el input
+   de acá abajo solo dejaba ver "un poquito" de textos largos (una
+   dirección, una nota) y era difícil editar algo puntual en el medio.
+   Al enfocar el campo, se agranda por ENCIMA de la celda (sin tocar el
+   ancho de la columna en sí, así no hace falta agrandarla a mano para
+   editar) para ver/editar el texto completo; al salir, vuelve a su
+   tamaño normal. Ojo: si la celda está pegada justo al borde del scroll
+   de `.sheet`, el recuadro agrandado puede quedar cortado ahí -- cubre
+   bien la gran mayoría de los casos, pero no ese extremo. */
+.panel-shell td .day-edit:focus {
+  position: absolute; top: 2px; left: 2px; right: 2px;
+  width: max(100%, min(85vw, 340px));
+  z-index: 5;
+  background: var(--panel-surface);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .28);
+  border: 2px solid var(--panel-primary);
+}
 
 .panel-shell .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 650; }
 .panel-shell .badge.active { color: #087354; background: #dff7ed; }

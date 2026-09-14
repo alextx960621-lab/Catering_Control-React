@@ -47,6 +47,30 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
     setPendingClientAction({ clientId, action, origin: activePage });
     onNavigate('clients');
   }
+  // BUG GRAVE (reportado 13 sep: "la PWA se quedó colgada, solo se movía
+  // arriba/abajo la pantalla pero ningún botón funcionaba"): Día de
+  // trabajo, Notas y Clientes quedan SIEMPRE montadas (ver más abajo,
+  // solo se ocultan con display:none) para no perder el scroll/filtros al
+  // volver -- pero sus modales (<dialog> nativo, en Modal.jsx) TAMBIÉN
+  // quedan siempre montados. Si alguien deja un modal ABIERTO en, por
+  // ejemplo, Clientes, y navega a otra pantalla por el menú lateral, ese
+  // <dialog> se queda "showModal()"eado (técnicamente abierto) debajo de
+  // un contenedor ahora en display:none -- en algunos navegadores/celus
+  // eso deja su ::backdrop invisible pero SIGUE capturando todos los
+  // clics de la pantalla que sí se ve, porque el modal nativo sigue
+  // siendo "el tope" aunque esté oculto. Por eso solo respondía el
+  // scroll (que es del navegador, no de un click) y ningún botón.
+  // Se cierra cualquier <dialog> que haya quedado abierto cada vez que
+  // se cambia de pantalla -- dialog.close() dispara el evento nativo
+  // "close", que Modal.jsx ya tiene conectado a onClose, así que esto
+  // también limpia el estado de React de la pantalla de origen (ej.
+  // `editing` vuelve a null), no es solo un cierre visual.
+  useEffect(() => {
+    document.querySelectorAll('dialog[open]').forEach((d) => {
+      try { d.close(); } catch (_) { /* ignorar */ }
+    });
+  }, [activePage]);
+
   function recordRenewal(clientId, info) {
     setRenewalByClient((prev) => ({ ...prev, [clientId]: info }));
   }

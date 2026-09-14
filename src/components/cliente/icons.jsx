@@ -1,7 +1,6 @@
-// Iconos de línea usados en el portal de cliente. Reemplazan a los emojis
-// que se usaban antes (📅 📍 🏠 ✅) para que el portal se sienta más
-// prolijo y consistente entre dispositivos (los emojis se ven distinto
-// en cada sistema operativo).
+// Iconos de línea usados en el portal de cliente, en vez de emojis, para
+// que se vea prolijo y consistente entre dispositivos (los emojis se ven
+// distinto en cada sistema operativo).
 const iconStyle = { marginRight: 5, verticalAlign: '-2px' };
 
 export const IconCalendar = (

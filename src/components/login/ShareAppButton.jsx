@@ -26,9 +26,8 @@ const CheckIcon = (
 // driver nuevo, etc). En una pestaña normal del navegador ya está la barra
 // de arriba, así que no lo mostramos para no ensuciar la pantalla.
 export default function ShareAppButton({ brandName }) {
-  // 'idle' | 'copied' | 'error' — antes solo había un booleano "copied" y el
-  // único feedback era el cambio de ícono (muy sutil, en desktop parecía que
-  // el botón "no hacía nada"). Ahora se muestra además un texto explícito.
+  // 'idle' | 'copied' | 'error' -- controla tanto el ícono como el texto
+  // explícito al lado (el cambio de ícono solo es muy sutil en desktop).
   const [status, setStatus] = useState('idle');
 
   if (!isStandalonePwa()) return null;

@@ -53,11 +53,16 @@
 --   · 3 operaciones admin-exclusivas (gestionar cuentas de staff, restaurar
 --     backups de auditoría/snapshots) con chequeo de rol server-side
 --   · Bucket de Storage para imágenes (logo, fotos, íconos)
---   · Limpieza automática con pg_cron (delivery_status 7d, snapshots 2 años,
---     audit_log 15 días, intentos de login 1 día, FOTOS reales del bucket
---     de Storage —de pedidos y comprobantes de pago— a los 7 días, y
---     clientes inactivos (sin ninguna edición/proceso hace más de 2 años) a
---     los 2 años)
+--   · Limpieza automática con pg_cron -- ningún campo que crece con el uso
+--     diario se queda acumulando para siempre (detalle en la sección 13):
+--     delivery_status y dispatch_snapshots a los 2 años, movimientos de
+--     inventario (recortados dentro del JSON de db_inventario, misma
+--     regla de 2 años), audit_log a los 15 días, intentos de login (staff
+--     y cliente) al día, sesiones vencidas a los 6 meses de vencidas, FOTOS
+--     reales del bucket de Storage (respaldo de entrega y comprobantes de
+--     pago) a los 15 días, y clientes inactivos (sin ninguna edición o
+--     entrega hace más de 2 años) por código de la app, no por cron, para
+--     que quede registrado en Auditoría quién/qué se borró
 --
 -- NO incluido a propósito (lleva un dato tuyo, va aparte):
 --   · Poner la contraseña real del primer admin -- por defecto, hasta que
@@ -1084,6 +1089,44 @@ begin
   );
 exception when others then
   raise notice 'No se pudo programar el cron de dispatch_snapshots (revisa permisos/pg_cron).';
+end $do$;
+
+-- Movimientos de inventario (Cocina): a diferencia de las dos tablas de
+-- arriba, estos NO viven en una tabla con columna `date` propia -- están
+-- guardados como un array dentro del JSON de `db_inventario` (fila única
+-- 'main'), así que un `delete... where date < ...` normal no les sirve.
+-- Cada día procesado con vínculos de consumo agrega movimientos nuevos
+-- (DispatchPage.jsx) y hasta ahora nada los recortaba nunca: el array
+-- crecía para siempre dentro de esa única fila. Mismo criterio de 2 años
+-- que arriba, pero recortando el array dentro del payload en vez de
+-- borrar filas.
+do $do$
+begin
+  perform cron.unschedule('trim-inventory-movements')
+  where exists (select 1 from cron.job where jobname = 'trim-inventory-movements');
+
+  perform cron.schedule(
+    'trim-inventory-movements',
+    '15 1 * * *',
+    $cron$
+      update db_inventario
+      set payload = jsonb_set(
+        payload,
+        '{movements}',
+        coalesce(
+          (
+            select jsonb_agg(m)
+            from jsonb_array_elements(payload -> 'movements') as m
+            where (m ->> 'date')::date >= (current_date - interval '2 years')
+          ),
+          '[]'::jsonb
+        )
+      )
+      where id = 'main' and jsonb_typeof(payload -> 'movements') = 'array';
+    $cron$
+  );
+exception when others then
+  raise notice 'No se pudo programar el cron de recorte de movimientos de inventario (revisa permisos/pg_cron).';
 end $do$;
 
 -- Fotos de respaldo de entrega ('delivery-proof/') y comprobantes de pago

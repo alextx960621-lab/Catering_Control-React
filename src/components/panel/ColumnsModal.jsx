@@ -9,10 +9,10 @@ export default function ColumnsModal({ open, onClose, allColumns, hidden, order,
   const byKey = new Map(allColumns.map((c) => [c.key, c]));
   const dialogRef = useRef(null);
 
-  // Antes este <dialog> se renderizaba con el atributo `open` puesto a mano,
-  // lo que lo deja como un elemento de flujo normal (aparece empujado debajo
-  // de la tabla). Usando showModal()/close() nativos se muestra como overlay
-  // encima de todo, igual que el resto de los formularios del panel (Modal.jsx).
+  // showModal()/close() nativos (no el atributo `open` a mano): así se
+  // muestra como overlay encima de todo, igual que el resto de los
+  // formularios del panel (Modal.jsx), en vez de como elemento de flujo
+  // normal empujado debajo de la tabla.
   useEffect(() => {
     const dlg = dialogRef.current;
     if (!dlg) return;

@@ -545,12 +545,12 @@ export default function DispatchPage({ user, onGoToClient }) {
     function onMove(ev) {
       if (!resizeRef.current) return;
       const delta = ev.clientX - resizeRef.current.startX;
-      const newWidth = Math.max(36, resizeRef.current.startWidth + delta);
+      const newWidth = Math.max(24, resizeRef.current.startWidth + delta);
       th.style.width = `${newWidth}px`;
     }
     function onUp() {
       if (resizeRef.current) {
-        const finalWidth = Math.max(36, th.offsetWidth);
+        const finalWidth = Math.max(24, th.offsetWidth);
         const widths = { ...colPrefs.widths, [resizeRef.current.key]: finalWidth };
         setColPrefs((p) => ({ ...p, widths }));
         saveColumnWidths(user?.id, 'dispatch', widths);

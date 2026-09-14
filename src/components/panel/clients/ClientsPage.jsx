@@ -296,6 +296,19 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
 
   function routeName(id) { return routes.find((r) => r.id === id)?.name || 'Sin ruta'; }
   function planName(id) { return plans.find((p) => p.id === id)?.name || 'Sin plan'; }
+
+  // Pedido 13 sep: faltaba una forma de sacarle el plan a un cliente sin
+  // tener que borrar y volver a crear el cliente entero. Reinicia
+  // días/artículos porque ya no corresponden a ningún plan activo -- si
+  // hace falta, se cargan de nuevo a mano.
+  function removePlan(c) {
+    if (!window.confirm(`¿Quitar el plan "${planName(c.planId)}" de ${c.name}? Se van a borrar los días pagados/consumidos y los artículos asignados.`)) return;
+    const updated = { ...c, planId: '', paidDays: 0, consumedDays: 0, items: {} };
+    saveClients([updated]);
+    setEditing(updated);
+    showNotice(`Plan quitado de ${c.name}.`);
+    dbInsertAudit({ actor_id: user.id, actor_name: user.name, actor_role: user.role, action: 'Plan quitado', entity_type: 'client', entity_label: c.name, entity_id: c.id, details: { planAnterior: planName(c.planId) } });
+  }
   function driverName(id) { return drivers.find((d) => d.id === id) ? `${drivers.find((d) => d.id === id).firstName} ${drivers.find((d) => d.id === id).lastName}` : 'Sin asignar'; }
 
   const scope = isDriver ? clients.filter((c) => myRoutes.includes(effectiveRouteId(c, currentDate))) : clients;
@@ -521,6 +534,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
                           <div className="plan-option-actions">
                             <button type="button" className="outline" onClick={() => openRenew(editing, 'renew')}>🔄 Renovar</button>
                             <button type="button" className="outline" onClick={() => openRenew(editing, 'change')}>➕ Añadir nuevo plan</button>
+                            {editing.planId && <button type="button" className="danger" onClick={() => removePlan(editing)}>🗑️ Borrar plan</button>}
                           </div>
                         </div>
                         <p className="muted" style={{ margin: '4px 0 0' }}>Usa estos botones para sumar días o cambiar de plan: los días pagados/consumidos no se resetean, se acumulan para poder ver la antigüedad y el consumo real del cliente. Si necesitas ajustar los números a mano, hazlo desde aquí abajo.</p>

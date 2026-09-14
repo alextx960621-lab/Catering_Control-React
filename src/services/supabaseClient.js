@@ -160,11 +160,8 @@ export function presenceState() {
 // SPA (no recarga la página), si no se cierra el canal a mano, el
 // track() de esa persona sigue vivo y "Conectados ahora" la sigue
 // mostrando aunque ya haya cerrado sesión.
-let closingDeliberately = false;
-
 export function leavePresence() {
   if (!presenceChannel) return;
-  closingDeliberately = true;
   try { presenceChannel.untrack(); } catch (_) { /* ignorar */ }
   try { supabase.removeChannel(presenceChannel); } catch (_) { /* ignorar */ }
   presenceChannel = null;
@@ -198,17 +195,16 @@ export function joinPresence(info, onChange) {
         }
       }
     });
-    presenceChannel.subscribe(async (status, err) => {
+    presenceChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         try {
           await presenceChannel.track({ role: info.role, name: info.name || '', id: info.id || '', device: deviceLabel(), at: new Date().toISOString() });
-        } catch (trackErr) {
-          console.warn('[presencia] track() falló, "Conectados ahora" no va a contar a este dispositivo:', trackErr);
+        } catch (_) {
+          /* ignorar: solo afecta el indicador visual de "en línea" -- ya
+             se confirmó que "Conectados ahora" cuenta bien en producción,
+             así que estos avisos de depuración ya no hacen falta. */
         }
-      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || (status === 'CLOSED' && !closingDeliberately)) {
-        console.warn(`[presencia] canal 'catering-online-users' en estado "${status}", no se pudo suscribir:`, err);
       }
-      if (status === 'CLOSED') closingDeliberately = false;
     });
     // Best-effort: si se cierra la pestaña/app sin pasar por "Salir", esto
     // intenta avisar igual -- un mensaje de WebSocket en pagehide no tiene
