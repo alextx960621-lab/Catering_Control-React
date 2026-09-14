@@ -6,6 +6,7 @@ import { driverRouteIds } from '../../../services/dispatchHelpers';
 import Modal from '../Modal';
 import DataTable from '../DataTable';
 import ImageField from '../ImageField';
+import { removeStoredImage } from '../../../services/imageUpload';
 
 function uid(prefix) {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -72,6 +73,7 @@ export default function DriversPage({ user }) {
 
   function handleDelete(d) {
     if (!confirm('¿Eliminar este driver?')) return;
+    if (d.photoUrl) removeStoredImage(d.photoUrl);
     saveDrivers(drivers.filter((x) => x.id !== d.id));
     showNotice('Registro eliminado.');
     dbInsertAudit({ actor_id: user.id, actor_name: user.name, actor_role: user.role, action: 'Driver eliminado', entity_type: 'driver', entity_label: `${d.firstName} ${d.lastName}`, entity_id: d.id, details: {} });

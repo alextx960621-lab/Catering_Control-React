@@ -2,14 +2,12 @@ import { dbGetAllDeliveryStatus, dbUpsertDeliveryRows } from './db';
 import { removeStoredImage } from './imageUpload';
 import { dispatchStatus } from './dispatchHelpers';
 
-// Reglas de retención de datos, tal como las describe la Política de
-// Privacidad del portal: los comprobantes de pago y las fotos de
-// respaldo de entrega se borran a los 7 días, y un cliente sin ninguna
-// actividad por 2 años se borra directamente. En la versión vanilla
-// (panel.html) estas 3 rutinas corren solas cada vez que la app carga o
-// alguien toca "Actualizar" -- acá se replican con el mismo criterio,
-// para que lo que dice la Política de Privacidad se cumpla de verdad.
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+// Reglas de retención de datos (las mismas que describe la Política de
+// Privacidad del portal): comprobantes de pago y fotos de respaldo de
+// entrega se borran a los 15 días; un cliente sin actividad en 2 años
+// se borra directo. Corre solo al cargar la app o al tocar "Actualizar"
+// (ver runDataCleanup en OperationsContext.jsx).
+const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
 const INACTIVE_CLIENT_DAYS = 730; // 2 años
 
 function extractProofUrl(text) {
@@ -26,7 +24,7 @@ function daysSince(dateStr, refStr) {
 
 // Comprobantes de pago adjuntos a una nota (los deja PlanChangeModal.jsx
 // del portal de cliente, como "...Comprobante: https://..." al final del
-// texto): si pasaron más de 7 días desde que se creó la nota, se borra
+// texto): si pasaron más de 15 días desde que se creó la nota, se borra
 // la imagen de Storage y se dejar constancia en el propio texto de la
 // nota. Devuelve las notas ya modificadas (para guardar con el mismo
 // saveNotes() de siempre), o null si no había ninguna vencida.
@@ -36,12 +34,12 @@ export function cleanupOldProofImages(notes) {
     if (!nt.createdAt) return false;
     if (!extractProofUrl(nt.text)) return false;
     const age = now - new Date(nt.createdAt).getTime();
-    return Number.isFinite(age) && age > SEVEN_DAYS_MS;
+    return Number.isFinite(age) && age > FIFTEEN_DAYS_MS;
   });
   if (!stale.length) return null;
   return stale.map((nt) => {
     removeStoredImage(extractProofUrl(nt.text));
-    const text = `${nt.text.replace(/\s*Comprobante:\s*https?:\/\/\S+/, '').trim()} (comprobante eliminado automáticamente: pasaron más de 7 días)`;
+    const text = `${nt.text.replace(/\s*Comprobante:\s*https?:\/\/\S+/, '').trim()} (comprobante eliminado automáticamente: pasaron más de 15 días)`;
     return { ...nt, text };
   });
 }
@@ -65,7 +63,7 @@ export async function cleanupOldDeliveryPhotos(rows) {
     const at = r.payload?.at;
     if (!img || !at) return false;
     const age = now - new Date(at).getTime();
-    return Number.isFinite(age) && age > SEVEN_DAYS_MS;
+    return Number.isFinite(age) && age > FIFTEEN_DAYS_MS;
   });
   if (!stale.length) return true;
   stale.forEach((r) => removeStoredImage(r.payload.image));

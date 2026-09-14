@@ -24,24 +24,6 @@ import MetricsPage from '../components/panel/metrics/MetricsPage';
 import PremiumPageLock from '../components/panel/PremiumPageLock';
 import { isPagePremiumLocked } from '../services/panelAuth';
 
-const PAGE_TITLES = {
-  dispatch: 'Día de trabajo', notes: 'Notas', clients: 'Clientes', delivery: 'Despacho',
-  drivers: 'Drivers', routes: 'Rutas', plans: 'Planes', payroll: 'Sueldos',
-  inventory: 'Inventario', metrics: 'Métricas', users: 'Usuarios', audit: 'Auditoría', settings: 'Configuración',
-};
-const BUILT_PAGES = ['dispatch', 'notes', 'clients', 'delivery', 'drivers', 'routes', 'plans', 'users', 'audit', 'settings', 'payroll', 'inventory', 'metrics'];
-
-function PagePlaceholder({ page }) {
-  return (
-    <section className="page active">
-      <div className="page-head"><div>
-        <h1>{PAGE_TITLES[page] || page}</h1>
-        <p>Esta pantalla todavía no está migrada a React — próximamente.</p>
-      </div></div>
-    </section>
-  );
-}
-
 // Todo lo de acá adentro ya puede usar useOperations() (clientes, rutas,
 // drivers, planes, notas) porque vive DENTRO de <OperationsProvider>.
 function PanelShell({ user, branding, theme, onThemeChange, activePage, onNavigate, onLogout, collapsed, onToggleCollapse }) {
@@ -129,14 +111,13 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
         {activePage === 'payroll' && gated('payroll', 'Sueldos', PayrollPage)}
         {activePage === 'inventory' && gated('inventory', 'Inventario', InventoryPage)}
         {activePage === 'metrics' && gated('metrics', 'Métricas', MetricsPage)}
-        {!BUILT_PAGES.includes(activePage) && <PagePlaceholder page={activePage} />}
       </main>
     </div>
   );
 }
 
-// Reemplaza a panel.html. El armazón (menú lateral, roles, sesión, tema)
-// ya está completo; las pantallas se van completando una por una.
+// Reemplaza a panel.html: arma el menú lateral (roles, sesión, tema) y
+// muestra la pantalla que corresponda según activePage.
 export default function PanelPage() {
   const [phase, setPhase] = useState('checking'); // 'checking' | 'ready'
   const [user, setUser] = useState(null);

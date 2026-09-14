@@ -30,9 +30,9 @@ export default function PrivacidadPage() {
         <p>La plataforma puede generar dos tipos de imágenes:</p>
         <ul>
           <li><b>Foto de respaldo de una entrega</b> (opcional, la sube quien reparte): sirve para resolver un
-          reclamo puntual sobre un pedido. Se borra automáticamente a los <b>7 días</b>.</li>
+          reclamo puntual sobre un pedido. Se borra automáticamente a los <b>15 días</b>.</li>
           <li><b>Comprobante de pago</b> (cuando un cliente renueva su plan desde el portal): se usa para
-          verificar el pago. Se borra automáticamente a los <b>7 días</b>.</li>
+          verificar el pago. Se borra automáticamente a los <b>15 días</b>.</li>
         </ul>
         <p>Estas imágenes se guardan con un nombre de archivo único generado al azar (no un listado público ni
         buscable), y solo se accede a ellas desde dentro de la plataforma mientras están vigentes.</p>
@@ -49,7 +49,7 @@ export default function PrivacidadPage() {
 
         <h2>5. Cuánto tiempo se conservan</h2>
         <p>Los registros operativos (clientes, planes, historial de entregas) se conservan mientras la cuenta de
-        la empresa esté activa. Las imágenes de respaldo y los comprobantes de pago se conservan solo 7 días,
+        la empresa esté activa. Las imágenes de respaldo y los comprobantes de pago se conservan solo 15 días,
         como se explica arriba.</p>
         <p>Además, los datos de los clientes inactivos se eliminan automáticamente de la plataforma a los <b>2 años</b>.</p>
 

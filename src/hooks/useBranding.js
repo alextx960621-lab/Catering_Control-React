@@ -30,8 +30,7 @@ export function useBranding() {
       if (cancelled || !settings) return;
       const freshName = settings.companyName?.trim() || config.companyName;
       // Ojo: acá SÍ puede ser '' a propósito (el admin borró el logo desde
-      // Configuración) -- no hay que taparlo con el logo de config.js,
-      // que era el bug: quedaba pegado el logo viejo para siempre.
+      // Configuración) -- no hay que taparlo con el logo de config.js.
       const freshLogo = 'logoUrl' in settings ? settings.logoUrl || '' : config.logoUrl || '';
       const freshWhatsapp = settings.whatsappNumber || '';
       setName(freshName);

@@ -42,11 +42,9 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes })
     const addr = addresses[i];
     if (!addr?.maps) return;
     const resolved = await resolveShortMapsLinkIfNeeded(addr);
-    // OJO (encontrado 13 sep): antes solo se guardaba lat/lng acá y se
-    // descartaba `mapsResolvedFrom` -- no causaba coordenadas viejas (el
-    // resultado final siempre terminaba bien igual), pero sí hacía que se
-    // volviera a pedir la resolución a la función de Supabase cada vez que
-    // se guardaba el formulario, aunque el link no hubiera cambiado.
+    // Guarda mapsResolvedFrom junto con lat/lng: sin eso, el formulario
+    // volvería a pedir la resolución a la función de Supabase cada vez
+    // que se guarda, aunque el link no haya cambiado.
     if (resolved.lat != null && (resolved.lat !== addr.lat || resolved.lng !== addr.lng || resolved.mapsResolvedFrom !== addr.mapsResolvedFrom)) {
       updateAddr(i, { lat: resolved.lat, lng: resolved.lng, mapsResolvedFrom: resolved.mapsResolvedFrom });
     }
@@ -248,14 +246,9 @@ function RenewPlanModal({ client, mode, plans, onClose, onConfirm }) {
 
 export default function ClientsPage({ user, pendingClientAction, onConsumePendingClientAction, onRenewalCompleted, onReturnToOrigin }) {
   const { clients, routes, plans, drivers, settings, currentDate, days, saveClients, deleteClients, showNotice, loading } = useOperations();
-  // BUG (reportado 13 sep): acá se pasaba `{}` como dayInfo a
-  // dispatchStatus() -- como esa función arranca con
-  // `if (!dayInfo?.laborable) return 'No laborable'`, un objeto vacío
-  // (sin `laborable`) le gana a CUALQUIER otro estado real del cliente:
-  // esta tabla mostraba "No laborable" para todos los clientes, todo el
-  // tiempo, sin importar lo que dijera Día de trabajo o el propio
-  // formulario del cliente. Mismo patrón que ya usa DispatchPage.jsx: si
-  // el día todavía no tiene un registro propio, se asume laborable.
+  // dispatchStatus() necesita el día real (con su laborable/procesado);
+  // si todavía no tiene un registro propio en `days`, se asume laborable
+  // -- mismo criterio que usa DispatchPage.jsx.
   const dayInfo = days[currentDate] || { laborable: true };
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
@@ -525,17 +518,8 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
                   </label>
                   <label>Fecha de inicio<input name="startDate" type="date" defaultValue={editing.startDate} /></label>
                   <label>Fecha de retorno<input name="returnDate" type="date" defaultValue={editing.returnDate} /></label>
-                  {isExisting ? (
-                    <>
-                      <input type="hidden" name="paidDays" value={n(editing.paidDays)} />
-                      <input type="hidden" name="consumedDays" value={n(editing.consumedDays)} />
-                    </>
-                  ) : (
-                    <>
-                      <label>Días pagados<input name="paidDays" type="number" min="0" defaultValue={n(editing.paidDays)} /></label>
-                      <label>Días consumidos<input name="consumedDays" type="number" min="0" defaultValue={n(editing.consumedDays)} /></label>
-                    </>
-                  )}
+                  <label>Días pagados<input name="paidDays" type="number" min="0" defaultValue={n(editing.paidDays)} /></label>
+                  <label>Días consumidos<input name="consumedDays" type="number" min="0" defaultValue={n(editing.consumedDays)} /></label>
                   <label>Carreras por entrega
                     <select name="career" defaultValue={String(n(editing.career) || 1)}>
                       <option value="1">Corto (1)</option><option value="2">Largo (2)</option><option value="3">Muy Largo (3)</option>

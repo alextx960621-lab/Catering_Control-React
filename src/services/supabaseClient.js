@@ -156,15 +156,15 @@ export function presenceState() {
   return presenceChannel ? presenceChannel.presenceState() : {};
 }
 
-// Se llama al cerrar sesión DENTRO de la app (botón "Salir"). Antes no
-// existía: como es una SPA (no recarga la página), el canal de presencia
-// seguía vivo y con el track() de esa persona después de "Salir" -- por
-// eso "Conectados ahora" a veces se quedaba pegado mostrando a alguien que
-// ya había cerrado sesión (solo se corregía solo cuando cerraba la
-// pestaña de verdad y el socket se caía). Ahora se deja de trackear y se
-// cierra el canal explícitamente antes de volver al login.
+// Se llama al cerrar sesión dentro de la app (botón "Salir"). Como es una
+// SPA (no recarga la página), si no se cierra el canal a mano, el
+// track() de esa persona sigue vivo y "Conectados ahora" la sigue
+// mostrando aunque ya haya cerrado sesión.
+let closingDeliberately = false;
+
 export function leavePresence() {
   if (!presenceChannel) return;
+  closingDeliberately = true;
   try { presenceChannel.untrack(); } catch (_) { /* ignorar */ }
   try { supabase.removeChannel(presenceChannel); } catch (_) { /* ignorar */ }
   presenceChannel = null;
@@ -205,9 +205,10 @@ export function joinPresence(info, onChange) {
         } catch (trackErr) {
           console.warn('[presencia] track() falló, "Conectados ahora" no va a contar a este dispositivo:', trackErr);
         }
-      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || (status === 'CLOSED' && !closingDeliberately)) {
         console.warn(`[presencia] canal 'catering-online-users' en estado "${status}", no se pudo suscribir:`, err);
       }
+      if (status === 'CLOSED') closingDeliberately = false;
     });
     // Best-effort: si se cierra la pestaña/app sin pasar por "Salir", esto
     // intenta avisar igual -- un mensaje de WebSocket en pagehide no tiene

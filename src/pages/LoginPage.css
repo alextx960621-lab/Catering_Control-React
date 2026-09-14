@@ -1,17 +1,12 @@
 /* Estilos del login. Los 3 temas (claro/nocturno/bosque) se activan
    cambiando data-theme en <html> — ver src/hooks/useTheme.js.
 
-   IMPORTANTE (bug real corregido): este proyecto no usa CSS Modules, así
-   que TODO el CSS de TODAS las páginas se bundlea junto y aplica global.
-   Antes esta hoja pintaba el fondo con un selector `body` sin ámbito, y
-   ClientePage.css/LegalPage.css hacían exactamente lo mismo — como los
-   tres tienen la misma especificidad, el que quedara último en el bundle
-   le terminaba pisando el fondo (con su propio degradado de tema) a las
-   demás páginas. Eso se veía como "3 temas mezclados a la vez" en el
-   login (fondo plano de otro tema, tarjeta de otro, texto de otro). Ahora
-   cada regla de fondo usa `body.page-login` — la clase la agrega/saca
-   LoginPage.jsx con el hook usePageBodyClass mientras esa página está
-   montada, así que solo aplica en esta página. */
+   Este proyecto no usa CSS Modules: el CSS de todas las páginas se
+   bundlea junto y aplica global. Por eso el fondo se pinta con
+   `body.page-login` en vez de `body` a secas -- esa clase la agrega/saca
+   LoginPage.jsx con el hook usePageBodyClass mientras esta página está
+   montada, así que la regla solo aplica acá y no pisa el fondo de
+   ClientePage/LegalPage. */
 
 :root {
   --brand: #3867f4;
@@ -73,12 +68,9 @@ button, .btn, .nav-pills .nav-link {
 
 .login-card { max-width: 420px; margin: 0 auto; }
 .login-card .card { overflow: hidden; }
-/* Pedido 13 sep: antes el botón de Compartir vivía como 3er elemento de
-   esta fila (empujado del todo a la derecha por `.brand-info{flex:1}`),
-   dejando el logo+nombre pegados a la izquierda. Ahora Compartir se movió
-   adentro de `.brand-info` (al lado de Tema, ver LoginPage.jsx) y esta
-   fila queda con solo 2 elementos (logo + info) -- se centran como grupo
-   en vez de ocupar todo el ancho de la tarjeta. */
+/* Fila de logo+nombre con solo 2 elementos (el botón Compartir vive
+   adentro de .brand-info, al lado de Tema -- ver LoginPage.jsx): se
+   centran como grupo en vez de ocupar todo el ancho de la tarjeta. */
 .brand-row { display: flex; align-items: center; justify-content: center; gap: 16px; }
 .brand-info { min-width: 0; text-align: center; }
 .brand-mark {
@@ -124,11 +116,8 @@ button, .btn, .nav-pills .nav-link {
 [data-theme="night"] .form-control, [data-theme="night"] .form-select { background: #121824; color: #e7ecf5; border-color: #2b3648; }
 [data-theme="night"] .bg-body-tertiary { background: #121824 !important; }
 
-/* Tema bosque — antes solo tenía el fondo y `.card`; le faltaban las
-   mismas reglas de texto/inputs que ya tenía el tema nocturno (asimetría
-   real: con tema Bosque elegido, los inputs y textos secundarios se
-   quedaban con el estilo por defecto de Bootstrap en vez del propio del
-   tema, otro ingrediente del bug de "temas mezclados"). */
+/* Tema bosque: mismas reglas de texto/inputs que el tema nocturno, para
+   que no queden con el estilo por defecto de Bootstrap. */
 [data-theme="forest"] { --brand: #1f7a4d; }
 [data-theme="forest"] body.page-login { background: radial-gradient(circle at 20% 20%, rgba(31, 122, 77, .25), transparent 34%), #dcefdc; }
 [data-theme="forest"] .card { background: #eef7ee; color: #163821; }
@@ -136,10 +125,9 @@ button, .btn, .nav-pills .nav-link {
 [data-theme="forest"] .form-control, [data-theme="forest"] .form-select { background: #f2faf1; color: #163821; border-color: #a9d2ab; }
 [data-theme="forest"] .bg-body-tertiary { background: #cde6cd !important; }
 
-/* Feedback explícito del botón "Compartir esta app" (ver ShareAppButton.jsx):
-   antes el único indicio de que el link se copió era el cambio de ícono,
-   muy sutil sobre todo en desktop, así que parecía que el botón "no hacía
-   nada". Ahora se muestra un texto flotante al lado. */
+/* Texto flotante junto al botón "Compartir esta app" (ver
+   ShareAppButton.jsx) para confirmar que el link se copió -- el cambio de
+   ícono solo es muy sutil en desktop. */
 .share-app-btn-toast {
   position: absolute;
   top: 50%;

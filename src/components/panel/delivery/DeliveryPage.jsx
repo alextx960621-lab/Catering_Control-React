@@ -10,9 +10,8 @@ import DataTable from '../DataTable';
 import RouteMapModal from './RouteMapModal';
 import ImageField from '../ImageField';
 
-// No requiere que el archivo se llame igual al original: esto reemplaza
-// deliveryCache + ensureDeliveryLoaded + saveDeliveryRecord, pero como
-// estado de React en vez de variables sueltas.
+// Estado de las entregas del día: quién fue marcado entregado/no
+// entregado, con motivo/foto opcional. Se guarda por fecha+cliente.
 export default function DeliveryPage({ user }) {
   const { clients, routes, drivers, days, currentDate, settings, showNotice, saveClients } = useOperations();
   const [records, setRecords] = useState([]);

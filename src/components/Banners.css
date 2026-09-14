@@ -1,15 +1,10 @@
-/* Estilo compartido por UpdateBanner e InstallBanner (pedido 13 sep: antes
-   tenían colores/formas distintos -- "el de actualizar" es el que se
-   prefirió, así que ahora los dos usan exactamente las mismas clases).
+/* Estilo compartido por UpdateBanner e InstallBanner -- las mismas
+   clases para los dos, mismos colores/formas.
 
-   FIX (13 sep, 2da ronda): `.app-banners` tenía position:fixed -- flotaba
-   ARRIBA de todo sin reservarle espacio, así que tapaba lo que hubiera al
-   inicio de la página (el nombre de la empresa en el sidebar, sobre todo
-   con el aviso más largo de iOS, que ocupa más alto al hacer wrap en
-   pantallas angostas). Ahora es un bloque normal, de flujo, ANTES de
-   #app/.panel-shell en App.jsx -- así el contenido de abajo se corre solo
-   la altura exacta que ocupen los avisos, sea uno, los dos, o ninguno, sin
-   necesidad de calcular ni adivinar ningún alto a mano. */
+   Bloque normal de flujo (no position:fixed), colocado ANTES de
+   #app/.panel-shell en App.jsx: así el contenido de abajo se corre solo
+   la altura exacta que ocupen los avisos (uno, los dos, o ninguno), sin
+   tapar nada arriba ni tener que calcular un alto a mano. */
 .app-banners {
   display: flex;
   flex-direction: column;

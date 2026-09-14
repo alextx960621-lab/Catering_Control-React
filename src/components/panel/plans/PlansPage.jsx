@@ -6,6 +6,7 @@ import { n } from '../../../services/planHelpers';
 import Modal from '../Modal';
 import DataTable from '../DataTable';
 import ImageField from '../ImageField';
+import { removeStoredImage } from '../../../services/imageUpload';
 
 function uid(prefix) {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -129,6 +130,7 @@ export default function PlansPage({ user }) {
       return;
     }
     if (!confirm(`¿Eliminar el plan "${p.name}"?`)) return;
+    if (p.photoUrl) removeStoredImage(p.photoUrl);
     savePlans(plans.filter((x) => x.id !== p.id));
     showNotice('Plan eliminado.');
     dbInsertAudit({ actor_id: user.id, actor_name: user.name, actor_role: user.role, action: 'Plan eliminado', entity_type: 'plan', entity_label: p.name, entity_id: p.id, details: {} });

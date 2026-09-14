@@ -5,7 +5,11 @@ function isStandalonePwa() {
   return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 }
 function isIos() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) return true;
+  // iPadOS 13+ se anuncia como un Mac de escritorio por defecto (no dice
+  // "iPad" en el user agent) -- se distingue por tener pantalla táctil,
+  // cosa que un Mac de verdad no tiene.
+  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
 }
 
 // Android/PC avisan solos con "beforeinstallprompt" cuando la app ya
@@ -14,9 +18,7 @@ function isIos() {
 // iOS nunca dispara ese evento -- Apple no da forma de programar la
 // instalación, solo mostrar el instructivo de Compartir > Agregar a inicio.
 //
-// Estilo (13 sep): antes esta franja tenía su propio celeste plano
-// (#3867f4) distinto al de "hay una actualización disponible" -- ahora
-// usa las mismas clases .app-banner/.app-banner__btn-* que UpdateBanner,
+// Usa las mismas clases .app-banner/.app-banner__btn-* que UpdateBanner,
 // para que las dos se vean como el mismo tipo de aviso.
 export default function InstallBanner() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);

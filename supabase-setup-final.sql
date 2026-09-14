@@ -1,27 +1,32 @@
 -- =============================================================================
--- CATERING CONTROL · SQL SETUP FINAL — empresa nueva, un solo archivo
+-- CATERING CONTROL · SQL SETUP — empresa nueva, un solo archivo
 -- =============================================================================
--- v2 (revisión posterior a la entrega original): se agregaron 3 secciones
--- nuevas al final, sección 14, 15 y 16, todas seguras de correr encima de
--- un proyecto que ya corrió la v1 de este mismo script (usan CREATE OR
--- REPLACE / ON CONFLICT / DROP POLICY IF EXISTS, no tocan ni borran nada
--- existente que no sea justamente lo que reemplazan):
---   · 14. Políticas de Realtime Authorization para el canal de presencia
---     ("Conectados ahora") -- hipótesis de causa del bug reportado donde
---     siempre marca 0 (ver PROMPT_CONTINUAR.md, pendiente #1).
---   · 15. Preferencias personales por cuenta (tema visual + orden de
---     columnas de tablas) para que viajen entre dispositivos, no solo se
---     queden en el navegador (ver PROMPT_CONTINUAR.md, pendiente #7).
---   · 16. Cierre del bucket "app-images": saca a `anon` los permisos
---     directos de subir/reemplazar/borrar (dejando solo la lectura
---     pública). A partir de esta sección, subir o borrar una imagen SOLO
---     funciona a través de la Edge Function `image-storage`
---     (supabase-functions/image-storage/index.ts) -- **hay que
---     desplegarla ANTES de correr esta sección**, o se rompe la subida de
---     imágenes en producción (ver PROMPT_CONTINUAR.md, pendiente #7).
--- Si ya corriste la v1 completa, alcanza con correr SOLO las secciones 14,
--- 15 y 16 (podés copiarlas y pegarlas solas en el SQL Editor); si es un
--- proyecto nuevo, corré el archivo entero de punta a punta como siempre.
+-- Corré este archivo de punta a punta en el SQL Editor de un proyecto de
+-- Supabase nuevo y vacío. Es seguro volver a correrlo entero sobre un
+-- proyecto que ya lo tiene (usa CREATE OR REPLACE / ON CONFLICT / DROP
+-- POLICY IF EXISTS / cron.unschedule antes de cron.schedule) sin duplicar
+-- ni romper nada existente.
+--
+--  1. Extensiones necesarias
+--  2. Tablas
+--  3. Índices
+--  4. RLS cerrado desde el arranque en todas las tablas (todo el acceso
+--     pasa por las funciones RPC de las secciones 7-11, nunca directo)
+--  5. Storage: bucket de imágenes
+--  6. Funciones internas de validación de sesión (no se exponen a anon)
+--  7. hash_password / get_server_date
+--  8. Lecturas públicas: branding, plan de la cuenta, catálogo del portal
+--  9. Login (staff y cliente), con bloqueo por intentos fallidos
+-- 10. RPCs de staff (todo lo que usa el panel interno)
+-- 11. RPCs del portal cliente
+-- 12. Datos iniciales
+-- 13. Limpieza automática con pg_cron (evita que la base crezca sin límite)
+-- 14. Realtime: canal de presencia ("Conectados ahora")
+-- 15. Preferencias personales por cuenta (tema + orden de columnas)
+-- 16. Cierre de seguridad del bucket de imágenes: solo se puede subir o
+--     borrar a través de la Edge Function `image-storage` -- hay que
+--     desplegarla ANTES de correr esta sección (ver la guía de instalación).
+-- =============================================================================
 -- =============================================================================
 -- Correr UNA VEZ, completo, en el SQL Editor de un proyecto de Supabase
 -- NUEVO (recién creado, vacío). Reemplaza a correr en cadena:
@@ -1050,17 +1055,23 @@ insert into db_inventario (id, payload) values ('main', '{}'::jsonb) on conflict
 -- --------------------------------------------------------------------------
 -- 13. Limpieza automática con pg_cron
 -- --------------------------------------------------------------------------
+-- Historial de entregas: se guarda 2 años (lo usa Métricas para comparar
+-- periodos, ranking de drivers, distancia recorrida, etc.).
 do $do$
 begin
+  perform cron.unschedule('delivery-status-cleanup')
+  where exists (select 1 from cron.job where jobname = 'delivery-status-cleanup');
+
   perform cron.schedule(
     'delivery-status-cleanup',
     '0 1 * * *',
-    $cron$ delete from public.db_delivery_status where date < (now() - interval '7 days')::date; $cron$
+    $cron$ delete from public.db_delivery_status where date < (current_date - interval '2 years'); $cron$
   );
 exception when others then
   raise notice 'No se pudo programar el cron de delivery_status (revisa permisos/pg_cron).';
 end $do$;
 
+-- Snapshots de días procesados (Sueldos): mismo criterio de 2 años.
 do $do$
 begin
   perform cron.unschedule('delete-old-dispatch-snapshots')
@@ -1075,13 +1086,10 @@ exception when others then
   raise notice 'No se pudo programar el cron de dispatch_snapshots (revisa permisos/pg_cron).';
 end $do$;
 
--- Borra el ARCHIVO real del bucket (no solo la fila que lo referencia):
--- las fotos de respaldo de un pedido viven en 'delivery-proof/' y los
--- comprobantes de pago en 'comprobantes/' (ver uploadImage() en el
--- frontend). Borrar la fila de db_delivery_status o el texto de la nota
--- no borraba el archivo -- quedaba huérfano en Storage para siempre. Esto
--- sí lo borra: borrar de storage.objects es lo mismo que borrarlo desde el
--- bucket a mano, deja de existir y de contar para el espacio usado.
+-- Fotos de respaldo de entrega ('delivery-proof/') y comprobantes de pago
+-- ('comprobantes/'): 15 días, borrando el archivo real del bucket (no
+-- alcanza con borrar la fila que lo referencia, o queda huérfano en
+-- Storage para siempre).
 do $do$
 begin
   perform cron.unschedule('borrar-fotos-viejas-storage')
@@ -1094,33 +1102,39 @@ begin
       delete from storage.objects
       where bucket_id = 'app-images'
         and (name like 'delivery-proof/%' or name like 'comprobantes/%')
-        and created_at < now() - interval '7 days';
+        and created_at < now() - interval '15 days';
     $cron$
   );
 exception when others then
   raise notice 'No se pudo programar el cron de limpieza de fotos en Storage (revisa permisos/pg_cron).';
 end $do$;
 
--- Clientes "inactivos": ninguna edición ni "Procesar día" tocó su fila en
--- 2 años (updated_at se refresca con cada guardado desde
--- staff_upsert_client_rows, incluido el conteo diario de días consumidos
--- de los clientes activos -- por eso un cliente realmente inactivo es el
--- único que se queda atrás en el tiempo). Si tu definición de "inactivo"
--- es otra (ej. solo los marcados como "Inactivo"/dados de baja, sin
--- importar cuándo se tocó la fila por última vez), avisame y se ajusta
--- el where de abajo.
+-- Clientes inactivos: a propósito NO hay cron acá. Lo hace el código
+-- (dataCleanup.js, corre solo) porque necesita mirar el estado real del
+-- cliente ("Retorno pendiente" + 2 años sin entrega), no solo cuándo se
+-- tocó la fila -- y así queda registrado en Auditoría quién/qué se borró.
 do $do$
 begin
   perform cron.unschedule('borrar-clientes-inactivos')
   where exists (select 1 from cron.job where jobname = 'borrar-clientes-inactivos');
+exception when others then null;
+end $do$;
+
+-- Sesiones de login vencidas: 6 meses de margen desde que expiraron (no
+-- desde que se crearon -- una sesión en uso real nunca deja de renovarse
+-- sola, así que esto solo junta las que quedaron abandonadas de verdad).
+do $do$
+begin
+  perform cron.unschedule('borrar-sesiones-vencidas')
+  where exists (select 1 from cron.job where jobname = 'borrar-sesiones-vencidas');
 
   perform cron.schedule(
-    'borrar-clientes-inactivos',
-    '0 3 * * *',
-    $cron$ delete from db_clientes_rows where updated_at < now() - interval '2 years'; $cron$
+    'borrar-sesiones-vencidas',
+    '30 1 * * *',
+    $cron$ delete from public.db_sessions where expires_at < now() - interval '6 months'; $cron$
   );
 exception when others then
-  raise notice 'No se pudo programar el cron de clientes inactivos (revisa permisos/pg_cron).';
+  raise notice 'No se pudo programar el cron de sesiones vencidas (revisa permisos/pg_cron).';
 end $do$;
 
 do $do$
@@ -1139,6 +1153,9 @@ end $do$;
 
 do $do$
 begin
+  perform cron.unschedule('limpiar-intentos-login-viejos')
+  where exists (select 1 from cron.job where jobname = 'limpiar-intentos-login-viejos');
+
   perform cron.schedule(
     'limpiar-intentos-login-viejos',
     '30 4 * * *',
@@ -1163,23 +1180,14 @@ exception when others then
 end $do$;
 
 -- --------------------------------------------------------------------------
--- 14. Realtime: autorización para el canal de presencia ("Conectados ahora")
+-- 14. Realtime: canal de presencia ("Conectados ahora")
 -- --------------------------------------------------------------------------
--- Esta app NUNCA usa Supabase Auth -- login_staff/login_cliente son
--- funciones propias con su propio token en db_sessions, no auth.uid().
--- Eso significa que TODOS los clientes se conectan a Realtime con el rol
--- `anon`, nunca `authenticated`. Supabase exige "Realtime Authorization"
--- por defecto en proyectos nuevos: sin una política en realtime.messages,
--- un canal puede quedar sin poder suscribirse ni trackear presencia.
--- El canal 'catering-online-users' (services/supabaseClient.js,
--- joinPresence()) ahora se abre con private:true (modo recomendado por
--- Supabase para Presence/Broadcast) -- eso hace que esta política sí se
--- aplique de verdad, en vez de depender de si "Allow public access" está
--- (Ya no hace falta ninguna policy de presencia acá: el canal de
--- "Conectados ahora" se abre público, sin `private: true` -- ver
--- joinPresence() en supabaseClient.js. Un canal público no evalúa
--- policies de RLS sobre realtime.messages, así que no hay nada que
--- crear en esta sección.)
+-- No hace falta ninguna policy acá: el canal ('catering-online-users' en
+-- supabaseClient.js, joinPresence()) se abre público, sin `private: true`
+-- -- esta app nunca usa Supabase Auth (login propio, con su token en
+-- db_sessions), así que no hay un auth.uid() contra el cual evaluar una
+-- policy privada. Un canal público no evalúa RLS sobre realtime.messages,
+-- así que no hay nada que crear en esta sección.
 
 -- --------------------------------------------------------------------------
 -- 15. Preferencias personales por cuenta (tema + orden de columnas), para
@@ -1306,10 +1314,8 @@ drop policy if exists "app-images: borrar" on storage.objects;
 --   select * from cron.job;     -- los 7 jobs de limpieza programados
 --
 --   curl "https://<tu-proyecto>.supabase.co/rest/v1/db_personal?select=*&apikey=<publishable key>"
---   -- tiene que devolver un array vacío, no datos.
---
---   select * from pg_policies where tablename = 'messages' and schemaname = 'realtime';
---   -- deben aparecer las 2 políticas de presencia de la sección 14.
+--   -- tiene que devolver un array vacío, no datos (confirma que RLS está
+--   -- cerrado y todo el acceso pasa por las funciones RPC).
 --
 --   select staff_save_own_prefs(<session_token de un login_staff>, '{"theme":"night"}'::jsonb);
 --   select * from staff_get_fields(<mismo token>, 'personal', array['userPrefs']);

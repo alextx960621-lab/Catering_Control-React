@@ -96,13 +96,14 @@ export default function DataTable({ columns: fixedColumns, allColumns, rows, get
     function onMove(ev) {
       if (!resizeRef.current) return;
       const delta = ev.clientX - resizeRef.current.startX;
-      th.style.width = `${Math.max(60, resizeRef.current.startWidth + delta)}px`;
+      th.style.width = `${Math.max(36, resizeRef.current.startWidth + delta)}px`;
     }
     function onUp() {
-      if (resizeRef.current) {
-        const finalWidth = Math.max(60, th.offsetWidth);
+      const resize = resizeRef.current;
+      if (resize) {
+        const finalWidth = Math.max(36, th.offsetWidth);
         setColPrefs((prev) => {
-          const next = { ...prev, widths: { ...prev.widths, [resizeRef.current.key]: finalWidth } };
+          const next = { ...prev, widths: { ...prev.widths, [resize.key]: finalWidth } };
           if (resizeGroup) saveColumnWidths(userId, resizeGroup, next.widths);
           return next;
         });

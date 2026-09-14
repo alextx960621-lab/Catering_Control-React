@@ -21,10 +21,8 @@ function computeFromState(state) {
 // ya se une al canal de presencia desde PanelPage/ClientePage al iniciar
 // sesión; este hook solo LEE ese mismo canal, no crea uno nuevo).
 //
-// Antes refrescaba solo con un polling automático (primero cada 4s, luego
-// cada 1 minuto); a pedido (13 sep) se sacó el refresco por tiempo del
-// todo -- ahora `refresh()` recalcula bajo demanda, para usar con un botón
-// "Actualizar" en la pantalla (ver SettingsPage.jsx).
+// Se recalcula bajo demanda con `refresh()`, no con polling automático --
+// se usa con un botón "Actualizar" en la pantalla (ver SettingsPage.jsx).
 export function usePresence() {
   const [state, setState] = useState(() => computeFromState(presenceState()));
   function refresh() {

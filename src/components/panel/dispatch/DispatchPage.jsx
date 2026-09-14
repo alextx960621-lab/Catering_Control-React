@@ -150,13 +150,9 @@ export default function DispatchPage({ user, onGoToClient }) {
         if (target.maps !== value) return; // el campo cambió de nuevo mientras tanto, no pisar lo nuevo
         target.lat = resolved.lat;
         target.lng = resolved.lng;
-        // Sin esto (encontrado 13 sep) el registro quedaba guardado en la
-        // base sin `mapsResolvedFrom` -- no causaba coordenadas viejas
-        // (esta llamada siempre resuelve de nuevo porque se dispara
-        // solo cuando de verdad se edita el campo), pero si después se
-        // abría el mismo cliente desde el formulario de Clientes y se
-        // guardaba sin tocar el link, se volvía a pedir la resolución de
-        // más -- exactamente el mismo desperdicio que en ClientsPage.
+        // Guarda mapsResolvedFrom para que, si después se abre el mismo
+        // cliente desde Clientes sin tocar el link, no se vuelva a pedir
+        // la resolución de nuevo (mismo criterio que ClientsPage.jsx).
         target.mapsResolvedFrom = resolved.mapsResolvedFrom;
         saveClients([patched]);
       });
@@ -541,12 +537,12 @@ export default function DispatchPage({ user, onGoToClient }) {
     function onMove(ev) {
       if (!resizeRef.current) return;
       const delta = ev.clientX - resizeRef.current.startX;
-      const newWidth = Math.max(70, resizeRef.current.startWidth + delta);
+      const newWidth = Math.max(36, resizeRef.current.startWidth + delta);
       th.style.width = `${newWidth}px`;
     }
     function onUp() {
       if (resizeRef.current) {
-        const finalWidth = Math.max(70, th.offsetWidth);
+        const finalWidth = Math.max(36, th.offsetWidth);
         const widths = { ...colPrefs.widths, [resizeRef.current.key]: finalWidth };
         setColPrefs((p) => ({ ...p, widths }));
         saveColumnWidths(user?.id, 'dispatch', widths);
@@ -562,9 +558,8 @@ export default function DispatchPage({ user, onGoToClient }) {
   }
 
   function handleSaveColumns(order, hiddenList) {
-    // Antes esto reemplazaba colPrefs completo ({order, hidden}), perdiendo
-    // los anchos de columna ya guardados (colPrefs.widths) hasta el próximo
-    // refresh -- se corrige mezclando en vez de reemplazar.
+    // Se mezcla con lo anterior (no se reemplaza colPrefs entero) para no
+    // perder los anchos de columna ya guardados (colPrefs.widths).
     setColPrefs((p) => ({ ...p, order, hidden: hiddenList }));
     saveColumnOrder(user?.id, 'dispatch', order);
     saveHiddenColumns(user?.id, 'dispatch', hiddenList);

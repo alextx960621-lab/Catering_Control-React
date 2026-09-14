@@ -126,13 +126,8 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
       if (parsed.routes) saveRoutes2(parsed.routes);
       if (parsed.plans) savePlans2(parsed.plans);
       if (parsed.settings) saveSettings({ ...settings, ...parsed.settings });
-      // Estos dos venían en el "respaldo completo" (export) hace rato,
-      // pero acá nunca se leían de vuelta al restaurar -- si alguien
-      // hacía una restauración completa después de una pérdida de datos,
-      // el inventario (stock/movimientos) y la fecha operativa actual se
-      // quedaban en blanco en silencio, sin ningún aviso de que faltó
-      // algo (bug reportado 13 sep: "asegurarse que el respaldo exporte
-      // TODO para poder recuperar todo").
+      // El respaldo completo también incluye inventario y la fecha
+      // operativa actual, así que una restauración total los repone.
       if (parsed.inventory) saveInventory(parsed.inventory);
       if (parsed.currentDate) setCurrentDate(parsed.currentDate);
       if (hasStaffUsers) saveStaffUsers2(parsed.staffUsers);
