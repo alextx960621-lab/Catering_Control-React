@@ -12,7 +12,7 @@ window.APP_CONFIG = {
 
   // Ruta o URL del logo. Puede ser un archivo en /public (ej. './logo.jpg')
   // o un link externo.
-  logoUrl: './logo.jpg',
+  logoUrl: 'icon-512.png',
 
   // Número de WhatsApp para el botón de contacto. Formato: código de país +
   // número, sin el "+" (ej. 59170000000). Déjalo vacío ('') para ocultar
