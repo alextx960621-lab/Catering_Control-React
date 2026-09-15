@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useOperations } from '../../../context/OperationsContext';
 import { dbInsertAudit } from '../../../services/supabaseClient';
 import { n } from '../../../services/planHelpers';
-import { effectiveRouteId, effectiveOrder, effectiveMaps, effectiveNotes, dispatchStatus, statusBadgeClass, myRouteIds, clientWaLink, shiftOrdersFrom } from '../../../services/dispatchHelpers';
+import { effectiveRouteId, effectiveOrder, effectiveMaps, effectiveNotes, dispatchStatus, statusBadgeClass, myRouteIds, clientWaLink, shiftOrdersFrom, findOrderConflicts } from '../../../services/dispatchHelpers';
 import { canManage, isPagePremiumLocked } from '../../../services/panelAuth';
 import { resolveShortMapsLinkIfNeeded } from '../../../services/resolveMapsLink';
 import Modal from '../Modal';
@@ -37,7 +37,7 @@ function AutoTextarea({ className, ...props }) {
 // Filas de direcciones editables dentro del formulario de cliente. Vive
 // como su propio estado local (no se guarda hasta apretar "Guardar" del
 // modal) para que agregar/quitar filas sea instantáneo.
-function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, clients, currentDate, dayInfo, saveClients, selfId }) {
+function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, clients, currentDate, saveClients, selfId }) {
   function update(i, field, value) {
     setAddresses(addresses.map((a, idx) => (idx === i ? { ...a, [field]: value } : a)));
   }
@@ -100,12 +100,14 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, c
   // Conflicto de "Orden de entrega": mismo mecanismo que ya existía en
   // Día de trabajo (handleFieldBlur/resolveOrderConflict de
   // DispatchPage.jsx), reproducido acá para el formulario de Clientes --
-  // pedido 14 sep. Solo compara contra clientes ACTIVOS de la MISMA ruta
-  // (cada ruta tiene su propio orden, no tiene sentido comparar entre
-  // rutas distintas). `focusValue` guarda con qué número se entró al
-  // campo, para poder devolverlo tal cual si se cancela -- el input es
-  // controlado (value={a.order}), así que al momento del blur `a.order`
-  // ya es el valor NUEVO, no sirve para "volver atrás".
+  // pedido 14 sep. Compara contra clientes de la MISMA ruta (cada ruta
+  // tiene su propio orden, no tiene sentido comparar entre rutas
+  // distintas) -- ver findOrderConflicts() en dispatchHelpers.js sobre
+  // por qué a propósito NO filtra por estado/día laborable. `focusValue`
+  // guarda con qué número se entró al campo, para poder devolverlo tal
+  // cual si se cancela -- el input es controlado (value={a.order}), así
+  // que al momento del blur `a.order` ya es el valor NUEVO, no sirve
+  // para "volver atrás".
   const [orderConflict, setOrderConflict] = useState(null); // { index, value, routeId, prevValue }
   const focusValue = useRef({});
 
@@ -114,7 +116,7 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, c
     const trimmed = String(addr.order ?? '').trim();
     const prevValue = focusValue.current[i] ?? '';
     if (trimmed === '' || trimmed === prevValue || !addr.routeId || !clients) return;
-    const conflicts = clients.filter((x) => x.id !== selfId && dispatchStatus(x, currentDate, dayInfo, false) === 'Activo' && effectiveRouteId(x, currentDate) === addr.routeId && String(effectiveOrder(x, currentDate)) === trimmed);
+    const conflicts = findOrderConflicts(clients, addr.routeId, currentDate, trimmed, selfId);
     if (conflicts.length) setOrderConflict({ index: i, value: trimmed, routeId: addr.routeId, prevValue });
   }
 
@@ -123,7 +125,7 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, c
     if (choice === 'cancel') {
       update(index, 'order', prevValue);
     } else if (choice === 'shift') {
-      const shifted = shiftOrdersFrom(clients, routeId, currentDate, Number(value), selfId, dayInfo);
+      const shifted = shiftOrdersFrom(clients, routeId, currentDate, Number(value), selfId);
       if (shifted.length) saveClients(shifted);
     }
     // 'duplicate': no hace falta hacer nada más, el valor ya quedó en `a.order`.
@@ -596,7 +598,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
               <div className="form-section tone-accent">
                 <div className="form-section-title">📍 Direcciones</div>
                 <p className="muted" style={{ margin: '2px 0 8px' }}>Agrega una o varias direcciones de entrega. La ruta de cada una define automáticamente su driver.</p>
-                <AddressRows addresses={addresses} setAddresses={setAddresses} activeId={activeAddressId} setActiveId={setActiveAddressId} routes={routes} clients={clients} currentDate={currentDate} dayInfo={dayInfo} saveClients={saveClients} selfId={editing?.id} />
+                <AddressRows addresses={addresses} setAddresses={setAddresses} activeId={activeAddressId} setActiveId={setActiveAddressId} routes={routes} clients={clients} currentDate={currentDate} saveClients={saveClients} selfId={editing?.id} />
               </div>
 
               <div className="form-section tone-warning">
