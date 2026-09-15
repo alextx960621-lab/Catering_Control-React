@@ -51,9 +51,13 @@ export default function DataTable({ columns: fixedColumns, allColumns, rows, get
     if (resizeGroup) saveColumnWidths(userId, resizeGroup, {});
   }
 
-  function handleSaveColumns(order, hidden) {
-    setColPrefs((p) => ({ ...p, order, hidden }));
-    if (resizeGroup) { saveColumnOrder(userId, resizeGroup, order); saveHiddenColumns(userId, resizeGroup, hidden); }
+  function handleSaveColumns(order, hidden, newWidths) {
+    setColPrefs((p) => ({ ...p, order, hidden, widths: newWidths ?? p.widths }));
+    if (resizeGroup) {
+      saveColumnOrder(userId, resizeGroup, order);
+      saveHiddenColumns(userId, resizeGroup, hidden);
+      if (newWidths) saveColumnWidths(userId, resizeGroup, newWidths);
+    }
     setColumnsOpen(false);
   }
 
@@ -162,6 +166,7 @@ export default function DataTable({ columns: fixedColumns, allColumns, rows, get
           allColumns={allColumns}
           hidden={colPrefs.hidden || []}
           order={colPrefs.order || []}
+          widths={widths}
           onSave={handleSaveColumns}
           onResetWidths={hasCustomWidths ? resetWidths : undefined}
         />

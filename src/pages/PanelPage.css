@@ -85,6 +85,15 @@
   border-radius: var(--panel-radius-sm); padding: 8px 10px; outline: none; min-height: 36px;
   font-size: 16px; /* por debajo de esto, Safari/iOS hace zoom automático al enfocar */
 }
+/* Campos que crecen con el contenido (Dirección, Link de Maps,
+   Observaciones, Dieta especial): sin scrollbar propia ni agarradero de
+   redimensionar a mano (el alto ya lo pone AutoTextarea solo), y
+   partiendo palabras largas sin espacios -- un link de Maps es una sola
+   palabra larguísima que si no, se sale del recuadro por el costado en
+   vez de bajar de línea. */
+.panel-shell textarea.auto-textarea {
+  overflow: hidden; resize: none; overflow-wrap: anywhere; font-family: inherit; line-height: 1.35;
+}
 
 .panel-shell #app { min-height: 100vh; display: grid; grid-template-columns: 240px 1fr; }
 .panel-shell aside {
@@ -317,9 +326,12 @@
 .panel-shell .image-field-upload { cursor: pointer; }
 .panel-shell .column-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .panel-shell .column-list-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 4px; border-bottom: 1px solid var(--panel-line); }
-.panel-shell .column-list-item label { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13.5px; }
+.panel-shell .column-list-item label { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13.5px; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .panel-shell .column-list-item input { width: auto; min-height: auto; }
-.panel-shell .column-list-arrows { display: flex; gap: 4px; }
+.panel-shell .column-list-item .column-width-input {
+  width: 60px; flex: 0 0 auto; min-height: 30px; padding: 4px 6px; text-align: center; font-size: 13px;
+}
+.panel-shell .column-list-arrows { display: flex; gap: 4px; flex: 0 0 auto; }
 .panel-shell .column-list-arrows button { padding: 2px 8px; font-size: 11px; }
 
 .panel-shell .plan-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }

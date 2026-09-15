@@ -194,7 +194,7 @@ export default function NotesPage({ user, onGoToClient, renewalByClient = {}, on
       <Modal title={editing?.id ? 'Editar nota' : 'Añadir nota'} open={!!editing} onClose={() => setEditing(null)} onSubmit={handleSubmit}>
         <div className="form-grid">
           <label className="wide">Nota *<textarea name="text" required rows="3" defaultValue={editing?.text} placeholder="Ej.: Llamar de nuevo a Juan Pérez para ver si renueva el plan." /></label>
-          <label>Fecha para que aparezca *<input name="dueDate" type="date" required defaultValue={editing?.dueDate || currentDate} /></label>
+          <label>Fecha para que aparezca *<div className="date-input-wrap"><input name="dueDate" type="date" required defaultValue={editing?.dueDate || currentDate} /></div></label>
           <label>Cliente relacionado (opcional)
             <select name="clientId" defaultValue={editing?.clientId || ''}>
               <option value="">Sin vincular a un cliente</option>
@@ -207,7 +207,7 @@ export default function NotesPage({ user, onGoToClient, renewalByClient = {}, on
       <Modal title="Reprogramar nota" open={!!rescheduling} onClose={() => setRescheduling(null)} onSubmit={handleReschedule}>
         <div className="form-grid">
           <label className="wide">Nota<textarea name="text" required rows="3" defaultValue={rescheduling?.text} /></label>
-          <label>Nueva fecha *<input name="dueDate" type="date" required defaultValue={rescheduling?.dueDate} /></label>
+          <label>Nueva fecha *<div className="date-input-wrap"><input name="dueDate" type="date" required defaultValue={rescheduling?.dueDate} /></div></label>
         </div>
       </Modal>
     </section>

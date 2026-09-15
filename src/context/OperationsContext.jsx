@@ -75,10 +75,25 @@ export function OperationsProvider({ children, userId, user, onThemeFromSettings
   const [staffUsers, setStaffUsers] = useState([]);
   const [serverToday, setServerToday] = useState(new Date().toISOString().slice(0, 10));
   const [notice, setNoticeState] = useState(null); // { text, error }
+  const noticeTimer = useRef(null);
   const booted = useRef(false);
   const confirmed = useRef(Object.fromEntries(BLOCK_FIELDS.map((k) => [k, false])));
   const clientsConfirmed = useRef(false);
   const notesConfirmed = useRef(false);
+
+  // BUG (reportado 14 sep, "la notificación se queda pegada y no se va"):
+  // solo existía la animación de ENTRADA del toast (panel-toast-in), nada
+  // la volvía a ocultar -- se quedaba en pantalla para siempre hasta que
+  // apareciera OTRA notificación encima. Se borra sola a los 4 segundos;
+  // si llega una notificación nueva antes, se reinicia el conteo (clave
+  // `notice.key`, que ya cambiaba con cada llamada a showNotice).
+  useEffect(() => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    if (!notice) return;
+    noticeTimer.current = setTimeout(() => setNoticeState(null), 4000);
+    return () => clearTimeout(noticeTimer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notice?.key]);
 
   const showNotice = useCallback((text, error = false) => {
     setNoticeState({ text, error, key: Date.now() });

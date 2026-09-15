@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useOperations } from '../../../context/OperationsContext';
 import { dbInsertAudit } from '../../../services/supabaseClient';
 import { n } from '../../../services/planHelpers';
-import { effectiveRouteId, effectiveOrder, effectiveMaps, effectiveAddress, effectiveNotes, dispatchStatus, statusBadgeClass, myRouteIds, clientWaLink } from '../../../services/dispatchHelpers';
+import { effectiveRouteId, effectiveOrder, effectiveMaps, effectiveNotes, dispatchStatus, statusBadgeClass, myRouteIds, clientWaLink, shiftOrdersFrom } from '../../../services/dispatchHelpers';
 import { canManage, isPagePremiumLocked } from '../../../services/panelAuth';
 import { resolveShortMapsLinkIfNeeded } from '../../../services/resolveMapsLink';
 import Modal from '../Modal';
@@ -14,10 +14,30 @@ function uid(prefix) {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
+// Campo de texto que crece con el contenido en vez de quedarse fijo en
+// una sola línea y esconder el resto adentro (con scroll horizontal
+// invisible a simple vista) -- pedido 14 sep: en Dirección, Link de Maps,
+// Observaciones y Dieta especial a veces hay bastante para escribir y no
+// se veía completo. `rows={1}` es solo el punto de partida antes de que
+// el efecto mida el contenido real; se recalcula en cada tecla/pegado
+// (onInput) y también de entrada, para que un valor ya cargado (al abrir
+// un cliente existente) aparezca con su alto correcto sin que haga falta
+// tocarlo primero.
+function AutoTextarea({ className, ...props }) {
+  const ref = useRef(null);
+  function resize(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }
+  useEffect(() => { resize(ref.current); });
+  return <textarea ref={ref} rows={1} className={`auto-textarea${className ? ` ${className}` : ''}`} {...props} onInput={(e) => { props.onInput?.(e); resize(e.target); }} />;
+}
+
 // Filas de direcciones editables dentro del formulario de cliente. Vive
 // como su propio estado local (no se guarda hasta apretar "Guardar" del
 // modal) para que agregar/quitar filas sea instantáneo.
-function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes }) {
+function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, clients, currentDate, dayInfo, saveClients, selfId }) {
   function update(i, field, value) {
     setAddresses(addresses.map((a, idx) => (idx === i ? { ...a, [field]: value } : a)));
   }
@@ -77,6 +97,39 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes })
     updateAddr(i, m ? { lat: parseFloat(m[1]), lng: parseFloat(m[2]), _coordsDraft: undefined } : { _coordsDraft: text });
   }
 
+  // Conflicto de "Orden de entrega": mismo mecanismo que ya existía en
+  // Día de trabajo (handleFieldBlur/resolveOrderConflict de
+  // DispatchPage.jsx), reproducido acá para el formulario de Clientes --
+  // pedido 14 sep. Solo compara contra clientes ACTIVOS de la MISMA ruta
+  // (cada ruta tiene su propio orden, no tiene sentido comparar entre
+  // rutas distintas). `focusValue` guarda con qué número se entró al
+  // campo, para poder devolverlo tal cual si se cancela -- el input es
+  // controlado (value={a.order}), así que al momento del blur `a.order`
+  // ya es el valor NUEVO, no sirve para "volver atrás".
+  const [orderConflict, setOrderConflict] = useState(null); // { index, value, routeId, prevValue }
+  const focusValue = useRef({});
+
+  function handleOrderBlur(i) {
+    const addr = addresses[i];
+    const trimmed = String(addr.order ?? '').trim();
+    const prevValue = focusValue.current[i] ?? '';
+    if (trimmed === '' || trimmed === prevValue || !addr.routeId || !clients) return;
+    const conflicts = clients.filter((x) => x.id !== selfId && dispatchStatus(x, currentDate, dayInfo, false) === 'Activo' && effectiveRouteId(x, currentDate) === addr.routeId && String(effectiveOrder(x, currentDate)) === trimmed);
+    if (conflicts.length) setOrderConflict({ index: i, value: trimmed, routeId: addr.routeId, prevValue });
+  }
+
+  function resolveOrderConflict(choice) {
+    const { index, value, routeId, prevValue } = orderConflict;
+    if (choice === 'cancel') {
+      update(index, 'order', prevValue);
+    } else if (choice === 'shift') {
+      const shifted = shiftOrdersFrom(clients, routeId, currentDate, Number(value), selfId, dayInfo);
+      if (shifted.length) saveClients(shifted);
+    }
+    // 'duplicate': no hace falta hacer nada más, el valor ya quedó en `a.order`.
+    setOrderConflict(null);
+  }
+
   return (
     <>
       {addresses.map((a, i) => (
@@ -85,7 +138,7 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes })
 
           <label className="address-field address-field-wide">
             <span>Dirección</span>
-            <input placeholder="Ej. Av. Busch #123, edif. Torre Azul, depto 4B" value={a.address} onChange={(e) => update(i, 'address', e.target.value)} />
+            <AutoTextarea placeholder="Ej. Av. Busch #123, edif. Torre Azul, depto 4B" value={a.address} onChange={(e) => update(i, 'address', e.target.value)} />
           </label>
 
           <label className="address-field">
@@ -103,12 +156,12 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes })
               trabajo para fijar el valor inicial de un cliente nuevo. */}
           <label className="address-field">
             <span>Orden de entrega</span>
-            <input placeholder="Ej. 1" type="number" value={a.order ?? ''} onChange={(e) => update(i, 'order', e.target.value)} />
+            <input placeholder="Ej. 1" type="number" value={a.order ?? ''} onFocus={() => { focusValue.current[i] = String(a.order ?? ''); }} onChange={(e) => update(i, 'order', e.target.value)} onBlur={() => handleOrderBlur(i)} />
           </label>
 
           <label className="address-field address-field-wide">
             <span>Link de Google Maps</span>
-            <input placeholder="https://maps.app.goo.gl/…" value={a.maps} onChange={(e) => update(i, 'maps', e.target.value)} onBlur={() => handleMapsBlur(i)} />
+            <AutoTextarea placeholder="https://maps.app.goo.gl/…" value={a.maps} onChange={(e) => update(i, 'maps', e.target.value)} onBlur={() => handleMapsBlur(i)} />
           </label>
 
           <label className="address-field">
@@ -122,7 +175,7 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes })
 
           <label className="address-field address-field-wide">
             <span>Observaciones para el repartidor</span>
-            <input placeholder="Ej. dejar en portería, tocar timbre 2" value={a.notes ?? ''} onChange={(e) => update(i, 'notes', e.target.value)} />
+            <AutoTextarea placeholder="Ej. dejar en portería, tocar timbre 2" value={a.notes ?? ''} onChange={(e) => update(i, 'notes', e.target.value)} />
           </label>
         </div>
       ))}
@@ -133,6 +186,19 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes })
             {addresses.map((a) => <option key={a.id} value={a.id}>{a.address || 'Sin nombre'}</option>)}
           </select>
         </label>
+      )}
+      {orderConflict && (
+        <dialog className="panel-modal" open onClose={() => resolveOrderConflict('cancel')}>
+          <div className="modal-head"><h2>Número de orden repetido</h2></div>
+          <div className="modal-body">
+            <p style={{ marginTop: 0 }}>Ya hay otro cliente activo con el número <b>{orderConflict.value}</b> en esta ruta. ¿Qué hacés?</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button type="button" className="primary" onClick={() => resolveOrderConflict('shift')}>Correr los siguientes un número (mantener la secuencia)</button>
+              <button type="button" className="outline" onClick={() => resolveOrderConflict('duplicate')}>Dejar los dos con el número {orderConflict.value}</button>
+              <button type="button" className="outline" onClick={() => resolveOrderConflict('cancel')}>Cancelar</button>
+            </div>
+          </div>
+        </dialog>
       )}
     </>
   );
@@ -280,6 +346,12 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
   // reportado 13 sep.
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [renewing, setRenewing] = useState(null); // { client, mode: 'renew'|'change' }
+  // Si "Renovar"/"Añadir nuevo plan" se apretó DESDE ADENTRO del modal de
+  // Editar cliente (no desde el botón de la fila en la lista), hay que
+  // volver a abrir ese mismo modal al terminar (guardar o cancelar) en vez
+  // de dejar al staff en la lista principal -- reportado 14 sep: "me saca
+  // al menú principal en vez de dejarme seguir editando el formulario".
+  const [reopenEditAfterRenew, setReopenEditAfterRenew] = useState(false);
   // Si se llegó a editar/renovar este cliente desde un botón de OTRA
   // pantalla (Día de trabajo o Notas), al terminar (guardar o cancelar)
   // hay que devolver al staff exactamente a esa misma pantalla -- no
@@ -386,10 +458,13 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
   }
 
   // Abre el modal de renovar/añadir plan; si el formulario de editar
-  // cliente estaba abierto se cierra (igual que en la versión vanilla:
-  // conviene guardar cambios pendientes de nombre/dirección antes de usar
-  // estos botones, ya que no se guardan al abrir la renovación).
+  // cliente estaba abierto se cierra (conviene guardar cambios pendientes
+  // de nombre/dirección antes de usar estos botones, ya que no se guardan
+  // al abrir la renovación) -- pero se recuerda para reabrirlo solo al
+  // terminar, en vez de quedar cerrado para siempre (ver
+  // reopenEditAfterRenew arriba).
   function openRenew(c, mode = 'renew') {
+    setReopenEditAfterRenew(!!editing);
     setEditing(null);
     setRenewing({ client: c, mode });
   }
@@ -447,8 +522,12 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     // (Notas o Día de trabajo), se vuelve automáticamente a esa misma
     // pantalla -- si no, el staff se queda en Clientes y puede olvidarse
     // de, por ejemplo, marcar la nota como cumplida (el paso que dispara
-    // el mensaje de confirmación por WhatsApp).
+    // el mensaje de confirmación por WhatsApp). Eso tiene prioridad sobre
+    // reabrir "Editar cliente": si se llegó desde una nota, lo que importa
+    // es volver a esa nota, no quedarse editando el cliente.
     if (returnOrigin) { onReturnToOrigin?.(returnOrigin); setReturnOrigin(null); }
+    else if (reopenEditAfterRenew) { openEdit(updated); }
+    setReopenEditAfterRenew(false);
   }
 
   // allColumns (antes se llamaba "columns") -- ahora se le pasa COMPLETA a
@@ -517,7 +596,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
               <div className="form-section tone-accent">
                 <div className="form-section-title">📍 Direcciones</div>
                 <p className="muted" style={{ margin: '2px 0 8px' }}>Agrega una o varias direcciones de entrega. La ruta de cada una define automáticamente su driver.</p>
-                <AddressRows addresses={addresses} setAddresses={setAddresses} activeId={activeAddressId} setActiveId={setActiveAddressId} routes={routes} />
+                <AddressRows addresses={addresses} setAddresses={setAddresses} activeId={activeAddressId} setActiveId={setActiveAddressId} routes={routes} clients={clients} currentDate={currentDate} dayInfo={dayInfo} saveClients={saveClients} selfId={editing?.id} />
               </div>
 
               <div className="form-section tone-warning">
@@ -562,8 +641,8 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
                       {['Activo', 'Pausado', 'Retorno pendiente', 'Programado'].map((s) => <option key={s}>{s}</option>)}
                     </select>
                   </label>
-                  <label>Fecha de inicio<input name="startDate" type="date" defaultValue={editing.startDate} /></label>
-                  <label>Fecha de retorno<input name="returnDate" type="date" defaultValue={editing.returnDate} /></label>
+                  <label>Fecha de inicio<div className="date-input-wrap"><input name="startDate" type="date" defaultValue={editing.startDate} /></div></label>
+                  <label>Fecha de retorno<div className="date-input-wrap"><input name="returnDate" type="date" defaultValue={editing.returnDate} /></div></label>
                   <label>Días pagados<input key={`paidDays-${selectedPlanId}`} name="paidDays" type="number" min="0" defaultValue={editing.paidDays != null ? n(editing.paidDays) : (isExisting ? 0 : (n(plans.find((p) => p.id === selectedPlanId)?.serviceDays) || 0))} /></label>
                   <label>Días consumidos<input name="consumedDays" type="number" min="0" defaultValue={n(editing.consumedDays)} /></label>
                   <label>Carreras por entrega
@@ -572,7 +651,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
                     </select>
                   </label>
                   <label>Cantidad de bolsas<input name="bags" type="number" min="0" defaultValue={editing.bags != null ? n(editing.bags) : (isExisting ? 0 : 1)} /></label>
-                  <label className="wide">Dieta especial<textarea name="specialDiet" defaultValue={editing.specialDiet} /></label>
+                  <label className="wide">Dieta especial<AutoTextarea name="specialDiet" defaultValue={editing.specialDiet} /></label>
                 </div>
               </div>
 
@@ -607,7 +686,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
           client={renewing.client}
           mode={renewing.mode}
           plans={plans}
-          onClose={() => { setRenewing(null); if (returnOrigin) { onReturnToOrigin?.(returnOrigin); setReturnOrigin(null); } }}
+          onClose={() => { setRenewing(null); if (returnOrigin) { onReturnToOrigin?.(returnOrigin); setReturnOrigin(null); } else if (reopenEditAfterRenew) { openEdit(renewing.client); } setReopenEditAfterRenew(false); }}
           onConfirm={confirmRenew}
         />
       )}
