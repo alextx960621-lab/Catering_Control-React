@@ -62,7 +62,7 @@ export default function Modal({ title, open, onClose, onSubmit, children, hideSa
       <form onSubmit={handleSubmit}>
         <div className="modal-body" key={renderKey}>{children}</div>
         <div className="modal-foot">
-          <button type="button" className="outline" onClick={onClose}>{cancelLabel}</button>
+          <button type="button" className="danger" onClick={onClose}>{cancelLabel}</button>
           {!hideSave && <button type="submit" className="primary" disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button>}
         </div>
       </form>

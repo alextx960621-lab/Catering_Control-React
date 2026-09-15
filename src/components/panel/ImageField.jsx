@@ -35,7 +35,7 @@ export default function ImageField({ label, name, value, onChange, folder, maxDi
             {uploading ? 'Subiendo…' : value ? 'Cambiar imagen' : 'Subir imagen'}
             <input type="file" accept="image/*" onChange={handleFile} disabled={uploading} hidden />
           </label>
-          {value && <button type="button" className="icon-btn delete" onClick={handleRemove}>Quitar</button>}
+          {value && <button type="button" className="danger" onClick={handleRemove}>Quitar imagen</button>}
         </div>
       </div>
     </label>

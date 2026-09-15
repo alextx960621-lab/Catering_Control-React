@@ -37,9 +37,12 @@ function compareValues(a, b) {
   return String(a ?? '').localeCompare(String(b ?? ''), 'es', { sensitivity: 'base', numeric: true });
 }
 
-export default function DataTable({ columns: fixedColumns, allColumns, rows, getRowId = (r) => r.id, search, onSearchChange, searchPlaceholder, emptyText = 'Sin registros.', resizeGroup, userId }) {
+export default function DataTable({ columns: fixedColumns, allColumns, rows, getRowId = (r) => r.id, search, onSearchChange, searchPlaceholder, emptyText = 'Sin registros.', resizeGroup, userId, columnsOpen: columnsOpenProp, onColumnsOpenChange }) {
   const [colPrefs, setColPrefs] = useState(() => (resizeGroup ? getColumnPrefs(userId, resizeGroup) : { hidden: [], order: [], widths: {} }));
-  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [internalColumnsOpen, setInternalColumnsOpen] = useState(false);
+  const isColumnsOpenControlled = columnsOpenProp !== undefined;
+  const columnsOpen = isColumnsOpenControlled ? columnsOpenProp : internalColumnsOpen;
+  const setColumnsOpen = onColumnsOpenChange || setInternalColumnsOpen;
   const [sort, setSort] = useState(null); // { key, dir: 'asc'|'desc' }
   const resizeRef = useRef(null);
 
@@ -126,10 +129,10 @@ export default function DataTable({ columns: fixedColumns, allColumns, rows, get
 
   return (
     <>
-      {(onSearchChange || hasCustomWidths || allColumns) && (
+      {(onSearchChange || hasCustomWidths || (allColumns && !isColumnsOpenControlled)) && (
         <div className="toolbar">
           {onSearchChange && <input className="search" id="datatable-search" name="datatable-search" autoComplete="off" placeholder={searchPlaceholder || 'Buscar…'} value={search} onChange={(e) => onSearchChange(e.target.value)} />}
-          {allColumns && <button type="button" className="info" onClick={() => setColumnsOpen(true)}>Columnas</button>}
+          {allColumns && !isColumnsOpenControlled && <button type="button" className="info" onClick={() => setColumnsOpen(true)}>Columnas</button>}
           {hasCustomWidths && <button type="button" className="outline" onClick={resetWidths} title="Vuelve los anchos de columna a su tamaño automático">Restaurar anchos</button>}
         </div>
       )}

@@ -5,6 +5,7 @@ import { dbInsertAudit } from '../../../services/supabaseClient';
 import { n, addDays } from '../../../services/planHelpers';
 import { getColumnPrefs, saveHiddenColumns, saveColumnOrder, saveColumnWidths, arrangeColumns } from '../../../services/columnPrefs';
 import ColumnsModal from '../ColumnsModal';
+import Modal from '../Modal';
 import { getDriverViewDate, setDriverViewDate } from '../../../services/driverViewDate';
 import {
   effectiveRouteId, effectiveAddress, effectiveOrder, effectiveNotes, effectiveMaps,
@@ -731,19 +732,17 @@ export default function DispatchPage({ user, onGoToClient }) {
         onSave={handleSaveColumns}
         onResetWidths={handleResetColumnWidths}
       />
-      {orderConflict && (
-        <dialog className="panel-modal" open onClose={() => resolveOrderConflict('cancel')}>
-          <div className="modal-head"><h2>Número de orden repetido</h2></div>
-          <div className="modal-body">
+      <Modal title="Número de orden repetido" open={!!orderConflict} onClose={() => resolveOrderConflict('cancel')} hideSave>
+        {orderConflict && (
+          <>
             <p style={{ marginTop: 0 }}>Ya hay otro cliente activo con el número <b>{orderConflict.value}</b> en esta ruta. ¿Qué hacés?</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button className="primary" onClick={() => resolveOrderConflict('shift')}>Correr los siguientes un número (mantener la secuencia)</button>
               <button className="outline" onClick={() => resolveOrderConflict('duplicate')}>Dejar los dos con el número {orderConflict.value}</button>
-              <button className="outline" onClick={() => resolveOrderConflict('cancel')}>Cancelar</button>
             </div>
-          </div>
-        </dialog>
-      )}
+          </>
+        )}
+      </Modal>
     </section>
   );
 }

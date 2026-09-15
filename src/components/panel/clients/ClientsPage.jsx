@@ -182,7 +182,7 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, c
           </label>
         </div>
       ))}
-      <button type="button" className="outline" onClick={add}>+ Añadir dirección</button>
+      <button type="button" className="primary" onClick={add}>+ Añadir dirección</button>
       {addresses.length > 1 && (
         <label style={{ marginTop: 10 }}>Dirección activa (la que se usa por defecto)
           <select id="active-address" name="active-address" value={activeId} onChange={(e) => setActiveId(e.target.value)}>
@@ -190,19 +190,17 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, c
           </select>
         </label>
       )}
-      {orderConflict && (
-        <dialog className="panel-modal" open onClose={() => resolveOrderConflict('cancel')}>
-          <div className="modal-head"><h2>Número de orden repetido</h2></div>
-          <div className="modal-body">
+      <Modal title="Número de orden repetido" open={!!orderConflict} onClose={() => resolveOrderConflict('cancel')} hideSave>
+        {orderConflict && (
+          <>
             <p style={{ marginTop: 0 }}>Ya hay otro cliente activo con el número <b>{orderConflict.value}</b> en esta ruta. ¿Qué hacés?</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button type="button" className="primary" onClick={() => resolveOrderConflict('shift')}>Correr los siguientes un número (mantener la secuencia)</button>
               <button type="button" className="outline" onClick={() => resolveOrderConflict('duplicate')}>Dejar los dos con el número {orderConflict.value}</button>
-              <button type="button" className="outline" onClick={() => resolveOrderConflict('cancel')}>Cancelar</button>
             </div>
-          </div>
-        </dialog>
-      )}
+          </>
+        )}
+      </Modal>
     </>
   );
 }
@@ -247,10 +245,10 @@ function ScheduleRows({ schedule, setSchedule, addresses }) {
           <select id={`schedule-${i}-address`} name={`schedule-${i}-address`} value={row.addressId} onChange={(e) => update(i, { addressId: e.target.value })}>
             {addresses.map((a, ai) => <option key={a.id} value={a.id}>{a.address || `Dirección ${ai + 1}`}</option>)}
           </select>
-          <button type="button" className="icon-btn delete" onClick={() => remove(i)}>×</button>
+          <button type="button" className="icon-btn delete" onClick={() => remove(i)}>Quitar</button>
         </div>
       ))}
-      <button type="button" className="outline" onClick={add}>+ Añadir franja</button>
+      <button type="button" className="primary" onClick={add}>+ Añadir franja</button>
       {schedule.length > 0 && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Los días que no estén marcados en ninguna franja, el cliente queda como "Fuera de horario" en vez de "Activo".</p>}
     </>
   );
@@ -336,6 +334,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
   const dayInfo = days[currentDate] || { laborable: true };
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
+  const [columnsOpen, setColumnsOpen] = useState(false);
   const [addresses, setAddresses] = useState([]);
   const [activeAddressId, setActiveAddressId] = useState('');
   const [schedule, setSchedule] = useState([]);
@@ -556,7 +555,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
         <button className="icon-btn warning" onClick={() => togglePause(c)}>{dispatchStatus(c, currentDate, dayInfo, false) === 'Pausado' ? 'Activar' : 'Pausar'}</button>
         <button className="icon-btn violet" onClick={() => openRenew(c, 'renew')}>Renovar</button>
         <button className="icon-btn info" onClick={() => openEdit(c)}>Editar</button>
-        <button className="icon-btn delete" onClick={() => handleDelete(c)}>×</button>
+        <button className="icon-btn delete" onClick={() => handleDelete(c)}>Quitar</button>
       </>
     ) : '—' },
   ];
@@ -567,7 +566,12 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     <section className="page active">
       <div className="page-head">
         <div><h1>Clientes</h1><p>Ficha completa, plan alimenticio y datos de entrega.</p></div>
-        {canEdit && <div className="head-actions"><button className="primary" onClick={() => openEdit(null)}>+ Añadir cliente</button></div>}
+        {canEdit && (
+          <div className="head-actions">
+            <button type="button" className="outline" onClick={() => setColumnsOpen(true)}>Columnas</button>
+            <button className="primary" onClick={() => openEdit(null)}>+ Añadir cliente</button>
+          </div>
+        )}
       </div>
 
       <div className="toolbar">
@@ -575,7 +579,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
         <span className="spacer" />
         <span className="muted">{list.length} clientes</span>
       </div>
-      <DataTable allColumns={allColumns} rows={list} emptyText="No hay clientes registrados." resizeGroup="clients" userId={user?.id} />
+      <DataTable allColumns={allColumns} rows={list} emptyText="No hay clientes registrados." resizeGroup="clients" userId={user?.id} columnsOpen={columnsOpen} onColumnsOpenChange={setColumnsOpen} />
 
       <Modal title={editing?.id ? 'Editar cliente' : 'Añadir cliente'} open={!!editing} onClose={() => { setEditing(null); if (returnOrigin) { onReturnToOrigin?.(returnOrigin); setReturnOrigin(null); } }} onSubmit={handleSubmit}>
         {editing && (() => {
