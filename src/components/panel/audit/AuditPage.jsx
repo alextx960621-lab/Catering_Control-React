@@ -56,7 +56,7 @@ export default function AuditPage({ user }) {
       ) : (
         <>
           <div className="toolbar">
-            <input className="search" placeholder="Buscar por persona, acción o registro…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <input className="search" id="audit-search" name="audit-search" autoComplete="off" placeholder="Buscar por persona, acción o registro…" value={search} onChange={(e) => setSearch(e.target.value)} />
             <span className="spacer" />
             <span className="muted">{list.length} eventos{showingAll ? ' (historial completo)' : ''}</span>
           </div>

@@ -169,7 +169,7 @@ function UserFormFields({ editing, isSuperAdmin, routes, drivers, customRoles })
   return (
     <div className="form-grid">
       <label>Nombre de usuario *<input name="username" required defaultValue={editing.username} /></label>
-      <label>Correo *<input type="email" name="email" required defaultValue={editing.email} /></label>
+      <label>Correo *<input type="email" name="email" required autoComplete="email" defaultValue={editing.email} /></label>
       <label>{editing.id ? 'Nueva contraseña' : 'Contraseña *'}<input type="password" name="password" required={!editing.id} autoComplete="new-password" /></label>
       <label>{editing.id ? 'Confirmar nueva contraseña' : 'Confirmar contraseña *'}<input type="password" name="passwordConfirm" required={!editing.id} autoComplete="new-password" /></label>
       <label>Rol
@@ -186,7 +186,7 @@ function UserFormFields({ editing, isSuperAdmin, routes, drivers, customRoles })
       <label>Nombre completo *<input name="name" required defaultValue={editing.name} /></label>
       {showDriver && <>
         <label>Carnet *<input name="carnet" required defaultValue={d.carnet} /></label>
-        <label>Teléfono<input name="phone" defaultValue={d.phone} /></label>
+        <label>Teléfono<input name="phone" autoComplete="tel" defaultValue={d.phone} /></label>
         <label>Ruta asignada
           <select name="routeId" defaultValue={editing.routeId || ''}>
             <option value="">Ruta abierta</option>

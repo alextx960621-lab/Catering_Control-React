@@ -151,9 +151,16 @@ export default function DeliveryPage({ user }) {
                 <div className="delivery-route-title">
                   <h3>{g.route.name}</h3>
                   <span className="delivery-counter">{delivered}/{g.clients.length}</span>
-                  <button type="button" className="info" style={{ padding: '3px 10px', fontSize: 11.5, minHeight: 'auto' }} onClick={(e) => { e.preventDefault(); setMapRouteId(g.route.id); }}>Mapa</button>
                 </div>
               </summary>
+              {/* Fuera de <summary> a propósito: <summary> ya es un
+                  elemento interactivo (togglea el <details> al hacer
+                  clic), así que un <button> anidado adentro es HTML
+                  inválido -- los navegadores lo marcan como error y el
+                  comportamiento de clic queda indefinido según el
+                  navegador. Se posiciona con CSS para que se vea igual,
+                  en la esquina de la tarjeta. */}
+              <button type="button" className="info delivery-map-btn" onClick={() => setMapRouteId(g.route.id)}>Mapa</button>
               <div className="delivery-route-body">
                 <div className="delivery-route-driver">Driver: {drv ? `${drv.firstName} ${drv.lastName}` : 'Sin asignar'}</div>
                 <ul className="delivery-client-list">

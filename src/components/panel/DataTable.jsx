@@ -128,7 +128,7 @@ export default function DataTable({ columns: fixedColumns, allColumns, rows, get
     <>
       {(onSearchChange || hasCustomWidths || allColumns) && (
         <div className="toolbar">
-          {onSearchChange && <input className="search" placeholder={searchPlaceholder || 'Buscar…'} value={search} onChange={(e) => onSearchChange(e.target.value)} />}
+          {onSearchChange && <input className="search" id="datatable-search" name="datatable-search" autoComplete="off" placeholder={searchPlaceholder || 'Buscar…'} value={search} onChange={(e) => onSearchChange(e.target.value)} />}
           {allColumns && <button type="button" className="info" onClick={() => setColumnsOpen(true)}>Columnas</button>}
           {hasCustomWidths && <button type="button" className="outline" onClick={resetWidths} title="Vuelve los anchos de columna a su tamaño automático">Restaurar anchos</button>}
         </div>

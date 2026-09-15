@@ -262,7 +262,7 @@ export default function MetricsPage({ user }) {
 
       <div className="toolbar" style={{ flexWrap: 'wrap' }}>
         <label className="field">Periodo
-          <select value={preset} onChange={(e) => setPreset(e.target.value)}>
+          <select id="metrics-preset" name="metrics-preset" value={preset} onChange={(e) => setPreset(e.target.value)}>
             <option value="week">Esta semana</option><option value="month">Este mes</option>
             <option value="last30">Últimos 30 días</option><option value="last90">Últimos 90 días</option>
             <option value="custom">Rango personalizado</option>
@@ -274,8 +274,8 @@ export default function MetricsPage({ user }) {
             <label className="field">Hasta<div className="date-input-wrap"><input type="date" value={range.end} onChange={(e) => setRange({ ...range, end: e.target.value })} /></div></label>
           </>
         )}
-        <label className="field">Ruta<select value={routeFilter} onChange={(e) => setRouteFilter(e.target.value)}><option value="">Todas las rutas</option>{routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
-        <label className="field">Driver<select value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)}><option value="">Todos los drivers</option>{drivers.map((d) => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}</select></label>
+        <label className="field">Ruta<select id="metrics-route-filter" name="metrics-route-filter" value={routeFilter} onChange={(e) => setRouteFilter(e.target.value)}><option value="">Todas las rutas</option>{routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+        <label className="field">Driver<select id="metrics-driver-filter" name="metrics-driver-filter" value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)}><option value="">Todos los drivers</option>{drivers.map((d) => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}</select></label>
         <label className="field" style={{ width: 150 }}>Costo por km (Bs)
           {canSetCost ? <input type="number" min="0" step="0.01" defaultValue={n(settings.costPerKm)} onBlur={(e) => saveSettings({ ...settings, costPerKm: n(e.target.value) })} /> : <div className="muted">{n(settings.costPerKm).toFixed(2)}</div>}
         </label>

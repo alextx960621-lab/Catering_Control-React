@@ -452,7 +452,7 @@ export default function DispatchPage({ user, onGoToClient }) {
 
   const allColumns = [
     { key: 'order', label: 'Orden', sortValue: (c) => n(effectiveOrder(c, date)), render: (c) => (
-      <input className="day-edit" type="number" defaultValue={effectiveOrder(c, date)}
+      <input className="day-edit" type="number" id={`order-${c.id}`} name={`order-${c.id}`} defaultValue={effectiveOrder(c, date)}
         disabled={!canEditDispatchField(c, 'order', date, { role: user?.role, isDriver, myRoutes, realToday: serverToday, canEditDispatch: canEdit })}
         onBlur={(e) => handleFieldBlur(c, 'order', e.target.value, e.target)} />
     ) },
@@ -466,19 +466,19 @@ export default function DispatchPage({ user, onGoToClient }) {
       const link = effectiveMaps(c, date);
       return (
         <div className="maps-cell">
-          <input className="day-edit" defaultValue={resolvedAddress(c, date)?.maps || c.maps || ''} onBlur={(e) => handleFieldBlur(c, 'maps', e.target.value)} />
+          <input className="day-edit" id={`maps-${c.id}`} name={`maps-${c.id}`} autoComplete="off" defaultValue={resolvedAddress(c, date)?.maps || c.maps || ''} onBlur={(e) => handleFieldBlur(c, 'maps', e.target.value)} />
           {link && <a href={link} target="_blank" rel="noopener" className="maps-cell-link">Abrir mapa</a>}
         </div>
       );
     } },
     { key: 'phone1', label: 'Teléfono 1', sortValue: (c) => c.phone1 || '', render: (c) => (
-      <input className="day-edit" defaultValue={c.phone1 || ''} onBlur={(e) => handleFieldBlur(c, 'phone1', e.target.value)} />
+      <input className="day-edit" id={`dispatch-phone1-${c.id}`} name={`dispatch-phone1-${c.id}`} autoComplete="tel" defaultValue={c.phone1 || ''} onBlur={(e) => handleFieldBlur(c, 'phone1', e.target.value)} />
     ) },
     { key: 'phone2', label: 'Teléfono 2', sortValue: (c) => c.phone2 || '', render: (c) => (
-      <input className="day-edit" defaultValue={c.phone2 || ''} onBlur={(e) => handleFieldBlur(c, 'phone2', e.target.value)} />
+      <input className="day-edit" id={`dispatch-phone2-${c.id}`} name={`dispatch-phone2-${c.id}`} autoComplete="tel" defaultValue={c.phone2 || ''} onBlur={(e) => handleFieldBlur(c, 'phone2', e.target.value)} />
     ) },
     { key: 'notes', label: 'Observaciones', sortValue: (c) => effectiveNotes(c, date) || '', render: (c) => (
-      <input className="day-edit" defaultValue={effectiveNotes(c, date)} onBlur={(e) => handleFieldBlur(c, 'notes', e.target.value)} />
+      <input className="day-edit" id={`notes-${c.id}`} name={`notes-${c.id}`} autoComplete="off" defaultValue={effectiveNotes(c, date)} onBlur={(e) => handleFieldBlur(c, 'notes', e.target.value)} />
     ) },
     { key: 'specialDiet', label: 'Dieta especial', sortValue: (c) => c.specialDiet || '', render: (c) => c.specialDiet || '—' },
     { key: 'career', label: 'Carreras / entrega', sortValue: (c) => n(c.career || 1), render: (c) => n(c.career || 1) },
@@ -500,7 +500,7 @@ export default function DispatchPage({ user, onGoToClient }) {
     } },
     { key: 'remaining', label: 'Servicios restantes', sortValue: (c) => (n(c.paidDays) ? Math.max(0, n(c.paidDays) - n(c.consumedDays)) : -1), render: (c) => (n(c.paidDays) ? Math.max(0, n(c.paidDays) - n(c.consumedDays)) : '—') },
     { key: 'returnDate', label: 'Fecha de retorno', sortValue: (c) => c.returnDate || '', render: (c) => (
-      <input className="day-edit" type="date" defaultValue={c.returnDate || ''}
+      <input className="day-edit" type="date" id={`returnDate-${c.id}`} name={`returnDate-${c.id}`} defaultValue={c.returnDate || ''}
         disabled={!canEditDispatchField(c, 'returnDate', date, { role: user?.role, isDriver, myRoutes, realToday: serverToday, canEditDispatch: canEdit })}
         onBlur={(e) => handleFieldBlur(c, 'returnDate', e.target.value)} />
     ) },
@@ -671,25 +671,25 @@ export default function DispatchPage({ user, onGoToClient }) {
         </label>
         {!isDriver && (
           <label className="field">Ruta
-            <select value={routeFilter} onChange={(e) => setRouteFilter(e.target.value)}>
+            <select id="dispatch-route-filter" name="dispatch-route-filter" value={routeFilter} onChange={(e) => setRouteFilter(e.target.value)}>
               <option value="">Todas las rutas</option>
               {routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </label>
         )}
         <label className="field">Estado del pedido
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select id="dispatch-status-filter" name="dispatch-status-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="all">Todos</option>
             {['Activo', 'Pausado', 'Programado', 'Retorno pendiente', 'No laborable', 'Fuera de horario'].map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
         <label className="field">Estado del día
-          <select value={dayInfo.laborable ? 'work' : 'off'} onChange={(e) => toggleDayLaborable(e.target.value === 'work')} disabled={!canEdit}>
+          <select id="dispatch-laborable" name="dispatch-laborable" value={dayInfo.laborable ? 'work' : 'off'} onChange={(e) => toggleDayLaborable(e.target.value === 'work')} disabled={!canEdit}>
             <option value="work">Laborable</option>
             <option value="off">No laborable</option>
           </select>
         </label>
-        <input className="search" placeholder="Buscar cliente, teléfono o dieta…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input className="search" id="dispatch-search" name="dispatch-search" autoComplete="off" placeholder="Buscar cliente, teléfono o dieta…" value={search} onChange={(e) => setSearch(e.target.value)} />
         <span className="spacer" />
         <span className="muted">{list.length} pedidos visibles</span>
       </div>

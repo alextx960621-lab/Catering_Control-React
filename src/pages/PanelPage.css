@@ -411,12 +411,13 @@
 .panel-shell .stack { display: grid; gap: 12px; }
 .panel-shell .card.card-pad { padding: 16px; }
 .panel-shell .delivery-routes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; align-items: start; }
-.panel-shell .delivery-route-card { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.panel-shell .delivery-route-card { display: flex; flex-direction: column; gap: 0; min-width: 0; position: relative; }
 .panel-shell .delivery-route-head { display: flex; flex-direction: column; gap: 4px; min-width: 0; cursor: pointer; list-style: none; }
 .panel-shell .delivery-route-head::-webkit-details-marker { display: none; }
-.panel-shell .delivery-route-title { display: flex; align-items: center; gap: 8px 10px; min-width: 0; }
+.panel-shell .delivery-route-title { display: flex; align-items: center; gap: 8px 10px; min-width: 0; padding-right: 56px; }
 .panel-shell .delivery-route-title h3 { margin: 0; font-size: 15px; min-width: 0; overflow-wrap: anywhere; }
 .panel-shell .delivery-counter { margin-left: auto; flex: 0 0 auto; font-weight: 700; font-size: 13px; padding: 2px 10px; border-radius: 999px; background: var(--panel-bg); border: 1px solid var(--panel-line); white-space: nowrap; }
+.panel-shell .delivery-map-btn { position: absolute; top: 14px; right: 16px; padding: 3px 10px; font-size: 11.5px; min-height: auto; }
 .panel-shell .delivery-route-body { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; }
 .panel-shell .delivery-route-driver { font-size: 12.5px; color: var(--panel-muted); overflow-wrap: anywhere; }
 .panel-shell .delivery-client-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto; }

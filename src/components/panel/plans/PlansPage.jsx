@@ -47,13 +47,13 @@ function ReassignPlanModal({ open, onClose, plans, clients, saveClients, showNot
     <Modal title="Reasignar clientes de plan" open={open} onClose={onClose} onSubmit={handleSubmit}>
       <div className="form-grid">
         <label>Plan actual (origen) *
-          <select value={fromId} onChange={(e) => handleFromChange(e.target.value)} required>
+          <select id="reassign-from-plan" name="reassign-from-plan" value={fromId} onChange={(e) => handleFromChange(e.target.value)} required>
             <option value="">Selecciona…</option>
             {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </label>
         <label>Plan nuevo (destino) *
-          <select value={toId} onChange={(e) => setToId(e.target.value)} required>
+          <select id="reassign-to-plan" name="reassign-to-plan" value={toId} onChange={(e) => setToId(e.target.value)} required>
             <option value="">Selecciona…</option>
             {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>

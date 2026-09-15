@@ -97,15 +97,15 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, c
     updateAddr(i, m ? { lat: parseFloat(m[1]), lng: parseFloat(m[2]), _coordsDraft: undefined } : { _coordsDraft: text });
   }
 
-  // Conflicto de "Orden de entrega": mismo mecanismo que ya existía en
-  // Día de trabajo (handleFieldBlur/resolveOrderConflict de
-  // DispatchPage.jsx), reproducido acá para el formulario de Clientes --
-  // pedido 14 sep. Solo compara contra clientes ACTIVOS de la MISMA ruta
-  // (cada ruta tiene su propio orden, no tiene sentido comparar entre
-  // rutas distintas). `focusValue` guarda con qué número se entró al
-  // campo, para poder devolverlo tal cual si se cancela -- el input es
-  // controlado (value={a.order}), así que al momento del blur `a.order`
-  // ya es el valor NUEVO, no sirve para "volver atrás".
+  // Conflicto de "Orden de entrega": mismo mecanismo que Día de trabajo
+  // (handleFieldBlur/resolveOrderConflict de DispatchPage.jsx). Solo
+  // compara contra clientes ACTIVOS de la MISMA ruta (cada ruta tiene su
+  // propio orden) -- incluida "Ruta abierta" (routeId === ''), que es una
+  // ruta válida como cualquier otra, no "sin ruta". `focusValue` guarda
+  // con qué número se entró al campo, para poder devolverlo tal cual si
+  // se cancela -- el input es controlado (value={a.order}), así que al
+  // momento del blur `a.order` ya es el valor NUEVO, no sirve para
+  // "volver atrás".
   const [orderConflict, setOrderConflict] = useState(null); // { index, value, routeId, prevValue }
   const focusValue = useRef({});
 
@@ -113,7 +113,7 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, c
     const addr = addresses[i];
     const trimmed = String(addr.order ?? '').trim();
     const prevValue = focusValue.current[i] ?? '';
-    if (trimmed === '' || trimmed === prevValue || !addr.routeId || !clients) return;
+    if (trimmed === '' || trimmed === prevValue || !clients) return;
     const conflicts = clients.filter((x) => x.id !== selfId && dispatchStatus(x, currentDate, dayInfo, false) === 'Activo' && effectiveRouteId(x, currentDate) === addr.routeId && String(effectiveOrder(x, currentDate)) === trimmed);
     if (conflicts.length) setOrderConflict({ index: i, value: trimmed, routeId: addr.routeId, prevValue });
   }
@@ -138,12 +138,12 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, c
 
           <label className="address-field address-field-wide">
             <span>Dirección</span>
-            <AutoTextarea placeholder="Ej. Av. Busch #123, edif. Torre Azul, depto 4B" value={a.address} onChange={(e) => update(i, 'address', e.target.value)} />
+            <AutoTextarea id={`addr-address-${a.id}`} name={`addr-address-${a.id}`} placeholder="Ej. Av. Busch #123, edif. Torre Azul, depto 4B" value={a.address} onChange={(e) => update(i, 'address', e.target.value)} />
           </label>
 
           <label className="address-field">
             <span>Ruta</span>
-            <select value={a.routeId} onChange={(e) => update(i, 'routeId', e.target.value)}>
+            <select id={`addr-route-${a.id}`} name={`addr-route-${a.id}`} value={a.routeId} onChange={(e) => update(i, 'routeId', e.target.value)}>
               <option value="">Ruta abierta</option>
               {routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
@@ -156,17 +156,20 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, c
               trabajo para fijar el valor inicial de un cliente nuevo. */}
           <label className="address-field">
             <span>Orden de entrega</span>
-            <input placeholder="Ej. 1" type="number" value={a.order ?? ''} onFocus={() => { focusValue.current[i] = String(a.order ?? ''); }} onChange={(e) => update(i, 'order', e.target.value)} onBlur={() => handleOrderBlur(i)} />
+            <input id={`addr-order-${a.id}`} name={`addr-order-${a.id}`} placeholder="Ej. 1" type="number" value={a.order ?? ''} onFocus={() => { focusValue.current[i] = String(a.order ?? ''); }} onChange={(e) => update(i, 'order', e.target.value)} onBlur={() => handleOrderBlur(i)} />
           </label>
 
           <label className="address-field address-field-wide">
             <span>Link de Google Maps</span>
-            <AutoTextarea placeholder="https://maps.app.goo.gl/…" value={a.maps} onChange={(e) => update(i, 'maps', e.target.value)} onBlur={() => handleMapsBlur(i)} />
+            <AutoTextarea id={`addr-maps-${a.id}`} name={`addr-maps-${a.id}`} autoComplete="off" placeholder="https://maps.app.goo.gl/…" value={a.maps} onChange={(e) => update(i, 'maps', e.target.value)} onBlur={() => handleMapsBlur(i)} />
           </label>
 
           <label className="address-field">
             <span>Coordenadas {a.lat != null && <span className="address-coords-ok" title="Esto es lo que usa el mapa para ubicar al cliente">✓ resuelto</span>}</span>
             <input
+              id={`addr-coords-${a.id}`}
+              name={`addr-coords-${a.id}`}
+              autoComplete="off"
               placeholder="Se completa solo al pegar el link"
               value={a._coordsDraft !== undefined ? a._coordsDraft : formatCoords(a)}
               onChange={(e) => handleCoordsChange(i, e.target.value)}
@@ -175,14 +178,14 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, c
 
           <label className="address-field address-field-wide">
             <span>Observaciones para el repartidor</span>
-            <AutoTextarea placeholder="Ej. dejar en portería, tocar timbre 2" value={a.notes ?? ''} onChange={(e) => update(i, 'notes', e.target.value)} />
+            <AutoTextarea id={`addr-notes-${a.id}`} name={`addr-notes-${a.id}`} placeholder="Ej. dejar en portería, tocar timbre 2" value={a.notes ?? ''} onChange={(e) => update(i, 'notes', e.target.value)} />
           </label>
         </div>
       ))}
       <button type="button" className="outline" onClick={add}>+ Añadir dirección</button>
       {addresses.length > 1 && (
         <label style={{ marginTop: 10 }}>Dirección activa (la que se usa por defecto)
-          <select value={activeId} onChange={(e) => setActiveId(e.target.value)}>
+          <select id="active-address" name="active-address" value={activeId} onChange={(e) => setActiveId(e.target.value)}>
             {addresses.map((a) => <option key={a.id} value={a.id}>{a.address || 'Sin nombre'}</option>)}
           </select>
         </label>
@@ -237,11 +240,11 @@ function ScheduleRows({ schedule, setSchedule, addresses }) {
             {WEEKDAYS.map((w) => (
               <label key={w.v} className="schedule-day-check">
                 <span>{w.l}</span>
-                <input type="checkbox" checked={row.days.includes(w.v)} onChange={() => toggleDay(i, w.v)} />
+                <input type="checkbox" id={`schedule-${i}-day-${w.v}`} name={`schedule-${i}-day-${w.v}`} checked={row.days.includes(w.v)} onChange={() => toggleDay(i, w.v)} />
               </label>
             ))}
           </div>
-          <select value={row.addressId} onChange={(e) => update(i, { addressId: e.target.value })}>
+          <select id={`schedule-${i}-address`} name={`schedule-${i}-address`} value={row.addressId} onChange={(e) => update(i, { addressId: e.target.value })}>
             {addresses.map((a, ai) => <option key={a.id} value={a.id}>{a.address || `Dirección ${ai + 1}`}</option>)}
           </select>
           <button type="button" className="icon-btn delete" onClick={() => remove(i)}>×</button>
@@ -568,7 +571,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
       </div>
 
       <div className="toolbar">
-        <input className="search" placeholder="Buscar clientes…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input className="search" id="clients-search" name="clients-search" autoComplete="off" placeholder="Buscar clientes…" value={search} onChange={(e) => setSearch(e.target.value)} />
         <span className="spacer" />
         <span className="muted">{list.length} clientes</span>
       </div>
@@ -588,8 +591,8 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
                 <div className="form-section-grid">
                   <label>Nombre completo *<input name="name" required defaultValue={editing.name} /></label>
                   <label>Carnet *<input name="carnet" required defaultValue={editing.carnet} /></label>
-                  <label>Teléfono 1 *<input name="phone1" required defaultValue={editing.phone1} /></label>
-                  <label>Teléfono 2<input name="phone2" defaultValue={editing.phone2} /></label>
+                  <label>Teléfono 1 *<input name="phone1" required autoComplete="tel" defaultValue={editing.phone1} /></label>
+                  <label>Teléfono 2<input name="phone2" autoComplete="tel" defaultValue={editing.phone2} /></label>
                 </div>
               </div>
 

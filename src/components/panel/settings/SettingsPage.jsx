@@ -152,7 +152,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
           <h3>Tu tema</h3>
           <p className="muted">Es personal tuyo (no afecta a los demás usuarios) y viaja con tu cuenta: si entrás desde otro celular o computadora, vas a ver este mismo tema.</p>
           <label>Tema
-            <select value={theme} onChange={(e) => handleThemeChange(e.target.value)}>
+            <select id="settings-theme" name="settings-theme" value={theme} onChange={(e) => handleThemeChange(e.target.value)}>
               <option value="light">Claro</option>
               <option value="night">Nocturno</option>
               <option value="forest">Bosque</option>
@@ -254,7 +254,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
             <h3>Respaldo</h3>
             <p className="muted">Descarga una copia de los datos, o restaura un respaldo guardado antes.</p>
             <label>Qué exportar
-              <select value={exportScope} onChange={(e) => setExportScope(e.target.value)}>
+              <select id="settings-export-scope" name="settings-export-scope" value={exportScope} onChange={(e) => setExportScope(e.target.value)}>
                 <option value="all">Todo (incluye auditoría, despachos y snapshots de 2 años)</option>
                 <option value="clientes">Solo clientes/planes/calendario</option>
                 <option value="personal">Solo drivers/rutas/configuración/usuarios</option>

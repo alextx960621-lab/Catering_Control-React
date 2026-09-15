@@ -96,7 +96,7 @@ export default function PayrollPage({ user }) {
                   <td><b>{d.firstName} {d.lastName}</b><br /><small className="muted">{routeName(d.routeId)}</small></td>
                   {values.map((v, idx) => <td key={idx}>{v || '—'}</td>)}
                   <td>{total}</td>
-                  <td>{!isDriver ? <input className="day-edit" type="number" min="0" step="0.01" defaultValue={rate.toFixed(2)} onBlur={(e) => saveRate(d, e.target.value)} /> : rate.toFixed(2)}</td>
+                  <td>{!isDriver ? <input className="day-edit" type="number" min="0" step="0.01" id={`rate-${d.id}`} name={`rate-${d.id}`} defaultValue={rate.toFixed(2)} onBlur={(e) => saveRate(d, e.target.value)} /> : rate.toFixed(2)}</td>
                   <td>{amountFor(d, values).toFixed(2)}</td>
                 </tr>
               );

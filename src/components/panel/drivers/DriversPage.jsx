@@ -116,7 +116,7 @@ export default function DriversPage({ user }) {
           <label>Nombre *<input name="firstName" required defaultValue={editing?.firstName} /></label>
           <label>Apellido *<input name="lastName" required defaultValue={editing?.lastName} /></label>
           <label>Carnet *<input name="carnet" required defaultValue={editing?.carnet} /></label>
-          <label>Teléfono *<input name="phone" required defaultValue={editing?.phone} /></label>
+          <label>Teléfono *<input name="phone" required autoComplete="tel" defaultValue={editing?.phone} /></label>
           <label className="wide">Dirección de domicilio *<input name="address" required defaultValue={editing?.address} /></label>
           <label>Ruta asignada
             <select name="routeId" defaultValue={editing?.routeId || ''}>

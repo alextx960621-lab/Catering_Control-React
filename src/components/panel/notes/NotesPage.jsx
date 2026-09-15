@@ -139,14 +139,14 @@ export default function NotesPage({ user, onGoToClient, renewalByClient = {}, on
 
       <div className="toolbar">
         <label className="field">Ver
-          <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+          <select id="notes-filter" name="notes-filter" value={filter} onChange={(e) => setFilter(e.target.value)}>
             <option value="today">Hoy y atrasadas ({counts.today})</option>
             <option value="upcoming">Programadas a futuro ({counts.upcoming})</option>
             <option value="history">Historial (cumplidas) ({counts.history})</option>
             <option value="all">Todas</option>
           </select>
         </label>
-        <input className="search" placeholder="Buscar en las notas…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input className="search" id="notes-search" name="notes-search" autoComplete="off" placeholder="Buscar en las notas…" value={search} onChange={(e) => setSearch(e.target.value)} />
         <span className="spacer" />
         <span className="muted">{list.length} notas</span>
       </div>
