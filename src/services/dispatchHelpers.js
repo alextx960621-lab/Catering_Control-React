@@ -187,7 +187,12 @@ export function clientWaLink(phone, text = '') {
 }
 
 export function canEditDispatchField(client, field, date, { role, isDriver, myRoutes, realToday, canEditDispatch }) {
-  if (field === 'returnDate' && client.status !== 'Programado') return false;
+  // Mismo criterio que el fix de ClientsPage.jsx (handleSubmit): un
+  // cliente "Pausado" con fecha de reactivación programada también
+  // depende de returnDate (ver líneas 145-146 de este mismo archivo), no
+  // solo "Programado" -- si no, quedaba bloqueado editarla desde Día de
+  // trabajo para ese caso.
+  if (field === 'returnDate' && client.status !== 'Programado' && client.status !== 'Pausado') return false;
   if (canEditDispatch) return true;
   // Los drivers solo editan mientras ven el día actual EN VIVO. Si están
   // mirando un día pasado, no se puede: de lo contrario "corregir algo"

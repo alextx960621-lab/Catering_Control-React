@@ -401,7 +401,16 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     const data = Object.fromEntries(new FormData(form));
     const items = {};
     menuItems.forEach(({ key }) => { items[key] = n(data[`item_${key}`]); delete data[`item_${key}`]; });
-    if (data.status !== 'Programado') data.returnDate = '';
+    // BUG DE PÉRDIDA DE DATOS (reportado 15 sep, línea exacta identificada
+    // por la persona): esto borraba `returnDate` para cualquier status que
+    // no fuera EXACTAMENTE "Programado" -- pero un cliente "Pausado" con
+    // fecha de reactivación programada (dispatchStatus() en
+    // dispatchHelpers.js usa returnDate justamente para saber cuándo un
+    // Pausado vuelve solo a Activo, línea 145-146 de ese archivo) también
+    // depende de este campo. Resultado: guardar el formulario de un
+    // cliente Pausado por CUALQUIER otro motivo (corregir un teléfono, por
+    // ejemplo) le borraba la fecha de reactivación sin ningún aviso.
+    if (data.status !== 'Programado' && data.status !== 'Pausado') data.returnDate = '';
     // Igual que en togglePause: si desde este formulario se elige a mano
     // cualquier estado que no sea "Pausado", hay que soltar pauseStart Y
     // pauseDates -- de lo contrario un cliente pausado "solo hoy" desde Día
