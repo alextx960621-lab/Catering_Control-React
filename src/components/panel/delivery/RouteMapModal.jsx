@@ -37,6 +37,7 @@ async function geocodeAddress(address) {
 // posición GPS en vivo del driver por un canal de Supabase Realtime
 // (no es una tabla -- es solo un "susurro" en vivo, no queda guardado).
 export default function RouteMapModal({ open, onClose, routeId, routeName, clients, date, isDriverBroadcasting, driverDisplayName, saveClients }) {
+  const dialogRef = useRef(null);
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const layersRef = useRef({});
@@ -45,6 +46,10 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
   const lastBroadcastAtRef = useRef(0);
   const [status, setStatus] = useState('');
   const [legend, setLegend] = useState('');
+
+  useEffect(() => {
+    if (open) dialogRef.current?.showModal();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -224,7 +229,7 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
   if (!open) return null;
 
   return (
-    <dialog className="panel-modal map-modal" open onClose={onClose}>
+    <dialog ref={dialogRef} className="panel-modal map-modal" onClose={onClose} onCancel={onClose}>
       <div className="modal-head">
         <h2>Mapa — {routeName}</h2>
         <button type="button" className="outline" onClick={() => loadRealRoute(true)}>↻ Ruta</button>

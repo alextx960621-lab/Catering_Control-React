@@ -5,7 +5,7 @@ import config from '../services/config';
 import { readClientSession, clearSessions } from '../services/session';
 import { readOperations, writeOperations, readClientRow, writeClientRow, readCachedBranding, getClientTheme, saveClientTheme } from '../services/clienteStorage';
 import { fetchBrandingRemote, fetchIsPremium, fetchServerSync, saveClient } from '../services/clienteData';
-import { setSessionToken, dbGetClientRow, dbSaveOwnClientProfile, joinPresence, leavePresence, revokeSession } from '../services/supabaseClient';
+import { setSessionToken, dbGetClientRow, dbSaveOwnClientProfile, dbGetOwnDriver, joinPresence, leavePresence, revokeSession } from '../services/supabaseClient';
 import Portal from '../components/cliente/Portal';
 import PremiumLock from '../components/cliente/PremiumLock';
 import { usePageBodyClass } from '../hooks/usePageBodyClass';
@@ -18,6 +18,7 @@ export default function ClientePage() {
   const [phase, setPhase] = useState('checking');
   const [data, setData] = useState(null);
   const [client, setClient] = useState(null);
+  const [driver, setDriver] = useState(null);
   const [branding, setBranding] = useState(() => readCachedBranding());
   const [theme, setTheme] = useState('light');
   const navigate = useNavigate();
@@ -104,6 +105,17 @@ export default function ClientePage() {
     }
   }, [phase, theme]);
 
+  // "Tu repartidor": se vuelve a pedir cada vez que cambia la dirección
+  // activa O la ruta de esa dirección (ej. si el staff reasigna la ruta
+  // de una dirección existente), no solo una vez al entrar.
+  const activeRouteId = client?.addresses?.find((a) => a.id === client.activeAddressId)?.routeId || '';
+  useEffect(() => {
+    if (!client?.id || !activeRouteId) { setDriver(null); return; }
+    let cancelled = false;
+    dbGetOwnDriver(client.id).then((d) => { if (!cancelled) setDriver(d); });
+    return () => { cancelled = true; };
+  }, [client?.id, activeRouteId]);
+
   function handleThemeChange(newTheme) {
     if (sessionRef.current) {
       saveClientTheme(sessionRef.current.id, newTheme); // cache local, instantáneo
@@ -152,6 +164,7 @@ export default function ClientePage() {
         <Portal
           data={data}
           client={client}
+          driver={driver}
           appConfig={config}
           branding={branding}
           theme={theme}

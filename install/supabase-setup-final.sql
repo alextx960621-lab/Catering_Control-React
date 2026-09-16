@@ -1050,6 +1050,55 @@ $$;
 revoke all on function public.set_client_address_override(text, text, text, text) from public;
 grant execute on function public.set_client_address_override(text, text, text, text) to anon, authenticated;
 
+-- Driver de la dirección activa del cliente, para mostrar "tu repartidor"
+-- en el portal (AddressCard.jsx). A propósito devuelve SOLO nombre y
+-- foto -- nunca teléfono, carnet ni sus rutas de reemplazo, que son datos
+-- internos de personal, no del cliente.
+create or replace function public.cliente_get_own_driver(p_token text, p_client_id text)
+returns jsonb
+language plpgsql security definer set search_path = public, extensions
+as $$
+declare
+  v_client db_clientes_rows%rowtype;
+  v_route_id text;
+  v_drivers jsonb;
+  v_driver jsonb;
+begin
+  perform public._require_cliente_owns(p_token, p_client_id);
+
+  select * into v_client from db_clientes_rows where id = p_client_id;
+  if not found then return null; end if;
+
+  select a->>'routeId' into v_route_id
+  from jsonb_array_elements(coalesce(v_client.payload->'addresses', '[]'::jsonb)) a
+  where a->>'id' = v_client.payload->>'activeAddressId'
+  limit 1;
+
+  if v_route_id is null or v_route_id = '' then return null; end if;
+
+  select payload -> 'drivers' into v_drivers from db_personal where id = 'main';
+
+  select d into v_driver
+  from jsonb_array_elements(coalesce(v_drivers, '[]'::jsonb)) d
+  where (d ->> 'routeId') = v_route_id
+     or exists (
+       select 1 from jsonb_array_elements_text(coalesce(d -> 'extraRouteIds', '[]'::jsonb)) x
+       where x = v_route_id
+     )
+  limit 1;
+
+  if v_driver is null then return null; end if;
+
+  return jsonb_build_object(
+    'firstName', v_driver ->> 'firstName',
+    'lastName', v_driver ->> 'lastName',
+    'photoUrl', v_driver ->> 'photoUrl'
+  );
+end;
+$$;
+revoke all on function public.cliente_get_own_driver(text, text) from public;
+grant execute on function public.cliente_get_own_driver(text, text) to anon, authenticated;
+
 -- --------------------------------------------------------------------------
 -- 12. Datos iniciales
 -- --------------------------------------------------------------------------

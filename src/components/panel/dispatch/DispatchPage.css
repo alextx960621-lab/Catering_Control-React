@@ -6,7 +6,7 @@
 .panel-shell .date-input-wrap input { flex: 1 1 0; width: 0; min-width: 0; }
 
 .panel-shell .sheet { overflow: auto; max-height: calc(100vh - 300px); min-height: 340px; border: 1px solid var(--panel-line); border-radius: var(--panel-radius); background: var(--panel-surface); }
-.panel-shell table { border-collapse: separate; border-spacing: 0; table-layout: fixed; width: max-content; min-width: 100%; }
+.panel-shell table { border-collapse: separate; border-spacing: 0; table-layout: fixed; width: max-content; }
 .panel-shell th, .panel-shell td { box-sizing: border-box; border-right: 1px solid var(--panel-line); border-bottom: 1px solid var(--panel-line); padding: 8px 6px; vertical-align: middle; width: 150px; }
 .panel-shell td { position: relative; }
 .panel-shell th { position: sticky; top: 0; z-index: 2; background: var(--panel-surface-2); text-align: left; font-size: 11px; letter-spacing: .02em; color: var(--panel-muted); text-transform: uppercase; }

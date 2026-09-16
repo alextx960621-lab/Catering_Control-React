@@ -3,7 +3,7 @@ import { fmt, waLink } from '../../services/planHelpers';
 import { dbInsertAudit } from '../../services/supabaseClient';
 import { IconPin, IconHome, IconCalendar } from './icons';
 
-export default function AddressCard({ client, data, appConfig, branding, next, onSaveClient, onSaveTomorrowOverride }) {
+export default function AddressCard({ client, driver, data, appConfig, branding, next, onSaveClient, onSaveTomorrowOverride }) {
   const addresses = client.addresses || [];
   const currentOverrideId = (client.addressOverrides || []).find((o) => o.date === next)?.addressId || '';
   const hasChoice = addresses.length >= 2;
@@ -53,6 +53,22 @@ export default function AddressCard({ client, data, appConfig, branding, next, o
       <article className="card shadow-sm border-0">
         <div className="card-body p-4">
           <h2 className="h5 mb-1">{IconPin}Tu dirección de entrega</h2>
+
+          {driver && (driver.firstName || driver.lastName) && (
+            <div className="d-flex align-items-center gap-2 mb-3">
+              {driver.photoUrl ? (
+                <img src={driver.photoUrl} alt="" width={40} height={40} className="rounded-circle" style={{ objectFit: 'cover' }} />
+              ) : (
+                <span className="rounded-circle bg-body-tertiary d-flex align-items-center justify-content-center" style={{ width: 40, height: 40, fontSize: 16 }}>
+                  {(driver.firstName?.[0] || '') + (driver.lastName?.[0] || '')}
+                </span>
+              )}
+              <div>
+                <div className="small text-secondary">Tu repartidor</div>
+                <div className="fw-semibold">{[driver.firstName, driver.lastName].filter(Boolean).join(' ')}</div>
+              </div>
+            </div>
+          )}
 
           {!hasChoice && (
             <p className="text-secondary mb-3">

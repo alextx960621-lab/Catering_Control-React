@@ -105,6 +105,24 @@ export async function dbSaveOwnClientProfile(clientId, updates) {
   }
 }
 
+// Nombre + foto del driver de la dirección activa del cliente (para "Tu
+// repartidor" en el portal). Devuelve null si no hay ruta asignada, o si
+// esa ruta todavía no tiene ningún driver -- ninguno de los dos casos es
+// un error, es normal para una ruta recién creada.
+export async function dbGetOwnDriver(clientId) {
+  try {
+    const { data, error } = await supabase.rpc('cliente_get_own_driver', { p_token: currentToken, p_client_id: clientId });
+    if (error) {
+      console.error('[supabase] Error trayendo el driver del cliente:', error.message);
+      return null;
+    }
+    return data || null;
+  } catch (err) {
+    console.error('[supabase] Fallo de red trayendo el driver del cliente:', err);
+    return null;
+  }
+}
+
 // dbInsertAudit: la llaman tanto el panel (staff) como el portal cliente
 // (autoservicio de pausa/reactivación/dirección) — se resuelve según el
 // tipo de sesión activa. El actor (id/nombre/rol) siempre lo fuerza el

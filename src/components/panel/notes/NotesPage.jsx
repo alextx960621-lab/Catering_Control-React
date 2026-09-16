@@ -180,7 +180,7 @@ export default function NotesPage({ user, onGoToClient, renewalByClient = {}, on
                         <button className="violet" onClick={() => onGoToClient?.(nt.clientId, 'renew')}>🔄 Renovar</button>
                       </>
                     )}
-                    <button className="icon-btn delete" onClick={() => handleDelete(nt)} title="Eliminar">×</button>
+                    <button className="icon-btn delete" onClick={() => handleDelete(nt)}>Eliminar</button>
                   </div>
                 )}
               </div>

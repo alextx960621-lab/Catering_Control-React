@@ -23,7 +23,7 @@ import PlanChangeModal from './PlanChangeModal';
 // después de esa hora el despacho del día siguiente ya se está preparando,
 // así que un cambio de último minuto tiene que pasar por Atención al
 // Cliente en vez de aplicarse solo.
-export default function Portal({ data, client, appConfig, branding, theme, onThemeChange, onSaveClient, onLogout }) {
+export default function Portal({ data, client, driver, appConfig, branding, theme, onThemeChange, onSaveClient, onLogout }) {
   const [message, setMessage] = useState(null); // { text, error, showSupport, wa }
   const [showPlanChange, setShowPlanChange] = useState(false);
 
@@ -184,6 +184,7 @@ export default function Portal({ data, client, appConfig, branding, theme, onThe
         </div>
         <AddressCard
           client={client}
+          driver={driver}
           data={data}
           appConfig={appConfig}
           branding={branding}
