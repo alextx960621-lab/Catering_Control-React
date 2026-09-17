@@ -271,7 +271,7 @@
 }
 .panel-shell .icon-btn.warning {
   background: linear-gradient(135deg, color-mix(in srgb, var(--panel-warning) 78%, white 22%), var(--panel-warning));
-  color: var(--panel-warning-ink); box-shadow: 0 3px 10px color-mix(in srgb, var(--panel-warning) 38%, transparent);
+  color: #fff; box-shadow: 0 3px 10px color-mix(in srgb, var(--panel-warning) 38%, transparent);
 }
 .panel-shell .icon-btn.violet {
   background: linear-gradient(135deg, color-mix(in srgb, var(--panel-violet) 78%, white 22%), var(--panel-violet));

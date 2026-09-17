@@ -577,7 +577,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
         <div><h1>Clientes</h1><p>Ficha completa, plan alimenticio y datos de entrega.</p></div>
         {canEdit && (
           <div className="head-actions">
-            <button type="button" className="outline" onClick={() => setColumnsOpen(true)}>Columnas</button>
+            <button type="button" className="info" onClick={() => setColumnsOpen(true)}>Columnas</button>
             <button className="primary" onClick={() => openEdit(null)}>+ Añadir cliente</button>
           </div>
         )}

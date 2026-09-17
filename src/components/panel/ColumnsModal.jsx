@@ -85,9 +85,9 @@ export default function ColumnsModal({ open, onClose, allColumns, hidden, order,
         </ul>
       </div>
       <div className="modal-foot">
-        <button type="button" className="outline" onClick={() => { setLocalOrder(allColumns.map((c) => c.key)); setLocalHidden([]); }}>Restaurar orden y visibilidad</button>
-        {onResetWidths && <button type="button" className="outline" onClick={() => { onResetWidths(); setLocalWidths({}); }} title="Vuelve los anchos de columna a su tamaño automático">Restaurar anchos</button>}
-        <button type="button" className="outline" onClick={onClose}>Cancelar</button>
+        <button type="button" className="warning" onClick={() => { setLocalOrder(allColumns.map((c) => c.key)); setLocalHidden([]); }}>Restaurar orden y visibilidad</button>
+        {onResetWidths && <button type="button" className="warning" onClick={() => { onResetWidths(); setLocalWidths({}); }} title="Vuelve los anchos de columna a su tamaño automático">Restaurar anchos</button>}
+        <button type="button" className="danger" onClick={onClose}>Cancelar</button>
         <button type="button" className="primary" onClick={() => onSave(localOrder, localHidden, localWidths)}>Guardar</button>
       </div>
     </dialog>

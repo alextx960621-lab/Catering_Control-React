@@ -72,7 +72,7 @@ export default function PlanChangeModal({ show, onClose, data, client, appConfig
     if (!file) { setError('Sube una imagen de tu comprobante antes de enviar.'); return; }
     setSending(true);
     setError('');
-    const url = await uploadImage(file, 'comprobantes', '', 1100, 0.72);
+    const url = await uploadImage(file, 'comprobantes', '', 1100, 0.72, `${client.id}_`);
     if (!url) {
       setError('No se pudo enviar. Intenta nuevamente o contáctanos por WhatsApp.');
       setSending(false);

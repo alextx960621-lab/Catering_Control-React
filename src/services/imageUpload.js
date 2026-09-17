@@ -48,10 +48,10 @@ export function removeStoredImage(url) {
 // Sube un archivo elegido con <input type="file">, ya redimensionado, y
 // borra la imagen anterior del bucket (si había una). Devuelve la URL
 // pública nueva, o null si algo falló.
-export async function uploadImage(file, folder, oldUrl = '', maxDim = 480, quality = 0.82) {
+export async function uploadImage(file, folder, oldUrl = '', maxDim = 480, quality = 0.82, pathPrefix = '') {
   try {
     const blob = await resizeImageToBlob(file, maxDim, quality);
-    const path = `${folder}/${uid('img')}.jpg`;
+    const path = `${folder}/${pathPrefix}${uid('img')}.jpg`;
     const url = await storageUploadImage(path, blob, 'image/jpeg');
     if (!url) return null;
     if (oldUrl) removeStoredImage(oldUrl);

@@ -5,7 +5,11 @@
 // políticas de insert/update/delete abiertas a `anon` (ver sección 16 del
 // SQL). Esta función es el único camino que le queda al navegador para
 // subir o borrar una imagen -- y antes de hacer nada, valida el mismo
-// token de sesión que ya usan todas las RPCs de la app (`db_sessions`).
+// token de sesión que ya usan todas las RPCs de la app (`db_sessions`),
+// Y ADEMÁS qué carpeta puede tocar según quién es: un cliente solo su
+// propio comprobante (`comprobantes/<su_id>_...`), un staff cualquier
+// carpeta de trabajo, y "branding" (logo/QR/banner) solo admin/superadmin
+// -- antes cualquier sesión válida podía subir o borrar cualquier archivo.
 //
 // La app nunca usa Supabase Auth: todo el mundo se conecta con la anon
 // key, así que Postgres no puede distinguir "personal legítimo" de
@@ -75,12 +79,30 @@ Deno.serve(async (req) => {
   // nunca desde el navegador con la anon key).
   const { data: session, error: sessionErr } = await admin
     .from('db_sessions')
-    .select('subject_type, expires_at')
+    .select('subject_type, subject_id, role, expires_at')
     .eq('token', p_token)
     .maybeSingle();
 
   if (sessionErr || !session || new Date(session.expires_at).getTime() < Date.now()) {
     return json({ error: 'Sesión inválida o expirada. Vuelve a iniciar sesión.' }, 401);
+  }
+
+  const folder = String(p_path).split('/')[0];
+  const STAFF_ONLY_FOLDERS = ['branding', 'drivers', 'plans', 'item-icons', 'delivery-proof'];
+  const ADMIN_ONLY_FOLDERS = ['branding'];
+
+  if (session.subject_type === 'cliente') {
+    // Un cliente solo puede tocar SU PROPIO comprobante de pago -- nunca
+    // el logo, fotos de driver/plan, ni el comprobante de otro cliente.
+    const ownPrefix = `comprobantes/${session.subject_id}_`;
+    if (folder !== 'comprobantes' || !String(p_path).startsWith(ownPrefix)) {
+      return json({ error: 'No tenés permiso para tocar ese archivo.' }, 403);
+    }
+  } else {
+    // subject_type === 'staff'
+    if (STAFF_ONLY_FOLDERS.includes(folder) && ADMIN_ONLY_FOLDERS.includes(folder) && !['admin', 'superadmin'].includes(session.role)) {
+      return json({ error: 'Solo un administrador puede modificar esto.' }, 403);
+    }
   }
 
   if (action === 'upload-url') {

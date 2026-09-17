@@ -278,6 +278,49 @@ end;
 $$;
 revoke all on function public._require_staff(text) from public;
 
+-- Igual que _require_staff, pero además exige permiso de EDICIÓN sobre
+-- p_page (mismo criterio que panelAuth.js: canManage/canManageInventory/
+-- canManageDelivery/canAccessPage). Se usa en las acciones que escriben o
+-- borran datos -- las de solo lectura siguen con _require_staff, porque
+-- ahí el riesgo es de otro tipo (ver nota de alcance en PROMPT_CONTINUAR.md).
+create or replace function public._require_permission(p_token text, p_page text)
+returns table(subject_id text, subject_name text, role text)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id text; v_name text; v_role text;
+  v_custom_roles jsonb;
+  v_allowed boolean := false;
+begin
+  select s.subject_id, s.subject_name, s.role into v_id, v_name, v_role from public._staff_session(p_token) s;
+
+  if v_role in ('admin', 'superadmin') then
+    v_allowed := true;
+  elsif v_role = 'editor' and p_page not in ('users', 'settings') then
+    v_allowed := true;
+  elsif v_role = 'kitchen' and p_page = 'inventory' then
+    v_allowed := true;
+  elsif v_role = 'driver' and p_page = 'delivery' then
+    v_allowed := true;
+  else
+    select payload -> 'settings' -> 'customRoles' into v_custom_roles from db_personal where id = 'main';
+    select coalesce((r -> 'pages' -> p_page ->> 'edit')::boolean, false) into v_allowed
+    from jsonb_array_elements(coalesce(v_custom_roles, '[]'::jsonb)) r
+    where r ->> 'id' = v_role
+    limit 1;
+  end if;
+
+  if not coalesce(v_allowed, false) then
+    raise exception 'Tu rol no tiene permiso para hacer esto.';
+  end if;
+
+  return query select v_id, v_name, v_role;
+end;
+$$;
+revoke all on function public._require_permission(text, text) from public;
+
 create or replace function public._cliente_session(p_token text)
 returns table(subject_id text, subject_name text)
 language plpgsql
@@ -341,13 +384,37 @@ $$;
 revoke all on function hash_password(text) from public;
 grant execute on function hash_password(text) to anon, authenticated;
 
+-- Zona horaria de ESTA empresa (una por proyecto de Supabase -- no hace
+-- falta resolverla "por fila", ver la Guía de instalación: cada empresa
+-- nueva tiene su propio proyecto). Antes estaba fijo en UTC acá y en
+-- 'America/La_Paz' hardcodeado en otras 2 funciones más abajo -- bug
+-- reportado 15 sep: desde las 20:00 hora Bolivia (UTC-4), el servidor ya
+-- pensaba que era el día siguiente. Se centraliza acá para que, al vender
+-- esto a una empresa en otro país, alcance con cambiar UN solo valor
+-- (Configuración → Zona horaria en el panel, que guarda esto mismo en
+-- settings.timezone) en vez de tener que tocar SQL de nuevo. El default
+-- 'America/La_Paz' preserva el comportamiento actual para instalaciones
+-- existentes que todavía no cargaron este campo -- no rompe nada al
+-- volver a correr este script sobre una empresa ya en marcha.
+create or replace function get_company_timezone()
+returns text
+language sql
+security definer
+stable
+as $$
+  select coalesce(nullif(trim(payload->>'timezone'), ''), 'America/La_Paz')
+  from db_personal
+  where id = 'settings';
+$$;
+grant execute on function get_company_timezone() to anon, authenticated;
+
 create or replace function get_server_date()
 returns text
 language sql
 security definer
 stable
 as $$
-  select to_char(now() at time zone 'utc', 'YYYY-MM-DD');
+  select to_char(now() at time zone get_company_timezone(), 'YYYY-MM-DD');
 $$;
 grant execute on function get_server_date() to anon, authenticated;
 
@@ -569,8 +636,21 @@ language plpgsql
 security definer
 set search_path = public, extensions
 as $$
+declare v_role text;
 begin
-  perform public._require_staff(p_token);
+  select role into v_role from public._staff_session(p_token);
+  if p_table_key = 'inventario' then
+    perform public._require_permission(p_token, 'inventory');
+  elsif p_table_key in ('clientes', 'personal') then
+    -- Sobrescribe TODO el bloque de una (sin la granularidad por campo
+    -- que sí tiene staff_set_fields) -- se deja admin-only, más
+    -- estricto que cualquier permiso de página individual.
+    if v_role not in ('admin', 'superadmin') then
+      raise exception 'Tu rol no tiene permiso para hacer esto.';
+    end if;
+  else
+    raise exception 'Tabla no permitida.';
+  end if;
   if p_table_key = 'clientes' then
     insert into db_clientes (id, payload, updated_at) values ('main', p_payload, now())
       on conflict (id) do update set payload = excluded.payload, updated_at = now();
@@ -580,8 +660,6 @@ begin
   elsif p_table_key = 'inventario' then
     insert into db_inventario (id, payload, updated_at) values ('main', p_payload, now())
       on conflict (id) do update set payload = excluded.payload, updated_at = now();
-  else
-    raise exception 'Tabla no permitida.';
   end if;
   return true;
 end;
@@ -624,8 +702,24 @@ begin
   if p_table_key not in ('clientes','personal','inventario') then
     raise exception 'Tabla no permitida.';
   end if;
-  if p_table_key='personal' and p_fields ? 'staffUsers' and v_role not in ('admin','superadmin') then
-    raise exception 'Solo un administrador puede modificar las cuentas de staff.';
+  if p_table_key = 'inventario' then
+    perform public._require_permission(p_token, 'inventory');
+  end if;
+  if p_table_key = 'clientes' then
+    if p_fields ? 'plans' then perform public._require_permission(p_token, 'plans'); end if;
+    if p_fields ? 'days' or p_fields ? 'currentDate' then perform public._require_permission(p_token, 'dispatch'); end if;
+  end if;
+  if p_table_key = 'personal' then
+    if p_fields ? 'staffUsers' and v_role not in ('admin','superadmin') then
+      raise exception 'Solo un administrador puede modificar las cuentas de staff.';
+    end if;
+    if p_fields ? 'settings' and v_role not in ('admin','superadmin') then
+      raise exception 'Solo un administrador puede modificar la configuración.';
+    end if;
+    if p_fields ? 'drivers' then perform public._require_permission(p_token, 'drivers'); end if;
+    if p_fields ? 'routes' then perform public._require_permission(p_token, 'routes'); end if;
+    -- userPrefs (tema/columnas propias) queda sin restricción extra a
+    -- propósito: cualquier staff puede guardar sus propias preferencias.
   end if;
   for v_key, v_val in select * from jsonb_each(coalesce(p_fields, '{}'::jsonb)) loop
     if p_table_key = 'clientes' then
@@ -679,7 +773,7 @@ language plpgsql security definer set search_path = public, extensions
 as $$
 declare v_row jsonb;
 begin
-  perform public._require_staff(p_token);
+  perform public._require_permission(p_token, 'clients');
   for v_row in select * from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) loop
     insert into db_clientes_rows (id, payload, updated_at) values (v_row ->> 'id', v_row, now())
     on conflict (id) do update set payload = excluded.payload, updated_at = now();
@@ -692,7 +786,7 @@ grant execute on function public.staff_upsert_client_rows(text, jsonb) to anon, 
 create or replace function public.staff_delete_client_rows(p_token text, p_ids text[])
 returns boolean
 language plpgsql security definer set search_path = public, extensions
-as $$ begin perform public._require_staff(p_token); delete from db_clientes_rows where id = any(p_ids); return true; end; $$;
+as $$ begin perform public._require_permission(p_token, 'clients'); delete from db_clientes_rows where id = any(p_ids); return true; end; $$;
 revoke all on function public.staff_delete_client_rows(text, text[]) from public;
 grant execute on function public.staff_delete_client_rows(text, text[]) to anon, authenticated;
 
@@ -709,7 +803,7 @@ language plpgsql security definer set search_path = public, extensions
 as $$
 declare v_row jsonb;
 begin
-  perform public._require_staff(p_token);
+  perform public._require_permission(p_token, 'notes');
   for v_row in select * from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) loop
     insert into db_notas_rows (id, payload, updated_at) values (v_row ->> 'id', v_row, now())
     on conflict (id) do update set payload = excluded.payload, updated_at = now();
@@ -722,7 +816,7 @@ grant execute on function public.staff_upsert_note_rows(text, jsonb) to anon, au
 create or replace function public.staff_delete_note_rows(p_token text, p_ids text[])
 returns boolean
 language plpgsql security definer set search_path = public, extensions
-as $$ begin perform public._require_staff(p_token); delete from db_notas_rows where id = any(p_ids); return true; end; $$;
+as $$ begin perform public._require_permission(p_token, 'notes'); delete from db_notas_rows where id = any(p_ids); return true; end; $$;
 revoke all on function public.staff_delete_note_rows(text, text[]) from public;
 grant execute on function public.staff_delete_note_rows(text, text[]) to anon, authenticated;
 
@@ -794,7 +888,7 @@ returns boolean
 language plpgsql security definer set search_path = public, extensions
 as $$
 begin
-  perform public._require_staff(p_token);
+  perform public._require_permission(p_token, 'dispatch');
   insert into db_dispatch_snapshots (date, payload, created_at) values (p_date, p_payload, now())
   on conflict (date) do update set payload = excluded.payload, created_at = now();
   return true;
@@ -864,7 +958,7 @@ language plpgsql security definer set search_path = public, extensions
 as $$
 declare v_r jsonb;
 begin
-  perform public._require_staff(p_token);
+  perform public._require_permission(p_token, 'delivery');
   for v_r in select * from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) loop
     insert into db_delivery_status (id, date, client_id, payload, updated_at)
     values ((v_r->>'date') || '_' || (v_r->>'clientId'), (v_r->>'date')::date, v_r->>'clientId', v_r->'payload', now())
@@ -983,7 +1077,7 @@ begin
   values (
     v_id,
     jsonb_build_object(
-      'text', trim(p_texto), 'dueDate', to_char(current_date, 'YYYY-MM-DD'),
+      'text', trim(p_texto), 'dueDate', get_server_date(),
       'status', 'pendiente', 'source', 'cliente', 'clientId', p_client_id,
       'clientName', coalesce(v_client_name, ''), 'createdAt', now(), 'read', false
     ),
@@ -1009,14 +1103,14 @@ set search_path = public, extensions
 as $$
 declare
   v_row db_clientes_rows%rowtype;
-  v_now_bo timestamptz := now() at time zone 'America/La_Paz';
+  v_now_local timestamptz := now() at time zone get_company_timezone();
   v_addr_exists boolean;
   v_overrides jsonb;
 begin
   perform public._require_cliente_owns(p_token, p_client_id);
 
-  if extract(hour from v_now_bo) >= 22 then
-    raise exception 'Ya pasó el horario para cambiar la dirección (22:00 hora Bolivia).';
+  if extract(hour from v_now_local) >= 22 then
+    raise exception 'Ya pasó el horario para cambiar la dirección (22:00 hora local).';
   end if;
 
   select * into v_row from db_clientes_rows where id = p_client_id;
@@ -1076,7 +1170,17 @@ begin
 
   if v_route_id is null or v_route_id = '' then return null; end if;
 
-  select payload -> 'drivers' into v_drivers from db_personal where id = 'main';
+  -- BUG (reportado 15 sep, "debería salir el nombre del driver..."): acá
+  -- decía `where id = 'main'` y `payload -> 'drivers'`, pero los drivers
+  -- NO se guardan así -- se guardan como su PROPIA fila en db_personal,
+  -- con id = 'drivers' y el payload de esa fila siendo directamente el
+  -- array (mismo patrón que 'routes', 'settings', 'staffUsers'; ver
+  -- staff_set_fields un poco más arriba). Con "id = 'main'" esto nunca
+  -- encontraba nada -- la función en sí ya estaba bien pensada (vuelve a
+  -- buscar la ruta de la dirección activa en cada llamada, así que ya
+  -- soporta que el cliente cambie de dirección/ruta sin más cambios),
+  -- pero como consultaba una fila que no existía, siempre devolvía null.
+  select payload into v_drivers from db_personal where id = 'drivers';
 
   select d into v_driver
   from jsonb_array_elements(coalesce(v_drivers, '[]'::jsonb)) d

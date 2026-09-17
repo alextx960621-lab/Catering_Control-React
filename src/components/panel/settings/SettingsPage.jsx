@@ -13,6 +13,24 @@ const PREMIUM_LOCKABLE_PAGES = [
   ['specialDietPrint', 'Exportar dietas especiales'], ['clientPortal', 'Portal de clientes'],
 ];
 
+// Lista de zonas horarias para el selector de Configuración. La API
+// Intl.supportedValuesOf('timeZone') (Chrome/Edge/Firefox recientes) da la
+// base de datos IANA completa y siempre actualizada -- se usa esa cuando
+// está disponible, y si no (navegador viejo) se cae a esta lista corta con
+// las más probables para clientes de esta app hoy, más UTC como comodín.
+const FALLBACK_TIMEZONES = [
+  'America/La_Paz', 'America/Lima', 'America/Bogota', 'America/Santiago', 'America/Argentina/Buenos_Aires',
+  'America/Asuncion', 'America/Montevideo', 'America/Mexico_City', 'America/Guatemala', 'America/Panama',
+  'America/Santo_Domingo', 'America/New_York', 'America/Los_Angeles', 'Europe/Madrid', 'UTC',
+];
+function getTimezoneOptions() {
+  try {
+    if (typeof Intl.supportedValuesOf === 'function') return Intl.supportedValuesOf('timeZone');
+  } catch (_) { /* navegador sin soporte -- se usa el fallback */ }
+  return FALLBACK_TIMEZONES;
+}
+const timezoneOptions = getTimezoneOptions();
+
 export default function SettingsPage({ user, theme, onThemeChange }) {
   const {
     settings, saveSettings, serverToday, showNotice,
@@ -170,6 +188,20 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
             <p className="muted" style={{ marginTop: -6 }}>Solo números, con código de país. Se usa en los botones de contacto del portal del cliente.</p>
             <label>Link de Instagram<input defaultValue={settings.instagramUrl} placeholder="https://instagram.com/tu_empresa" onBlur={(e) => saveSettings({ ...settings, instagramUrl: e.target.value.trim() })} /></label>
             <label>Usuario de Instagram (@handle)<input defaultValue={settings.instagramHandle} placeholder="@tu_empresa" onBlur={(e) => saveSettings({ ...settings, instagramHandle: e.target.value.trim() })} /></label>
+            {/* BUG (reportado 15 sep): get_server_date() en Supabase estaba
+                fijo en UTC -- desde las 20:00 hora Bolivia (UTC-4) el
+                servidor ya pensaba que era el día siguiente. Se centralizó
+                en una sola función SQL (get_company_timezone()) que lee
+                justo este campo; si está vacío, sigue asumiendo Bolivia
+                (América/La Paz) para no romper nada en empresas ya
+                instaladas. Al vender esto a una empresa de otro país,
+                alcanza con cambiar esto acá -- no hace falta tocar SQL. */}
+            <label>Zona horaria
+              <select defaultValue={settings.timezone || 'America/La_Paz'} onChange={(e) => saveSettings({ ...settings, timezone: e.target.value })}>
+                {timezoneOptions.map((tz) => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>)}
+              </select>
+            </label>
+            <p className="muted" style={{ marginTop: -6 }}>De acá sale qué día es "hoy" para toda la operación (Día de trabajo, vencimientos, horario de corte para que un cliente cambie su dirección). Cambiala solo si esta empresa opera en un país distinto a Bolivia.</p>
             <ImageField label="Imagen publicitaria (banner del portal de clientes)" name="_ad" value={settings.adImageUrl} onChange={(url) => saveSettings({ ...settings, adImageUrl: url })} folder="branding" maxDim={800} />
             <ImageField label="QR de pago (para renovar/cambiar de plan desde el portal)" name="_qr" value={settings.paymentQrUrl} onChange={(url) => saveSettings({ ...settings, paymentQrUrl: url })} folder="branding" maxDim={500} />
           </div>
