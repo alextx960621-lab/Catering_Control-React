@@ -35,8 +35,13 @@
   padding: 6px 16px;
   font-weight: 700;
   cursor: pointer;
-  background: linear-gradient(135deg, #8fb0ff, #4a72ff);
+  /* Antes era un degradado escrito a mano (#8fb0ff→#4a72ff) sin relación
+     con el color de marca del resto de la web -- ahora sigue --brand
+     (definida en LoginPage.css, aplica global) con el mismo patrón de
+     degradado que usan todos los demás botones de color de la app. */
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand, #3867f4) 78%, white 22%), var(--brand, #3867f4));
   color: #fff;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--brand, #3867f4) 38%, transparent);
 }
 
 .app-banner__btn-secondary {

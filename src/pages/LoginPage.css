@@ -65,6 +65,28 @@ button, .btn, .nav-pills .nav-link {
 #whatsapp-support-btn:hover { background: #20bd5a !important; color: #fff; }
 
 .nav-pills .nav-link { border-radius: 999px; }
+/* Bootstrap le pone a .nav-pills su PROPIO azul fijo (#0d6efd) sin pasar
+   por --bs-primary, así que aunque el resto de la app cambie de color con
+   el tema, la pestaña activa de "Soy cliente/Soy del equipo" se quedaba
+   siempre con ese azul de fábrica -- distinto del botón "Entrar" de al
+   lado (que sí sigue --brand). Enganchando esto a --brand quedan siempre
+   iguales, en los 3 temas. */
+.nav-pills { --bs-nav-pills-link-active-bg: var(--brand); }
+
+/* Mismo tratamiento que .btn-primary de acá arriba, pero para el otro
+   botón de la marca ("Quiero un nuevo plan" en el portal, "avanzar" en
+   ScheduledResumeCard, etc): por defecto Bootstrap le pone SU azul fijo
+   (#0d6efd) a --bs-btn-color/border en vez de heredar el de la empresa. */
+.btn-outline-primary {
+  --bs-btn-color: var(--brand);
+  --bs-btn-border-color: var(--brand);
+  --bs-btn-hover-bg: var(--brand);
+  --bs-btn-hover-border-color: var(--brand);
+  --bs-btn-active-bg: var(--brand);
+  --bs-btn-active-border-color: var(--brand);
+  --bs-btn-disabled-color: var(--brand);
+  --bs-btn-disabled-border-color: var(--brand);
+}
 
 .login-card { max-width: 420px; margin: 0 auto; }
 .login-card .card { overflow: hidden; }
@@ -109,7 +131,17 @@ button, .btn, .nav-pills .nav-link {
 .app-footer-copy { margin-top: 3px; font-size: .72rem; }
 
 /* Tema nocturno */
-[data-theme="night"] { --brand: #7296ff; }
+[data-theme="night"] {
+  --brand: #7296ff;
+  /* --bs-primary y compañía NO se actualizaban con el tema (quedaban
+     siempre en el azul de tema claro): eso hacía que cosas puramente de
+     Bootstrap que dependen de esta variable (el aro de foco al tabular,
+     por ejemplo) se vieran con un azul distinto al resto de la web ya
+     en modo nocturno/bosque. */
+  --bs-primary: #7296ff; --bs-primary-rgb: 114, 150, 255;
+  --bs-link-color: #7296ff; --bs-link-color-rgb: 114, 150, 255;
+  --bs-link-hover-color: #9ab2ff; --bs-link-hover-color-rgb: 154, 178, 255;
+}
 [data-theme="night"] body.page-login { background: radial-gradient(circle at 20% 20%, rgba(114, 150, 255, .25), transparent 34%), #121824; }
 [data-theme="night"] .card { background: #1a2130; color: #e7ecf5; }
 [data-theme="night"] .text-secondary { color: #9aa7bd !important; }
@@ -118,7 +150,12 @@ button, .btn, .nav-pills .nav-link {
 
 /* Tema bosque: mismas reglas de texto/inputs que el tema nocturno, para
    que no queden con el estilo por defecto de Bootstrap. */
-[data-theme="forest"] { --brand: #1f7a4d; }
+[data-theme="forest"] {
+  --brand: #1f7a4d;
+  --bs-primary: #1f7a4d; --bs-primary-rgb: 31, 122, 77;
+  --bs-link-color: #1f7a4d; --bs-link-color-rgb: 31, 122, 77;
+  --bs-link-hover-color: #175c3a; --bs-link-hover-color-rgb: 23, 92, 58;
+}
 [data-theme="forest"] body.page-login { background: radial-gradient(circle at 20% 20%, rgba(31, 122, 77, .25), transparent 34%), #dcefdc; }
 [data-theme="forest"] .card { background: #eef7ee; color: #163821; }
 [data-theme="forest"] .text-secondary { color: #4f7259 !important; }

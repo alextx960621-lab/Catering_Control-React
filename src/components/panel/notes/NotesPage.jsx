@@ -176,8 +176,8 @@ export default function NotesPage({ user, onGoToClient, renewalByClient = {}, on
                     )}
                     {nt.clientId && (
                       <>
-                        <button className="info" onClick={() => onGoToClient?.(nt.clientId, 'edit')}>✏️ Editar cliente</button>
-                        <button className="violet" onClick={() => onGoToClient?.(nt.clientId, 'renew')}>🔄 Renovar</button>
+                        <button className="info" onClick={() => onGoToClient?.(nt.clientId, 'edit')}>Editar cliente</button>
+                        <button className="violet" onClick={() => onGoToClient?.(nt.clientId, 'renew')}>Renovar</button>
                       </>
                     )}
                     <button className="icon-btn delete" onClick={() => handleDelete(nt)}>Eliminar</button>

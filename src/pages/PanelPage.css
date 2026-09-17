@@ -16,7 +16,6 @@
   --panel-accent: #15a77f;
   --panel-danger: #e4002b;
   --panel-warning: #f4a940;
-  --panel-warning-ink: #8d5a02;
   --panel-violet: #8a5cf6;
   --panel-shadow: 0 14px 36px rgba(21, 35, 62, .10);
   --panel-radius: 12px;
@@ -34,7 +33,7 @@
   --panel-text: #edf2fa; --panel-muted: #a9b6c9; --panel-line: #324158;
   --panel-primary: #7296ff; --panel-primary-ink: #fff;
   --panel-accent: #51cfaa; --panel-danger: #ff4d4d; --panel-warning: #ffc466;
-  --panel-warning-ink: #fff; --panel-violet: #b79bfb;
+  --panel-violet: #b79bfb;
   --panel-shadow: 0 14px 36px rgba(0, 0, 0, .3);
 }
 [data-theme="forest"] {
@@ -42,7 +41,7 @@
   --panel-text: #163821; --panel-muted: #4f7259; --panel-line: #a9d2ab;
   --panel-primary: #1f7a4d; --panel-primary-ink: #fff;
   --panel-accent: #9c5f20; --panel-danger: #b3001f; --panel-warning: #bd7b1d;
-  --panel-warning-ink: #40290a; --panel-violet: #7a52c9;
+  --panel-violet: #7a52c9;
 }
 
 .panel-shell { background: var(--panel-bg); color: var(--panel-text); min-height: 100vh; font: 14px/1.35 var(--font, Inter, sans-serif); }
@@ -170,10 +169,14 @@
   /* Mismo tratamiento "píldora de color" que ya tienen Actualizar (azul)
      y Salir (rojo), pero en amarillo -- para que las 3 se vean como el
      mismo tipo de botón en vez de que la hamburguesa quede como un
-     ícono suelto sin fondo. */
+     ícono suelto sin fondo. Texto siempre blanco, igual que en
+     Actualizar/Salir -- antes usaba --panel-warning-ink (pensada para
+     texto sobre fondo amarillo en OTRO contexto) que en tema claro es
+     café oscuro, y por eso el ícono se veía casi negro en vez de blanco
+     como sus vecinos. */
   .panel-shell .top-actions .menu-toggle {
     background: linear-gradient(135deg, color-mix(in srgb, var(--panel-warning) 78%, white 22%), var(--panel-warning));
-    color: var(--panel-warning-ink);
+    color: #fff;
     box-shadow: 0 3px 10px color-mix(in srgb, var(--panel-warning) 35%, transparent);
     padding: 6px 11px;
     font-size: 15px;
@@ -342,8 +345,8 @@
   padding: 12px 14px; border-radius: var(--panel-radius-sm); font-weight: 650; font-size: 13.5px;
   color: #fff; box-shadow: 0 3px 10px rgba(0, 0, 0, .1);
 }
-.panel-shell .plan-option.is-active { background: linear-gradient(135deg, #4c8bff, #0d6efd); }
-.panel-shell .plan-option.is-inactive { background: linear-gradient(135deg, #ff6b6b, #e4002b); opacity: .88; }
+.panel-shell .plan-option.is-active { background: linear-gradient(135deg, color-mix(in srgb, var(--panel-primary) 78%, white 22%), var(--panel-primary)); box-shadow: 0 3px 10px color-mix(in srgb, var(--panel-primary) 30%, transparent); }
+.panel-shell .plan-option.is-inactive { background: linear-gradient(135deg, color-mix(in srgb, var(--panel-danger) 78%, white 22%), var(--panel-danger)); box-shadow: 0 3px 10px color-mix(in srgb, var(--panel-danger) 30%, transparent); opacity: .88; }
 .panel-shell .plan-option:disabled { opacity: 1; cursor: default; }
 .panel-shell .plan-option-tag { margin-left: auto; font-size: 11.5px; font-weight: 700; background: rgba(255, 255, 255, .22); padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
 .panel-shell .plan-option-days { justify-content: flex-start; flex-wrap: wrap; }
@@ -371,8 +374,8 @@
   color: #fff; box-shadow: 0 4px 14px rgba(244, 169, 64, .35);
 }
 .panel-shell button.info {
-  background: linear-gradient(135deg, color-mix(in srgb, #3867f4 78%, white 22%), #3867f4);
-  color: #fff; box-shadow: 0 4px 14px rgba(56, 103, 244, .35);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--panel-primary) 78%, white 22%), var(--panel-primary));
+  color: #fff; box-shadow: 0 4px 14px color-mix(in srgb, var(--panel-primary) 38%, transparent);
 }
 .panel-shell button.violet {
   background: linear-gradient(135deg, color-mix(in srgb, var(--panel-violet) 78%, white 22%), var(--panel-violet));

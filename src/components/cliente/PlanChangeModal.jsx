@@ -123,7 +123,7 @@ export default function PlanChangeModal({ show, onClose, data, client, appConfig
                       {p.cost ? <span className="float-end">{`Bs ${p.cost}`}</span> : null}
                     </button>
                   )) : <p className="text-secondary mb-0">Por ahora no hay planes disponibles para elegir. Contáctanos directamente.</p>}
-                  <button className="btn btn-danger" onClick={() => setStep('choose')}>← Volver</button>
+                  <button className="btn btn-outline-secondary" onClick={() => setStep('choose')}>← Volver</button>
                 </div>
               )}
               {step === 'pay' && (
@@ -141,7 +141,7 @@ export default function PlanChangeModal({ show, onClose, data, client, appConfig
                   <input type="file" accept="image/*" className="form-control mb-3" onChange={handleFile} />
                   {error && <div className="alert alert-danger py-2 small">{error}</div>}
                   <div className="d-flex gap-2">
-                    <button className="btn btn-danger" onClick={() => setStep(requestType === 'renew' ? 'choose' : 'newplan')}>← Volver</button>
+                    <button className="btn btn-outline-secondary" onClick={() => setStep(requestType === 'renew' ? 'choose' : 'newplan')}>← Volver</button>
                     <button className="btn btn-primary ms-auto" onClick={handleSubmit} disabled={sending}>{sending ? 'Enviando…' : 'Enviar comprobante'}</button>
                   </div>
                 </div>
