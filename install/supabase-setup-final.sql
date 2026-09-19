@@ -1498,6 +1498,465 @@ drop policy if exists "app-images: borrar" on storage.objects;
 -- en la sección 5) se deja intacta a propósito.
 
 -- =============================================================================
+-- 17. Verificación automática de comprobantes de pago + renovación compartida
+-- =============================================================================
+-- (antes vivía en el archivo suelto install/supabase-setup-comprobantes.sql,
+-- consolidado acá). Ver supabase/functions/verificar-comprobante para el
+-- lado del Edge Function que usa estas funciones -- necesita el secret
+-- ANTHROPIC_API_KEY configurado en el proyecto (Edge Functions → Secrets)
+-- para poder leer los comprobantes; hasta que no esté, los comprobantes
+-- quedan pendientes de revisión manual, sin romper nada.
+create table if not exists db_comprobantes_rows (
+  id text primary key,
+  payload jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table db_comprobantes_rows enable row level security;
+drop policy if exists "no direct access comprobantes" on db_comprobantes_rows;
+create policy "no direct access comprobantes" on db_comprobantes_rows for all using (false) with check (false);
+
+create index if not exists idx_comprobantes_estado on db_comprobantes_rows ((payload ->> 'estado'));
+create index if not exists idx_comprobantes_client on db_comprobantes_rows ((payload ->> 'clientId'));
+
+-- _aplicar_renovacion: ÚNICA implementación de renovar/cambiar de plan,
+-- sacada de ClientsPage.jsx (confirmRenew), usada tanto por el botón manual
+-- como por la verificación automática. El bloque "clientes" en este
+-- proyecto son filas separadas por campo (id='plans' = array de planes
+-- directo, no envuelto) -- verificado contra la base real.
+create or replace function public._aplicar_renovacion(
+  p_client_id text,
+  p_plan_id text,
+  p_dias int,
+  p_modo text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_row db_clientes_rows%rowtype;
+  v_payload jsonb;
+  v_paid_days numeric;
+  v_consumed_days numeric;
+  v_same_plan boolean;
+  v_has_remaining boolean;
+  v_pending jsonb;
+  v_threshold numeric;
+  v_new_items jsonb;
+begin
+  if p_dias is null or p_dias < 1 then
+    raise exception 'Los días a agregar tienen que ser al menos 1.';
+  end if;
+
+  select * into v_row from db_clientes_rows where id = p_client_id;
+  if not found then
+    raise exception 'Cliente no encontrado.';
+  end if;
+
+  v_payload := v_row.payload;
+  v_paid_days := coalesce((v_payload ->> 'paidDays')::numeric, 0);
+  v_consumed_days := coalesce((v_payload ->> 'consumedDays')::numeric, 0);
+  v_same_plan := (p_plan_id is null or p_plan_id = '' or p_plan_id = (v_payload ->> 'planId'));
+  v_has_remaining := v_paid_days > v_consumed_days;
+
+  if v_same_plan then
+    v_paid_days := v_paid_days + p_dias;
+    v_payload := jsonb_set(v_payload, '{paidDays}', to_jsonb(v_paid_days), true);
+
+    if (v_payload -> 'pendingPlan') is not null and (v_payload -> 'pendingPlan') <> 'null'::jsonb then
+      v_pending := v_payload -> 'pendingPlan';
+      v_pending := jsonb_set(
+        v_pending, '{activateAtConsumedDays}',
+        to_jsonb(coalesce((v_pending ->> 'activateAtConsumedDays')::numeric, 0) + p_dias), true
+      );
+      v_payload := jsonb_set(v_payload, '{pendingPlan}', v_pending, true);
+    end if;
+
+  elsif v_has_remaining and p_modo = 'carry' then
+    v_threshold := v_paid_days;
+    v_paid_days := v_paid_days + p_dias;
+    v_payload := jsonb_set(v_payload, '{paidDays}', to_jsonb(v_paid_days), true);
+    v_payload := jsonb_set(
+      v_payload, '{pendingPlan}',
+      jsonb_build_object('planId', p_plan_id, 'activateAtConsumedDays', v_threshold),
+      true
+    );
+
+  else
+    select (p -> 'items') into v_new_items
+    from db_clientes, jsonb_array_elements(payload) p
+    where db_clientes.id = 'plans' and p ->> 'id' = p_plan_id
+    limit 1;
+
+    v_payload := jsonb_set(v_payload, '{planId}', to_jsonb(p_plan_id), true);
+    v_payload := jsonb_set(v_payload, '{items}', coalesce(v_new_items, '{}'::jsonb), true);
+    v_paid_days := v_paid_days + p_dias;
+    v_payload := jsonb_set(v_payload, '{paidDays}', to_jsonb(v_paid_days), true);
+    v_payload := jsonb_set(v_payload, '{pendingPlan}', 'null'::jsonb, true);
+  end if;
+
+  if (v_payload ->> 'status') in ('Pausado', 'Retorno pendiente') then
+    v_payload := jsonb_set(v_payload, '{status}', '"Activo"', true);
+    v_payload := jsonb_set(v_payload, '{pauseStart}', '""', true);
+    v_payload := jsonb_set(v_payload, '{pauseDates}', '[]'::jsonb, true);
+  end if;
+
+  update db_clientes_rows set payload = v_payload, updated_at = now() where id = p_client_id;
+  return v_payload;
+end;
+$$;
+revoke all on function public._aplicar_renovacion(text, text, int, text) from public;
+grant execute on function public._aplicar_renovacion(text, text, int, text) to service_role;
+
+create or replace function public.staff_aplicar_renovacion(
+  p_token text, p_client_id text, p_plan_id text, p_dias int, p_modo text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  perform public._require_permission(p_token, 'clients');
+  return public._aplicar_renovacion(p_client_id, p_plan_id, p_dias, coalesce(p_modo, 'immediate'));
+end;
+$$;
+revoke all on function public.staff_aplicar_renovacion(text, text, text, int, text) from public;
+grant execute on function public.staff_aplicar_renovacion(text, text, text, int, text) to anon, authenticated;
+
+create or replace function public.cliente_crear_comprobante(
+  p_token text, p_client_id text, p_texto text, p_tipo text,
+  p_plan_id text, p_plan_nombre text, p_dias int, p_monto_esperado numeric,
+  p_storage_path text, p_mime_type text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_comprobante_id text := 'cp_' || substr(md5(random()::text || clock_timestamp()::text), 1, 12);
+  v_note_id text := 'n_' || substr(md5(random()::text || clock_timestamp()::text), 1, 12);
+  v_client_name text;
+begin
+  perform public._require_cliente_owns(p_token, p_client_id);
+
+  if p_tipo not in ('renovacion', 'plan_nuevo') then
+    raise exception 'Tipo de solicitud inválido.';
+  end if;
+  if p_monto_esperado is null or p_monto_esperado <= 0 then
+    raise exception 'Monto inválido.';
+  end if;
+  if p_texto is null or length(trim(p_texto)) = 0 then
+    raise exception 'El mensaje no puede estar vacío';
+  end if;
+
+  select payload ->> 'name' into v_client_name from db_clientes_rows where id = p_client_id;
+
+  insert into db_notas_rows (id, payload, updated_at)
+  values (
+    v_note_id,
+    jsonb_build_object(
+      'text', trim(p_texto), 'dueDate', get_server_date(),
+      'status', 'pendiente', 'source', 'cliente', 'clientId', p_client_id,
+      'clientName', coalesce(v_client_name, ''), 'createdAt', now(), 'read', false
+    ),
+    now()
+  );
+
+  insert into db_comprobantes_rows (id, payload, updated_at)
+  values (
+    v_comprobante_id,
+    jsonb_build_object(
+      'clientId', p_client_id, 'clientName', coalesce(v_client_name, ''),
+      'noteId', v_note_id, 'tipo', p_tipo, 'planId', p_plan_id, 'planNombre', p_plan_nombre,
+      'dias', p_dias, 'montoEsperado', p_monto_esperado, 'modo', 'carry',
+      'storagePath', p_storage_path, 'mimeType', p_mime_type,
+      'estado', 'pendiente_lectura', 'createdAt', now()
+    ),
+    now()
+  );
+
+  return jsonb_build_object('comprobanteId', v_comprobante_id, 'noteId', v_note_id);
+end;
+$$;
+revoke all on function public.cliente_crear_comprobante(text, text, text, text, text, text, int, numeric, text, text) from public;
+grant execute on function public.cliente_crear_comprobante(text, text, text, text, text, text, int, numeric, text, text) to anon;
+
+create or replace function public.staff_listar_comprobantes(p_token text)
+returns table(id text, payload jsonb, updated_at timestamptz)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  perform public._require_staff(p_token);
+  return query select r.id, r.payload, r.updated_at from db_comprobantes_rows r order by r.updated_at desc;
+end;
+$$;
+revoke all on function public.staff_listar_comprobantes(text) from public;
+grant execute on function public.staff_listar_comprobantes(text) to anon, authenticated;
+
+create or replace function public.staff_marcar_comprobante_revisado(
+  p_token text, p_comprobante_id text, p_aprobado boolean
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_actor record;
+  v_row db_comprobantes_rows%rowtype;
+  v_payload jsonb;
+begin
+  select * into v_actor from public._require_permission(p_token, 'notes');
+
+  select * into v_row from db_comprobantes_rows where id = p_comprobante_id;
+  if not found then raise exception 'Comprobante no encontrado.'; end if;
+  if (v_row.payload ->> 'estado') not in ('pendiente_revision', 'pendiente_lectura') then
+    raise exception 'Este comprobante ya fue procesado.';
+  end if;
+
+  if p_aprobado then
+    perform public._aplicar_renovacion(
+      v_row.payload ->> 'clientId', v_row.payload ->> 'planId',
+      (v_row.payload ->> 'dias')::int, coalesce(v_row.payload ->> 'modo', 'carry')
+    );
+    v_payload := jsonb_set(v_row.payload, '{estado}', '"aprobado_manual"', true);
+  else
+    v_payload := jsonb_set(v_row.payload, '{estado}', '"rechazado"', true);
+  end if;
+
+  v_payload := v_payload || jsonb_build_object('revisadoPor', v_actor.subject_name, 'revisadoAt', now());
+  update db_comprobantes_rows set payload = v_payload, updated_at = now() where id = p_comprobante_id;
+
+  if p_aprobado and (v_row.payload ? 'noteId') then
+    update db_notas_rows set
+      payload = payload || jsonb_build_object(
+        'status', 'cumplida', 'completedAt', get_server_date(),
+        'autoApproved', false, 'waPending', true,
+        'waPlanName', v_row.payload ->> 'planNombre', 'waDays', v_row.payload -> 'dias',
+        'waKind', case when v_row.payload ->> 'tipo' = 'plan_nuevo' then 'compra' else 'renovacion' end
+      ),
+      updated_at = now()
+    where id = v_row.payload ->> 'noteId';
+  end if;
+
+  return v_payload;
+end;
+$$;
+revoke all on function public.staff_marcar_comprobante_revisado(text, text, boolean) from public;
+grant execute on function public.staff_marcar_comprobante_revisado(text, text, boolean) to anon, authenticated;
+
+do $do$
+begin
+  perform cron.unschedule('rescatar-comprobantes-atascados')
+  where exists (select 1 from cron.job where jobname = 'rescatar-comprobantes-atascados');
+
+  perform cron.schedule(
+    'rescatar-comprobantes-atascados',
+    '*/10 * * * *',
+    $cron$
+      update db_comprobantes_rows
+      set payload = payload || jsonb_build_object(
+            'estado', 'pendiente_revision',
+            'motivoError', 'La verificación automática no terminó a tiempo (el cliente pudo haber cerrado la app antes de que termine).'
+          ),
+          updated_at = now()
+      where payload ->> 'estado' = 'pendiente_lectura'
+        and updated_at < now() - interval '10 minutes';
+    $cron$
+  );
+exception when others then
+  raise notice 'No se pudo programar el cron de rescate de comprobantes atascados (revisa permisos/pg_cron).';
+end $do$;
+
+do $do$
+begin
+  perform cron.unschedule('borrar-comprobantes-viejos')
+  where exists (select 1 from cron.job where jobname = 'borrar-comprobantes-viejos');
+
+  perform cron.schedule(
+    'borrar-comprobantes-viejos',
+    '10 2 * * *',
+    $cron$ delete from public.db_comprobantes_rows where updated_at < now() - interval '15 days'; $cron$
+  );
+exception when others then
+  raise notice 'No se pudo programar el cron de limpieza de comprobantes (revisa permisos/pg_cron).';
+end $do$;
+
+-- =============================================================================
+-- 18. Menú Semanal (web pública + edición desde el Panel)
+-- =============================================================================
+-- (antes install/supabase-menu-semanal-migration.sql, consolidado acá).
+create table if not exists public.db_menu_semanal (
+  id text primary key default 'main',
+  payload jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table public.db_menu_semanal enable row level security;
+drop policy if exists "no direct access menu semanal" on public.db_menu_semanal;
+create policy "no direct access menu semanal" on public.db_menu_semanal for all using (false) with check (false);
+
+create or replace function public.get_menu_semanal()
+returns jsonb
+language sql
+security definer
+set search_path = public, extensions
+as $$
+  select coalesce(payload, '{}'::jsonb) from public.db_menu_semanal where id = 'main';
+$$;
+revoke all on function public.get_menu_semanal() from public;
+grant execute on function public.get_menu_semanal() to anon, authenticated;
+
+create or replace function public.staff_save_menu_semanal(p_token text, p_payload jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_actor record;
+begin
+  select * into v_actor from public._require_permission(p_token, 'menu');
+
+  insert into public.db_menu_semanal (id, payload, updated_at)
+  values ('main', coalesce(p_payload, '{}'::jsonb), now())
+  on conflict (id) do update set payload = excluded.payload, updated_at = now();
+
+  insert into public.db_audit_log (actor_id, actor_name, actor_role, action, entity_type, entity_label, details)
+  values (v_actor.subject_id, coalesce(v_actor.subject_name, ''), v_actor.role,
+    'Editó el Menú Semanal', 'menu', 'Menú Semanal', '{}'::jsonb);
+
+  return coalesce(p_payload, '{}'::jsonb);
+end;
+$$;
+revoke all on function public.staff_save_menu_semanal(text, jsonb) from public;
+grant execute on function public.staff_save_menu_semanal(text, jsonb) to anon, authenticated;
+
+-- =============================================================================
+-- 19. Auto-registro de clientes desde el Login
+-- =============================================================================
+-- (antes install/supabase-signup-cliente-migration.sql, consolidado acá).
+create or replace function public.signup_cliente(
+  p_carnet  text,
+  p_phone   text,
+  p_name    text,
+  p_address text default ''
+)
+returns table(id text, name text, locked_seconds int, session_token text, error text)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_carnet text := lower(trim(coalesce(p_carnet, '')));
+  v_phone  text := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
+  v_name   text := trim(coalesce(p_name, ''));
+  v_address text := trim(coalesce(p_address, ''));
+  v_attempt public.db_client_login_attempts%rowtype;
+  v_exists boolean;
+  v_id text;
+  v_token text;
+  v_new_fail_count int;
+begin
+  select * into v_attempt from public.db_client_login_attempts where carnet = v_carnet;
+  if found and v_attempt.locked_until is not null and v_attempt.locked_until > now() then
+    return query select null::text, null::text,
+      greatest(ceil(extract(epoch from (v_attempt.locked_until - now())))::int, 1),
+      null::text, null::text;
+    return;
+  end if;
+
+  if v_carnet = '' or v_phone = '' or v_name = '' then
+    return query select null::text, null::text, 0, null::text,
+      'Completa carnet, teléfono y nombre.'::text;
+    return;
+  end if;
+
+  select exists(
+    select 1 from db_clientes_rows
+    where lower(trim(coalesce(payload ->> 'carnet', ''))) = v_carnet
+  ) into v_exists;
+
+  if v_exists then
+    v_new_fail_count := coalesce(v_attempt.fail_count, 0) + 1;
+    if v_new_fail_count >= 3 then
+      insert into public.db_client_login_attempts (carnet, fail_count, locked_until, last_attempt)
+        values (v_carnet, 0, now() + interval '1 minute', now())
+      on conflict (carnet) do update
+        set fail_count = 0, locked_until = now() + interval '1 minute', last_attempt = now();
+    else
+      insert into public.db_client_login_attempts (carnet, fail_count, locked_until, last_attempt)
+        values (v_carnet, v_new_fail_count, null, now())
+      on conflict (carnet) do update
+        set fail_count = v_new_fail_count, locked_until = null, last_attempt = now();
+    end if;
+    return query select null::text, null::text, 0, null::text,
+      'Ese carnet ya está registrado. Si es tuyo, inicia sesión o contacta al equipo si no coincide tu teléfono.'::text;
+    return;
+  end if;
+
+  delete from public.db_client_login_attempts where carnet = v_carnet;
+
+  v_id := 'c_' || substr(md5(random()::text || clock_timestamp()::text), 1, 12);
+
+  insert into db_clientes_rows (id, payload, updated_at)
+  values (
+    v_id,
+    jsonb_build_object(
+      'id', v_id,
+      'name', v_name,
+      'carnet', v_carnet,
+      'phone1', v_phone,
+      'status', 'Programado',
+      'planId', '',
+      'paidDays', 0,
+      'consumedDays', 0,
+      'items', '{}'::jsonb,
+      'selfSignup', true,
+      'addresses', case when v_address = '' then '[]'::jsonb else
+        jsonb_build_array(jsonb_build_object(
+          'id', 'a_' || v_id, 'address', v_address, 'maps', '',
+          'routeId', '', 'driverId', '', 'order', ''
+        ))
+      end,
+      'createdAt', now()
+    ),
+    now()
+  );
+
+  insert into db_notas_rows (id, payload, updated_at)
+  values (
+    'n_' || substr(md5(random()::text || clock_timestamp()::text), 1, 12),
+    jsonb_build_object(
+      'text', 'Cliente nuevo autorregistrado desde el login: ' || v_name || ' (tel. ' || v_phone || ')'
+        || case when v_address <> '' then '. Dirección indicada: ' || v_address else '. No indicó dirección.' end
+        || ' Falta asignarle ruta, plan y revisar/completar sus datos.',
+      'dueDate', get_server_date(),
+      'status', 'pendiente',
+      'source', 'signup',
+      'clientId', v_id,
+      'clientName', v_name,
+      'createdAt', now(),
+      'read', false
+    ),
+    now()
+  );
+
+  v_token := encode(gen_random_bytes(32), 'hex');
+  insert into db_sessions (token, subject_type, subject_id, subject_name, role)
+  values (v_token, 'cliente', v_id, v_name, null);
+
+  return query select v_id, v_name, 0, v_token, null::text;
+end;
+$$;
+revoke all on function public.signup_cliente(text, text, text, text) from public;
+grant execute on function public.signup_cliente(text, text, text, text) to anon, authenticated;
+
+-- =============================================================================
 -- FIN. Verificaciones útiles después de correrlo:
 --
 --   select * from login_staff('admin@catering.local','admin123');

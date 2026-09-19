@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './ClientePage.css';
 import config from '../services/config';
 import { readClientSession, clearSessions } from '../services/session';
-import { readOperations, writeOperations, readClientRow, writeClientRow, readCachedBranding, getClientTheme, saveClientTheme } from '../services/clienteStorage';
+import { readOperations, writeOperations, readClientRow, writeClientRow, readCachedBranding, readCachedIsPremium, getClientTheme, saveClientTheme } from '../services/clienteStorage';
 import { fetchBrandingRemote, fetchIsPremium, fetchServerSync, saveClient } from '../services/clienteData';
 import { setSessionToken, dbGetClientRow, dbSaveOwnClientProfile, dbGetOwnDriver, joinPresence, leavePresence, revokeSession } from '../services/supabaseClient';
 import Portal from '../components/cliente/Portal';
@@ -42,6 +42,27 @@ export default function ClientePage() {
       let localData = readOperations();
       localData.days || (localData.days = {});
       let localClient = readClientRow();
+      const cachedBranding = readCachedBranding();
+      const cachedIsPremium = readCachedIsPremium();
+      const hasFullCache = localClient && localClient.id === session.id && cachedBranding?.companyName && cachedIsPremium !== null;
+
+      // Camino rápido: ya lo abrió antes en este dispositivo y quedó todo
+      // cacheado (el caso típico de la PWA instalada, ya logueada). Se
+      // pinta el portal DE UNA con lo que ya hay guardado, sin esperar
+      // ninguna vuelta de red -- antes acá esperábamos igual a
+      // get_branding + get_plan_status aunque el cliente ya estuviera en
+      // caché, y esos dos viajes de red eran justamente la lentitud.
+      // Después, dos líneas más abajo, se refresca todo en segundo plano
+      // igual que siempre (incluida la revalidación real de Premium).
+      if (hasFullCache) {
+        setData(localData);
+        setClient(localClient);
+        setTheme(localClient.uiTheme || getClientTheme());
+        setBranding(cachedBranding);
+        setPhase(cachedIsPremium ? 'portal' : 'locked');
+        if (cachedIsPremium) joinPresence({ id: localClient.id, role: 'cliente', name: localClient.name });
+      }
+
       const needsClientFetch = !localClient || localClient.id !== session.id;
 
       const [fetchedClient, freshBranding, isPremium] = await Promise.all([
@@ -59,21 +80,28 @@ export default function ClientePage() {
         writeClientRow(localClient);
       }
 
+      localData = readOperations();
+      localData.days || (localData.days = {});
       setData(localData);
       setClient(localClient);
       // Si el cliente ya eligió un tema desde ALGÚN dispositivo, ese es
       // el que manda (uiTheme viaja con su propia fila — ver
       // supabase-setup-final-v2.sql sección 15); si nunca eligió
       // ninguno, se usa el último visto en este navegador como default.
-      setTheme(localClient.uiTheme || getClientTheme(session.id));
+      setTheme(localClient.uiTheme || getClientTheme());
       if (freshBranding) setBranding(freshBranding);
 
-      if (!isPremium) {
+      // isPremium === null → la red falló (get_plan_status no respondió).
+      // Si ya lo habíamos mostrado por el camino rápido de arriba, se deja
+      // como estaba en vez de tirarlo a "locked" por un problema de red;
+      // si no había caché, es la primera carga y ahí sí hay que decidir.
+      if (isPremium === false || (isPremium === null && !hasFullCache)) {
+        if (hasFullCache && cachedIsPremium) leavePresence();
         setPhase('locked');
         return;
       }
-      setPhase('portal');
-      joinPresence({ id: localClient.id, role: 'cliente', name: localClient.name });
+      if (isPremium !== null || !hasFullCache) setPhase('portal');
+      if (!hasFullCache) joinPresence({ id: localClient.id, role: 'cliente', name: localClient.name });
 
       // Segunda pasada: refresca en segundo plano con lo último del
       // servidor (por si algo cambió desde el panel mientras tanto).
@@ -90,7 +118,8 @@ export default function ClientePage() {
         if (remoteClient.uiTheme) setTheme(remoteClient.uiTheme);
       }
       if (freshBranding2) setBranding(freshBranding2);
-      if (!(await fetchIsPremium())) setPhase('locked');
+      const stillPremium = await fetchIsPremium();
+      if (stillPremium === false) setPhase('locked');
     })();
   }, [navigate]);
 

@@ -30,4 +30,11 @@ window.APP_CONFIG = {
   // Datos del proyecto de Supabase de ESTA empresa (Project Settings → API).
   supabaseUrl: 'https://kkqcaiunetlikfyaldab.supabase.co',
   supabaseKey: 'sb_publishable_9EH5FSbrI0ZAV04LSJeeBg_d1X_b-Nj',
+
+  // Clave PÚBLICA de notificaciones push (VAPID). Es pública a propósito
+  // (por eso viaja acá, junto al resto de la config) -- la privada NUNCA
+  // va en el navegador, vive como secreto de la Edge Function `send-push`
+  // en Supabase. Si algún día cambias el par de claves, actualizá acá Y
+  // en esa función a la vez, o las suscripciones viejas dejan de andar.
+  vapidPublicKey: 'BGQc0vWty6x1rKDSS-QE8-5DBt0LgAAi8XuycojIHoIlDISZY5XghJtT3WkazDfD6exVTxnGXMLL1ptEuqNmkfg',
 };

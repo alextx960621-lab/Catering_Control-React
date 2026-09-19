@@ -123,6 +123,55 @@ export async function dbGetOwnDriver(clientId) {
   }
 }
 
+// Suscripción a notificaciones push (ver src/services/push.js, que arma
+// `subscription` con la Push API del navegador). client_id lo saca el
+// propio servidor del token, nunca hace falta mandarlo.
+export async function dbSavePushSubscription(subscription) {
+  try {
+    const { error } = await supabase.rpc('save_push_subscription', {
+      p_token: currentToken,
+      p_endpoint: subscription.endpoint,
+      p_p256dh: subscription.keys.p256dh,
+      p_auth: subscription.keys.auth,
+    });
+    if (error) {
+      console.error('[supabase] Error guardando la suscripción push:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[supabase] Fallo de red guardando la suscripción push:', err);
+    return false;
+  }
+}
+
+export async function dbRemovePushSubscription(endpoint) {
+  try {
+    await supabase.rpc('remove_push_subscription', { p_token: currentToken, p_endpoint: endpoint });
+  } catch (err) {
+    console.error('[supabase] Fallo de red borrando la suscripción push:', err);
+  }
+}
+
+// Botón manual de Publicidad: dispara la Edge Function `send-push` con
+// el token de STAFF actual (se valida server-side que sea admin/editor/
+// superadmin -- ver supabase/functions/send-push/index.ts).
+export async function dbSendManualPush(clientIds, title, body) {
+  try {
+    const { data, error } = await supabase.functions.invoke('send-push', {
+      body: { action: 'manual', p_token: currentToken, clientIds, title, body },
+    });
+    if (error) {
+      console.error('[supabase] Error en Edge Function send-push:', error.message);
+      return { ok: false, error: error.message };
+    }
+    return data;
+  } catch (err) {
+    console.error('[supabase] Fallo de red llamando a send-push:', err);
+    return { ok: false, error: 'Fallo de red.' };
+  }
+}
+
 // dbInsertAudit: la llaman tanto el panel (staff) como el portal cliente
 // (autoservicio de pausa/reactivación/dirección) — se resuelve según el
 // tipo de sesión activa. El actor (id/nombre/rol) siempre lo fuerza el

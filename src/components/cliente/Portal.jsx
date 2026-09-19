@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { usePushSubscription } from '../../hooks/usePushSubscription';
 import { n, fmt, workDate, nextWorkDay, stateFor, planFor, waLink } from '../../services/planHelpers';
 import { rpc, getSessionToken, dbInsertAudit } from '../../services/supabaseClient';
 import { writeClientRow } from '../../services/clienteStorage';
@@ -28,6 +29,7 @@ import PlanChangeModal from './PlanChangeModal';
 export default function Portal({ data, client, driver, appConfig, branding, theme, onThemeChange, onSaveClient, onLogout }) {
   const [message, setMessage] = useState(null); // { text, error, showSupport, wa }
   const [showPlanChange, setShowPlanChange] = useState(false);
+  const { blocked: pushBlocked } = usePushSubscription(!!client?.id);
   // se muestra una sola vez, justo después de que el propio cliente creó su
   // cuenta desde el Login (ver signup_cliente / ClientForm.jsx)
   const [showSignupWelcome] = useState(() => {
@@ -181,6 +183,12 @@ export default function Portal({ data, client, driver, appConfig, branding, them
         <div className="alert alert-success mt-3 mb-0">
           ¡Cuenta creada! Ya puedes ver tu portal. Nuestro equipo revisará tus datos y te contactará en breve
           para confirmar tu ruta y tu plan.
+        </div>
+      )}
+      {pushBlocked && (
+        <div className="alert alert-warning mt-3 mb-0 small">
+          Tenés bloqueadas las notificaciones de esta app. Si querés recibir avisos de tu plan, habilitalas
+          desde los ajustes de notificaciones de tu celular o navegador para esta app.
         </div>
       )}
       <Hero client={client} />

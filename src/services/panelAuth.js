@@ -27,6 +27,7 @@ export const NAV_PERMS = {
   audit: ['admin', 'superadmin'],
   notes: ['admin', 'editor', 'superadmin'],
   menu: ['admin', 'editor', 'superadmin'],
+  publicidad: ['admin', 'editor', 'superadmin'],
   settings: ['admin', 'editor', 'kitchen', 'driver', 'superadmin'],
 };
 
@@ -60,13 +61,14 @@ export function isAdmin(role) {
 // Páginas de las que se puede dar permiso de "editar" a un rol a medida
 // (metrics/audit/settings/users son siempre de solo consulta o exclusivas
 // de administración, igual que en los roles fijos).
-export const EDITABLE_PAGES = ['dispatch', 'delivery', 'clients', 'drivers', 'routes', 'plans', 'payroll', 'inventory', 'notes', 'menu'];
+export const EDITABLE_PAGES = ['dispatch', 'delivery', 'clients', 'drivers', 'routes', 'plans', 'payroll', 'inventory', 'notes', 'menu', 'publicidad'];
 
 export const ROLE_PAGE_OPTIONS = [
   ['dispatch', 'Día de trabajo', true], ['delivery', 'Despacho', true], ['clients', 'Clientes', true],
   ['drivers', 'Drivers', true], ['routes', 'Rutas', true], ['plans', 'Planes', true],
   ['payroll', 'Sueldos', true], ['inventory', 'Inventario', true], ['metrics', 'Métricas', false],
-  ['notes', 'Notas', true], ['menu', 'Menú Semanal', true], ['audit', 'Auditoría', false], ['settings', 'Configuración', false],
+  ['notes', 'Notas', true], ['menu', 'Menú Semanal', true], ['publicidad', 'Publicidad', true],
+  ['audit', 'Auditoría', false], ['settings', 'Configuración', false],
 ];
 
 function customCanEdit(role, customRoles, page) {

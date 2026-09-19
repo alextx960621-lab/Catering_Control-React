@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { useOperations } from '../../../context/OperationsContext';
 import { n } from '../../../services/planHelpers';
-import config from '../../../services/config';
 import ImageField from '../ImageField';
 import { usePresence, ROLE_ICONS } from '../../../hooks/usePresence';
 import { dbGetAllAuditLog, dbGetAllDeliveryStatus, dbGetAllSnapshots, dbInsertAuditBulk, dbUpsertDeliveryRows, dbUpsertSnapshotsBulk } from '../../../services/db';
@@ -182,12 +181,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
         {isAdmin && (
           <div className="card card-pad stack">
             <h3>Empresa</h3>
-            <label>Nombre de la empresa<input defaultValue={settings.companyName} placeholder={config.companyName} onBlur={(e) => saveSettings({ ...settings, companyName: e.target.value })} /></label>
             <ImageField label="Logo" name="_logo" value={settings.logoUrl} onChange={(url) => saveSettings({ ...settings, logoUrl: url })} folder="branding" maxDim={300} />
-            <label>Número de WhatsApp<input defaultValue={settings.whatsappNumber} placeholder="Ej: 59171234567" onBlur={(e) => saveSettings({ ...settings, whatsappNumber: e.target.value.replace(/\D/g, '') })} /></label>
-            <p className="muted" style={{ marginTop: -6 }}>Solo números, con código de país. Se usa en los botones de contacto del portal del cliente.</p>
-            <label>Link de Instagram<input defaultValue={settings.instagramUrl} placeholder="https://instagram.com/tu_empresa" onBlur={(e) => saveSettings({ ...settings, instagramUrl: e.target.value.trim() })} /></label>
-            <label>Usuario de Instagram (@handle)<input defaultValue={settings.instagramHandle} placeholder="@tu_empresa" onBlur={(e) => saveSettings({ ...settings, instagramHandle: e.target.value.trim() })} /></label>
             {/* BUG (reportado 15 sep): get_server_date() en Supabase estaba
                 fijo en UTC -- desde las 20:00 hora Bolivia (UTC-4) el
                 servidor ya pensaba que era el día siguiente. Se centralizó
@@ -202,18 +196,10 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
               </select>
             </label>
             <p className="muted" style={{ marginTop: -6 }}>De acá sale qué día es "hoy" para toda la operación (Día de trabajo, vencimientos, horario de corte para que un cliente cambie su dirección). Cambiala solo si esta empresa opera en un país distinto a Bolivia.</p>
-            <ImageField label="Imagen publicitaria (banner del portal de clientes)" name="_ad" value={settings.adImageUrl} onChange={(url) => saveSettings({ ...settings, adImageUrl: url })} folder="branding" maxDim={800} />
-            <ImageField label="QR de pago (para renovar/cambiar de plan desde el portal)" name="_qr" value={settings.paymentQrUrl} onChange={(url) => saveSettings({ ...settings, paymentQrUrl: url })} folder="branding" maxDim={500} />
+            <p className="muted" style={{ marginTop: -6 }}>Nombre, WhatsApp, Instagram, banner y QR de pago se editan ahora desde el menú <b>Publicidad</b>.</p>
           </div>
         )}
 
-        {isAdmin && (
-          <div className="card card-pad stack">
-            <h3>Aviso de renovación</h3>
-            <p className="muted">Cuando a un cliente le queden estos días o menos, verá un cartel invitándolo a renovar su plan.</p>
-            <label>Días restantes para mostrar el aviso<input type="number" min="0" max="30" defaultValue={n(settings.renewalWarningDays)} onBlur={(e) => saveSettings({ ...settings, renewalWarningDays: Math.max(0, n(e.target.value)) })} /></label>
-          </div>
-        )}
 
         {isSuperAdmin && (
           <div className="card card-pad stack">

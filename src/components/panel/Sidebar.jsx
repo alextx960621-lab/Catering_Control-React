@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   ['dispatch', '📅', 'Día de trabajo'],
   ['notes', '🔔', 'Notas'],
   ['menu', '🍲', 'Menú Semanal'],
+  ['publicidad', '📣', 'Publicidad'],
   ['clients', '👥', 'Clientes'],
   ['delivery', '🚚', 'Despacho'],
   ['drivers', '🛵', 'Drivers'],

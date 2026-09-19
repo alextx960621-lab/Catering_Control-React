@@ -21,6 +21,11 @@ export default defineConfig({
       workbox: {
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/config\.js$/],
+        // push-sw.js: maneja los eventos `push` y `notificationclick`
+        // (ver ese archivo). Se importa así, en vez de migrar todo el
+        // proyecto a `injectManifest`, para no perder el cacheo
+        // automático que ya arma `generateSW` de acá abajo.
+        importScripts: ['push-sw.js'],
         runtimeCaching: [
           {
             // Páginas (navegación entre rutas de React Router)

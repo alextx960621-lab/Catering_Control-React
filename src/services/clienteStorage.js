@@ -10,6 +10,7 @@ export const CLIENTE_KEYS = {
   operations: `${prefix}-operaciones-v3`, // catálogo: planes + calendario laborable
   clientRow: `${prefix}-client-row-v1`, // datos del cliente logueado
   branding: `${prefix}-client-branding-v1`,
+  isPremium: `${prefix}-client-is-premium-v1`,
 };
 
 function readJSON(key, fallback) {
@@ -37,6 +38,15 @@ export const writeClientRow = (client) => writeJSON(CLIENTE_KEYS.clientRow, clie
 
 export const readCachedBranding = () => readJSON(CLIENTE_KEYS.branding, {});
 export const writeCachedBranding = (branding) => writeJSON(CLIENTE_KEYS.branding, branding);
+
+// Cache de "¿la empresa tiene Premium?" -- se usa SOLO para decidir si se
+// puede saltar el spinner y mostrar el portal al toque con lo que ya hay
+// en el dispositivo (ver ClientePage.jsx). El chequeo real contra el
+// servidor se sigue haciendo siempre, en segundo plano, apenas se
+// muestra el portal -- esto nunca reemplaza esa validación, solo evita
+// que la primera pintura de la PWA ya instalada espere una vuelta de red.
+export const readCachedIsPremium = () => readJSON(CLIENTE_KEYS.isPremium, null);
+export const writeCachedIsPremium = (value) => writeJSON(CLIENTE_KEYS.isPremium, value);
 
 // Misma llave que usan login.html y panel.html (STORAGE_KEYS.uiTheme): es
 // el cache LOCAL de este dispositivo, para pintar el tema correcto al

@@ -112,7 +112,7 @@ export default function LoginPage() {
               {accessType === 'client' && clientMode === 'login' && (
                 <button
                   type="button"
-                  className="btn btn-outline-secondary w-100 mt-3"
+                  className="btn btn-outline-primary w-100 mt-3"
                   onClick={() => {
                     setClientMode('signup');
                     setErrorMsg('');

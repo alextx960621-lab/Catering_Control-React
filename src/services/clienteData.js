@@ -1,6 +1,6 @@
 import config from './config';
 import { rpc, getPortalCatalog, dbGetClientRow, dbSaveOwnClientProfile } from './supabaseClient';
-import { writeCachedBranding, writeClientRow } from './clienteStorage';
+import { writeCachedBranding, writeClientRow, writeCachedIsPremium } from './clienteStorage';
 
 // Trae el branding (nombre, logo, whatsapp, ítems del menú, etc.) desde
 // Supabase y lo deja en caché para la próxima carga.
@@ -27,7 +27,7 @@ export async function fetchBrandingRemote() {
 // empresa tiene el plan que lo desbloquea.
 export async function fetchIsPremium() {
   const info = await rpc('get_plan_status', {});
-  if (!info) return false;
+  if (!info) return null; // sin red: ni true ni false, "no se pudo saber"
   const isPremiumPlan = info?.plan === 'premium';
   const locked =
     'clientPortalLocked' in info
@@ -35,7 +35,9 @@ export async function fetchIsPremium() {
       : info.premiumLockedPages && 'clientPortal' in info.premiumLockedPages
         ? !!info.premiumLockedPages.clientPortal
         : true;
-  return isPremiumPlan || !locked;
+  const result = isPremiumPlan || !locked;
+  writeCachedIsPremium(result);
+  return result;
 }
 
 // Trae, en paralelo, el catálogo (planes/calendario) y la fila del
