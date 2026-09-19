@@ -179,6 +179,8 @@ main.portal { padding-top: 66px; }
 .portal .btn:active { transform: translateY(0) scale(.98); }
 .portal .btn-primary { background: linear-gradient(135deg, color-mix(in srgb, var(--bs-primary) 78%, white 22%), var(--bs-primary)); border-color: transparent; box-shadow: 0 4px 14px color-mix(in srgb, var(--bs-primary) 35%, transparent); }
 .portal .btn-primary:hover { box-shadow: 0 8px 22px color-mix(in srgb, var(--bs-primary) 40%, transparent); }
+.portal .btn-warning { background: linear-gradient(135deg, color-mix(in srgb, var(--bs-warning) 78%, white 22%), var(--bs-warning)); border-color: transparent; color: #4a2f00; box-shadow: 0 4px 14px color-mix(in srgb, var(--bs-warning) 35%, transparent); }
+.portal .btn-warning:hover { box-shadow: 0 8px 22px color-mix(in srgb, var(--bs-warning) 40%, transparent); }
 .portal .btn-success { background: linear-gradient(135deg, color-mix(in srgb, var(--portal-success) 78%, white 22%), var(--portal-success)); border-color: transparent; box-shadow: 0 4px 14px color-mix(in srgb, var(--portal-success) 32%, transparent); }
 .portal .btn-success:hover { box-shadow: 0 8px 22px color-mix(in srgb, var(--portal-success) 38%, transparent); }
 

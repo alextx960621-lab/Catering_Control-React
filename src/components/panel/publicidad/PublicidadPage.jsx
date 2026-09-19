@@ -62,6 +62,7 @@ export default function PublicidadPage() {
         <div className="card card-pad stack">
           <h3>Datos públicos de la empresa</h3>
           <p className="muted" style={{ marginTop: -6 }}>Esto es lo que ven los clientes: el portal, el banner y los botones de contacto.</p>
+          <ImageField label="Logo" name="_logo" value={settings.logoUrl} onChange={(url) => saveSettings({ ...settings, logoUrl: url })} folder="branding" maxDim={300} />
           <label>Nombre de la empresa<input defaultValue={settings.companyName} onBlur={(e) => saveSettings({ ...settings, companyName: e.target.value })} /></label>
           <label>Número de WhatsApp<input defaultValue={settings.whatsappNumber} placeholder="Ej: 59171234567" onBlur={(e) => saveSettings({ ...settings, whatsappNumber: e.target.value.replace(/\D/g, '') })} /></label>
           <label>Link de Instagram<input defaultValue={settings.instagramUrl} placeholder="https://instagram.com/tu_empresa" onBlur={(e) => saveSettings({ ...settings, instagramUrl: e.target.value.trim() })} /></label>

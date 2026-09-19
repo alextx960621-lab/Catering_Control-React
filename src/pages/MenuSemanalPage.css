@@ -33,6 +33,13 @@ body.page-menu-semanal {
   transition: transform .15s ease, box-shadow .15s ease;
 }
 .menu-semanal-wrap .btn-outline-secondary:hover { transform: translateY(-2px); }
+.menu-semanal-wrap .btn-primary {
+  border-radius: 999px; border-color: transparent;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--bs-primary) 78%, white 22%), var(--bs-primary));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--bs-primary) 35%, transparent);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.menu-semanal-wrap .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 22px color-mix(in srgb, var(--bs-primary) 40%, transparent); }
 
 .menu-semanal-head {
   display: flex;

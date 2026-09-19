@@ -47,7 +47,7 @@ export default function AuditPage({ user }) {
         </div>
         <div className="head-actions">
           <button className="primary" onClick={refresh} disabled={loadingLog}>{loadingLog ? 'Cargando…' : 'Actualizar'}</button>
-          {!showingAll && entries !== null && <button className="outline" onClick={loadAll} disabled={loadingLog}>Ver todos los eventos guardados</button>}
+          {!showingAll && entries !== null && <button className="info" onClick={loadAll} disabled={loadingLog}>Ver todos los eventos guardados</button>}
         </div>
       </div>
 

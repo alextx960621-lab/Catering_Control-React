@@ -84,7 +84,7 @@ export default function MenuSemanalPage() {
       )}
 
       <div className="text-center mt-4">
-        <Link className="btn btn-outline-secondary" to="/cliente">
+        <Link className="btn btn-primary" to="/cliente">
           &larr; Volver a mi portal
         </Link>
       </div>

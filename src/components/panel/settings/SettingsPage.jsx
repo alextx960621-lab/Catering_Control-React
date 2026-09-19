@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { useOperations } from '../../../context/OperationsContext';
 import { n } from '../../../services/planHelpers';
-import ImageField from '../ImageField';
 import { usePresence, ROLE_ICONS } from '../../../hooks/usePresence';
 import { dbGetAllAuditLog, dbGetAllDeliveryStatus, dbGetAllSnapshots, dbInsertAuditBulk, dbUpsertDeliveryRows, dbUpsertSnapshotsBulk } from '../../../services/db';
 import { setTheme as saveMyTheme } from '../../../services/userPrefs';
@@ -181,7 +180,6 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
         {isAdmin && (
           <div className="card card-pad stack">
             <h3>Empresa</h3>
-            <ImageField label="Logo" name="_logo" value={settings.logoUrl} onChange={(url) => saveSettings({ ...settings, logoUrl: url })} folder="branding" maxDim={300} />
             {/* BUG (reportado 15 sep): get_server_date() en Supabase estaba
                 fijo en UTC -- desde las 20:00 hora Bolivia (UTC-4) el
                 servidor ya pensaba que era el día siguiente. Se centralizó
@@ -196,7 +194,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
               </select>
             </label>
             <p className="muted" style={{ marginTop: -6 }}>De acá sale qué día es "hoy" para toda la operación (Día de trabajo, vencimientos, horario de corte para que un cliente cambie su dirección). Cambiala solo si esta empresa opera en un país distinto a Bolivia.</p>
-            <p className="muted" style={{ marginTop: -6 }}>Nombre, WhatsApp, Instagram, banner y QR de pago se editan ahora desde el menú <b>Publicidad</b>.</p>
+            <p className="muted" style={{ marginTop: -6 }}>Logo, nombre, WhatsApp, Instagram, banner y QR de pago se editan ahora desde el menú <b>Publicidad</b>.</p>
           </div>
         )}
 
