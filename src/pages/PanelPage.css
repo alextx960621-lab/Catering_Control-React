@@ -467,3 +467,9 @@
 }
 .panel-shell .settings-grid > .card:last-child { margin-bottom: 0; }
 @media (max-width: 850px) { .panel-shell .settings-grid { columns: 1; } }
+
+/* Menú Semanal: fichas por día (ver src/components/panel/menu/MenuPage.jsx). */
+.menu-day-card { transition: transform .15s ease, box-shadow .15s ease; }
+.menu-day-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px color-mix(in srgb, var(--panel-primary) 16%, transparent) !important; }
+.menu-day-list { margin: 0; padding-left: 1.1rem; }
+.menu-day-list li { margin-bottom: 2px; }

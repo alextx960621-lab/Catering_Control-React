@@ -10,6 +10,7 @@ import { getTheme as getMyCachedTheme } from '../services/userPrefs';
 import Sidebar from '../components/panel/Sidebar';
 import DispatchPage from '../components/panel/dispatch/DispatchPage';
 import NotesPage from '../components/panel/notes/NotesPage';
+import MenuPage from '../components/panel/menu/MenuPage';
 import DriversPage from '../components/panel/drivers/DriversPage';
 import RoutesPage from '../components/panel/routes/RoutesPage';
 import PlansPage from '../components/panel/plans/PlansPage';
@@ -125,6 +126,7 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
         {activePage === 'drivers' && <DriversPage user={user} />}
         {activePage === 'routes' && <RoutesPage user={user} />}
         {activePage === 'plans' && <PlansPage user={user} />}
+        {activePage === 'menu' && <MenuPage user={user} />}
         <div style={{ display: activePage === 'clients' ? '' : 'none' }}>
           <ClientsPage user={user} pendingClientAction={pendingClientAction} onConsumePendingClientAction={() => setPendingClientAction(null)} onRenewalCompleted={recordRenewal} onReturnToOrigin={(origin) => onNavigate(origin || 'notes')} />
         </div>

@@ -8,6 +8,7 @@ const PanelPage = lazy(() => import('./pages/PanelPage'));
 const ClientePage = lazy(() => import('./pages/ClientePage'));
 const TerminosPage = lazy(() => import('./pages/TerminosPage'));
 const PrivacidadPage = lazy(() => import('./pages/PrivacidadPage'));
+const MenuSemanalPage = lazy(() => import('./pages/MenuSemanalPage'));
 
 // Estas 3 rutas son el equivalente directo a los 3 archivos .html que tenía
 // la versión anterior:
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/" element={<LoginPage />} />
           <Route path="/panel" element={<PanelPage />} />
           <Route path="/cliente" element={<ClientePage />} />
+          <Route path="/menu-semanal" element={<MenuSemanalPage />} />
           <Route path="/terminos" element={<TerminosPage />} />
           <Route path="/privacidad" element={<PrivacidadPage />} />
           {/* Cualquier ruta desconocida vuelve al login, igual que el

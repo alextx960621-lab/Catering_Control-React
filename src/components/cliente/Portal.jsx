@@ -17,6 +17,7 @@ import AddressCard from './AddressCard';
 import NoteCard from './NoteCard';
 import InstagramLink from './InstagramLink';
 import PlanChangeButton from './PlanChangeButton';
+import WeeklyMenuButton from './WeeklyMenuButton';
 import PlanChangeModal from './PlanChangeModal';
 
 // El portal completo, ya con todos los datos cargados. Todas las acciones
@@ -188,6 +189,7 @@ export default function Portal({ data, client, driver, appConfig, branding, them
       <section className="row g-3">
         <PlanCard client={client} branding={branding} plan={plan} state={state} remaining={remaining} included={included} />
         <PlanChangeButton onOpen={() => setShowPlanChange(true)} />
+        <WeeklyMenuButton />
         <SupportCard client={client} appConfig={appConfig} branding={branding} />
         <div className="col-12">
           {state === 'Pausado' ? (

@@ -4,6 +4,7 @@ import { ROLE_LABELS, canAccessPage } from '../../services/panelAuth';
 const NAV_ITEMS = [
   ['dispatch', '📅', 'Día de trabajo'],
   ['notes', '🔔', 'Notas'],
+  ['menu', '🍲', 'Menú Semanal'],
   ['clients', '👥', 'Clientes'],
   ['delivery', '🚚', 'Despacho'],
   ['drivers', '🛵', 'Drivers'],
