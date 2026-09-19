@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { rpc, getSessionToken } from '../../services/supabaseClient';
-import { uploadImage } from '../../services/imageUpload';
+import { rpc, getSessionToken, supabase } from '../../services/supabaseClient';
+import { uploadReceipt } from '../../services/receiptUpload';
 import { waLink } from '../../services/planHelpers';
 import { IconCheckCircle } from './icons';
 
@@ -11,11 +11,12 @@ export default function PlanChangeModal({ show, onClose, data, client, appConfig
   const [file, setFile] = useState(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [autoApproved, setAutoApproved] = useState(false);
   const dialogRef = useRef(null);
   const previouslyFocused = useRef(null);
 
   useEffect(() => {
-    if (show) { setStep('choose'); setRequestType(null); setSelectedPlanId(''); setFile(null); setError(''); }
+    if (show) { setStep('choose'); setRequestType(null); setSelectedPlanId(''); setFile(null); setError(''); setAutoApproved(false); }
   }, [show]);
 
   // Accesibilidad del modal: guarda el foco previo, lo mueve al diálogo,
@@ -63,27 +64,69 @@ export default function PlanChangeModal({ show, onClose, data, client, appConfig
 
   function handleFile(e) {
     const f = e.target.files[0];
-    if (f && !f.type?.startsWith('image/')) { setError('Solo se aceptan imágenes (no PDF ni otros archivos).'); return; }
+    if (f && f.type !== 'application/pdf' && !f.type?.startsWith('image/')) {
+      setError('Solo se aceptan imágenes o PDF.');
+      return;
+    }
     setError('');
     setFile(f || null);
   }
 
   async function handleSubmit() {
-    if (!file) { setError('Sube una imagen de tu comprobante antes de enviar.'); return; }
+    if (!file) { setError('Sube una imagen o PDF de tu comprobante antes de enviar.'); return; }
+    if (!targetPlan?.cost) { setError('No se pudo determinar el monto a pagar. Contáctanos por WhatsApp.'); return; }
     setSending(true);
     setError('');
-    const url = await uploadImage(file, 'comprobantes', '', 1100, 0.72, `${client.id}_`);
-    if (!url) {
+
+    let uploaded;
+    try {
+      uploaded = await uploadReceipt(file, client.id);
+    } catch (err) {
+      setError(err?.message || 'No se pudo enviar. Intenta nuevamente o contáctanos por WhatsApp.');
+      setSending(false);
+      return;
+    }
+    if (!uploaded) {
       setError('No se pudo enviar. Intenta nuevamente o contáctanos por WhatsApp.');
       setSending(false);
       return;
     }
+
     const label = requestType === 'renew' ? `renovar su plan actual ("${plan?.name || 'sin plan'}")` : `cambiar al plan "${targetPlan?.name || ''}"`;
-    const amountText = targetPlan?.cost ? `Bs ${targetPlan.cost}` : 'monto no definido';
-    const text = `Solicitud de plan: ${client.name} quiere ${label}. Monto: ${amountText}. Comprobante: ${url}`;
-    const result = await rpc('crear_nota_cliente', { p_token: getSessionToken(), p_client_id: client.id, p_texto: text });
+    const amountText = `Bs ${targetPlan.cost}`;
+    const text = `Solicitud de plan: ${client.name} quiere ${label}. Monto: ${amountText}. Comprobante: ${uploaded.url}`;
+
+    const result = await rpc('cliente_crear_comprobante', {
+      p_token: getSessionToken(),
+      p_client_id: client.id,
+      p_texto: text,
+      p_tipo: requestType === 'renew' ? 'renovacion' : 'plan_nuevo',
+      p_plan_id: targetPlan.id,
+      p_plan_nombre: targetPlan.name || '',
+      p_dias: targetPlan.serviceDays || 1,
+      p_monto_esperado: targetPlan.cost,
+      p_storage_path: uploaded.path,
+      p_mime_type: uploaded.mimeType,
+    });
+    if (!result?.comprobanteId) {
+      setError('No se pudo enviar. Intenta nuevamente o contáctanos por WhatsApp.');
+      setSending(false);
+      return;
+    }
+
+    // Verificación automática: si no responde a tiempo o falla, no es un
+    // error para el cliente -- el comprobante ya quedó guardado y el staff
+    // lo revisa a mano, como pasaba siempre hasta ahora.
+    try {
+      const { data } = await supabase.functions.invoke('verificar-comprobante', {
+        body: { p_token: getSessionToken(), p_comprobante_id: result.comprobanteId },
+      });
+      setAutoApproved(data?.estado === 'aprobado_auto');
+    } catch (_) {
+      setAutoApproved(false);
+    }
+
     setSending(false);
-    if (!result) { setError('No se pudo enviar. Intenta nuevamente o contáctanos por WhatsApp.'); return; }
     setStep('sent');
   }
 
@@ -137,8 +180,8 @@ export default function PlanChangeModal({ show, onClose, data, client, appConfig
                       <button type="button" className="btn btn-sm btn-outline-secondary mb-3" onClick={handleDownloadQr}>Descargar QR</button>
                     </div>
                   ) : <p className="text-secondary small">El equipo aún no cargó un QR de pago. Contáctanos para coordinar el pago.</p>}
-                  <label className="form-label small text-secondary">Comprobante de pago (solo imagen)</label>
-                  <input type="file" accept="image/*" className="form-control mb-3" onChange={handleFile} />
+                  <label className="form-label small text-secondary">Comprobante de pago (imagen o PDF)</label>
+                  <input type="file" accept="image/*,application/pdf" className="form-control mb-3" onChange={handleFile} />
                   {error && <div className="alert alert-danger py-2 small">{error}</div>}
                   <div className="d-flex gap-2">
                     <button className="btn btn-outline-secondary" onClick={() => setStep(requestType === 'renew' ? 'choose' : 'newplan')}>← Volver</button>
@@ -149,8 +192,17 @@ export default function PlanChangeModal({ show, onClose, data, client, appConfig
               {step === 'sent' && (
                 <div className="text-center py-2">
                   <span className="fs-1 d-block mb-2 text-success">{IconCheckCircle}</span>
-                  <p className="mb-1">El equipo está procesando tu solicitud.</p>
-                  <p className="text-secondary small">Te vamos a contactar en cuanto la revisemos.</p>
+                  {autoApproved ? (
+                    <>
+                      <p className="mb-1">¡Tu pago ya fue verificado! 🎉</p>
+                      <p className="text-secondary small">Tu plan ya está activo, no hace falta que esperes a que el equipo lo revise.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mb-1">El equipo está procesando tu solicitud.</p>
+                      <p className="text-secondary small">Te vamos a contactar en cuanto la revisemos.</p>
+                    </>
+                  )}
                   {wa !== '#' && <p className="small">¿Urgente? <a className="link-whatsapp" href={wa} target="_blank" rel="noopener">Escríbenos por WhatsApp</a></p>}
                   <button className="btn btn-primary mt-2" onClick={onClose}>Cerrar</button>
                 </div>

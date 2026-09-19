@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { n, fmt, workDate, nextWorkDay, stateFor, planFor, waLink } from '../../services/planHelpers';
 import { rpc, getSessionToken, dbInsertAudit } from '../../services/supabaseClient';
 import { writeClientRow } from '../../services/clienteStorage';
+import { STORAGE_KEYS } from '../../services/storageKeys';
 import LogoutButton from './LogoutButton';
 import Header from './Header';
 import Hero from './Hero';
@@ -26,6 +27,17 @@ import PlanChangeModal from './PlanChangeModal';
 export default function Portal({ data, client, driver, appConfig, branding, theme, onThemeChange, onSaveClient, onLogout }) {
   const [message, setMessage] = useState(null); // { text, error, showSupport, wa }
   const [showPlanChange, setShowPlanChange] = useState(false);
+  // se muestra una sola vez, justo después de que el propio cliente creó su
+  // cuenta desde el Login (ver signup_cliente / ClientForm.jsx)
+  const [showSignupWelcome] = useState(() => {
+    try {
+      const flagged = sessionStorage.getItem(STORAGE_KEYS.clientSignupWelcome) === '1';
+      if (flagged) sessionStorage.removeItem(STORAGE_KEYS.clientSignupWelcome);
+      return flagged;
+    } catch (_) {
+      return false;
+    }
+  });
 
   const date = workDate(data);
   const next = nextWorkDay(data, date);
@@ -164,6 +176,12 @@ export default function Portal({ data, client, driver, appConfig, branding, them
     <>
       <LogoutButton onLogout={onLogout} />
       <Header branding={branding} appConfig={appConfig} theme={theme} onThemeChange={onThemeChange} showThemeSelect />
+      {showSignupWelcome && (
+        <div className="alert alert-success mt-3 mb-0">
+          ¡Cuenta creada! Ya puedes ver tu portal. Nuestro equipo revisará tus datos y te contactará en breve
+          para confirmar tu ruta y tu plan.
+        </div>
+      )}
       <Hero client={client} />
       <AdBanner branding={branding} />
       <RenewalBanner client={client} branding={branding} plan={plan} state={state} remaining={remaining} onOpenPlanChange={() => setShowPlanChange(true)} />

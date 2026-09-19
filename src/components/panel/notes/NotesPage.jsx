@@ -4,6 +4,7 @@ import { useOperations } from '../../../context/OperationsContext';
 import { dbInsertAudit } from '../../../services/supabaseClient';
 import { clientWaLink } from '../../../services/dispatchHelpers';
 import Modal from '../Modal';
+import ComprobantesModal from './ComprobantesModal';
 
 function uid(prefix) {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -55,6 +56,7 @@ export default function NotesPage({ user, onGoToClient, renewalByClient = {}, on
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null); // null=cerrado, {}=nueva, {...}=editar
   const [rescheduling, setRescheduling] = useState(null);
+  const [showComprobantes, setShowComprobantes] = useState(false);
 
   const t = currentDate;
   const q = search.toLowerCase();
@@ -100,6 +102,20 @@ export default function NotesPage({ user, onGoToClient, renewalByClient = {}, on
     showNotice('Nota marcada como cumplida.');
   }
 
+  // Cuando la verificación automática de comprobantes aprueba un pago sola
+  // (ver supabase/functions/verificar-comprobante), la nota ya queda
+  // "cumplida" -- pero avisar por WhatsApp es abrir una ventana del
+  // navegador, algo que un Edge Function del lado del servidor no puede
+  // hacer. Por eso estas notas quedan con waPending:true hasta que alguien
+  // del staff haga este único clic.
+  function avisarWhatsapp(nt) {
+    const phone = clients.find((c) => c.id === nt.clientId)?.phone1;
+    const link = clientWaLink(phone, renewalWaMessage({ kind: nt.waKind, clientName: nt.clientName, planName: nt.waPlanName, days: nt.waDays }));
+    if (!link) { showNotice('El cliente no tiene teléfono cargado para avisarle por WhatsApp.', true); return; }
+    window.open(link, '_blank');
+    saveNotes([{ ...nt, waPending: false }]);
+  }
+
   function handleDelete(nt) {
     if (!confirm('¿Eliminar esta nota?')) return;
     deleteNote(nt.id);
@@ -134,7 +150,12 @@ export default function NotesPage({ user, onGoToClient, renewalByClient = {}, on
     <section className="page active">
       <div className="page-head">
         <div><h1>Notas</h1><p>Recordatorios internos y mensajes que dejan los clientes desde su portal.</p></div>
-        {canEdit && <div className="head-actions"><button className="primary" onClick={() => setEditing({})}>+ Añadir nota</button></div>}
+        {canEdit && (
+          <div className="head-actions">
+            <button className="btn-outline-secondary" onClick={() => setShowComprobantes(true)}>📄 Comprobantes</button>
+            <button className="primary" onClick={() => setEditing({})}>+ Añadir nota</button>
+          </div>
+        )}
       </div>
 
       <div className="toolbar">
@@ -160,6 +181,7 @@ export default function NotesPage({ user, onGoToClient, renewalByClient = {}, on
                 <div className="note-card-top">
                   <span className={`badge ${nt.status === 'cumplida' ? 'active' : overdue ? 'warn' : 'pending'}`}>{nt.status === 'cumplida' ? 'Cumplida' : overdue ? 'Atrasada' : 'Pendiente'}</span>
                   {nt.source === 'cliente' && <span className="badge off">Desde el portal</span>}
+                  {nt.autoApproved && <span className="badge active">✓ Verificado automático</span>}
                   <span className="muted note-date">{nt.dueDate.split('-').reverse().join('/')}</span>
                 </div>
                 <p className="note-text"><NoteText text={nt.text} /></p>
@@ -172,7 +194,10 @@ export default function NotesPage({ user, onGoToClient, renewalByClient = {}, on
                         <button className="warning" onClick={() => setRescheduling(nt)}>Reprogramar</button>
                       </>
                     ) : (
-                      <button className="warning" onClick={() => setRescheduling(nt)}>Reabrir</button>
+                      <>
+                        {nt.waPending && <button className="success" onClick={() => avisarWhatsapp(nt)}>📲 Avisar por WhatsApp</button>}
+                        <button className="warning" onClick={() => setRescheduling(nt)}>Reabrir</button>
+                      </>
                     )}
                     {nt.clientId && (
                       <>
@@ -210,6 +235,8 @@ export default function NotesPage({ user, onGoToClient, renewalByClient = {}, on
           <label>Nueva fecha *<div className="date-input-wrap"><input name="dueDate" type="date" required defaultValue={rescheduling?.dueDate} /></div></label>
         </div>
       </Modal>
+
+      <ComprobantesModal open={showComprobantes} onClose={() => setShowComprobantes(false)} currentDate={t} showNotice={showNotice} />
     </section>
   );
 }

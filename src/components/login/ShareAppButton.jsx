@@ -1,8 +1,5 @@
 import { useState } from 'react';
-
-function isStandalonePwa() {
-  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-}
+import { isStandalonePwa } from '../../services/pwa';
 
 const ShareIcon = (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

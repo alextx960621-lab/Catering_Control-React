@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import './Banners.css';
+import { isStandalonePwa } from '../services/pwa';
 
-function isStandalonePwa() {
-  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-}
 function isIos() {
   if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) return true;
   // iPadOS 13+ se anuncia como un Mac de escritorio por defecto (no dice

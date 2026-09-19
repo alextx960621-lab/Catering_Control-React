@@ -9,4 +9,5 @@ export const STORAGE_KEYS = {
   clientSession: `${prefix}-client-session-v1`,
   brandingCache: `${prefix}-branding-cache-v1`,
   uiTheme: `${prefix}-ui-theme-v1`,
+  clientSignupWelcome: `${prefix}-client-signup-welcome-v1`,
 };

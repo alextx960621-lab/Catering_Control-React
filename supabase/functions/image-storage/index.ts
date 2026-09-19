@@ -39,7 +39,9 @@ const BUCKET = 'app-images';
 // folder/nombre-de-archivo.ext -- mismo formato que arma imageUpload.js
 // (`${folder}/${uid('img')}.jpg`). Se valida acá también para que nadie
 // pueda mandar un path con "../" o apuntar fuera del bucket.
-const PATH_PATTERN = /^[a-z0-9_-]+\/[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp)$/;
+// pdf agregado para comprobantes de pago (antes solo imágenes) -- ver
+// supabase-setup-comprobantes.sql y services/receiptUpload.js.
+const PATH_PATTERN = /^[a-z0-9_-]+\/[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp|pdf)$/;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

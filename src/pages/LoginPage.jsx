@@ -18,6 +18,7 @@ export default function LoginPage() {
   usePageBodyClass('page-login');
   const { name: brandName, logo: brandLogo, whatsappNumber } = useBranding();
   const [accessType, setAccessType] = useState('client');
+  const [clientMode, setClientMode] = useState('login'); // 'login' | 'signup', solo aplica a accessType 'client'
   const [errorMsg, setErrorMsg] = useState('');
   const navigate = useNavigate();
   const redirected = useRef(false);
@@ -46,6 +47,7 @@ export default function LoginPage() {
 
   function selectAccessType(type) {
     setAccessType(type);
+    setClientMode('login');
     setErrorMsg('');
   }
 
@@ -92,13 +94,32 @@ export default function LoginPage() {
                 </button>
               </nav>
 
-              <ClientForm active={accessType === 'client'} onError={setErrorMsg} onClearError={() => setErrorMsg('')} />
+              <ClientForm
+                active={accessType === 'client'}
+                mode={clientMode}
+                onModeChange={setClientMode}
+                onError={setErrorMsg}
+                onClearError={() => setErrorMsg('')}
+              />
               <StaffForm active={accessType === 'staff'} onError={setErrorMsg} onClearError={() => setErrorMsg('')} />
 
               {errorMsg && (
                 <div className="alert alert-danger mt-3 mb-0" role="alert">
                   {errorMsg}
                 </div>
+              )}
+
+              {accessType === 'client' && clientMode === 'login' && (
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary w-100 mt-3"
+                  onClick={() => {
+                    setClientMode('signup');
+                    setErrorMsg('');
+                  }}
+                >
+                  ¿Eres nuevo? Regístrate
+                </button>
               )}
 
               <WhatsappSupportButton whatsappNumber={whatsappNumber} brandName={brandName} />

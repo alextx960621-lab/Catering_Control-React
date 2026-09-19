@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useOperations } from '../../../context/OperationsContext';
-import { dbInsertAudit } from '../../../services/supabaseClient';
+import { dbInsertAudit, rpc, getSessionToken } from '../../../services/supabaseClient';
 import { n } from '../../../services/planHelpers';
 import { effectiveRouteId, effectiveOrder, effectiveMaps, effectiveNotes, dispatchStatus, statusBadgeClass, myRouteIds, clientWaLink, shiftOrdersFrom } from '../../../services/dispatchHelpers';
 import { canManage, isPagePremiumLocked } from '../../../services/panelAuth';
@@ -498,27 +498,17 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
 
   async function confirmRenew({ planId, days, planChangeMode, samePlan }) {
     const c = renewing.client;
-    const hasRemainingBalance = n(c.paidDays) > n(c.consumedDays);
-    const updated = { ...c };
-    if (samePlan) {
-      updated.paidDays = n(c.paidDays) + days;
-      if (c.pendingPlan) updated.pendingPlan = { ...c.pendingPlan, activateAtConsumedDays: n(c.pendingPlan.activateAtConsumedDays) + days };
-    } else {
-      const newPlan = plans.find((p) => p.id === planId);
-      if (hasRemainingBalance && planChangeMode === 'carry') {
-        const threshold = n(c.paidDays);
-        updated.paidDays = threshold + days;
-        updated.pendingPlan = { planId, activateAtConsumedDays: threshold };
-      } else {
-        updated.planId = planId;
-        updated.items = newPlan?.items || {};
-        updated.paidDays = n(c.paidDays) + days;
-        updated.pendingPlan = null;
-      }
-    }
-    if (updated.status === 'Pausado' || updated.status === 'Retorno pendiente') {
-      updated.status = 'Activo'; updated.pauseStart = ''; updated.pauseDates = [];
-    }
+    // La cuenta (paidDays/pendingPlan/items/reactivar pausado) ya no se hace
+    // acá: vive en la función SQL _aplicar_renovacion (ver
+    // install/supabase-setup-comprobantes.sql), compartida con la
+    // verificación automática de comprobantes -- así no queda la misma
+    // regla de negocio duplicada en dos lugares que se puedan desincronizar.
+    const result = await rpc('staff_aplicar_renovacion', {
+      p_token: getSessionToken(), p_client_id: c.id, p_plan_id: samePlan ? '' : planId, p_dias: days,
+      p_modo: planChangeMode || 'immediate',
+    });
+    if (!result) { showNotice('No se pudo aplicar la renovación.', true); return; }
+    const updated = { ...result, id: c.id };
     saveClients([updated]);
     showNotice(samePlan ? `Plan de ${c.name} renovado.` : `Nuevo plan asignado a ${c.name}.`);
     dbInsertAudit({ actor_id: user.id, actor_name: user.name, actor_role: user.role, action: samePlan ? 'Cliente renovado' : 'Nuevo plan asignado', entity_type: 'client', entity_label: c.name, entity_id: c.id, details: { plan: planName(updated.planId), diasAgregados: days, modo: samePlan ? 'mismo-plan' : planChangeMode } });
