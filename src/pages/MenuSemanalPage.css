@@ -1,0 +1,85 @@
+/* Menú Semanal (web pública) */
+
+:root {
+  --brand: #3867f4;
+  --font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: Figtree, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --bs-primary: #3867f4;
+  --bs-primary-rgb: 56, 103, 244;
+}
+
+body.page-menu-semanal {
+  min-height: 100vh;
+  font-family: var(--font);
+  background: radial-gradient(circle at 20% 20%, rgba(56, 103, 244, .16), transparent 34%), #f5f7fb;
+}
+
+.menu-semanal-wrap { max-width: 1080px; }
+#brand-title, .menu-semanal-wrap h1, .menu-semanal-wrap h2 { font-family: var(--font-display); }
+
+/* Mismo brillo que el resto de la app en todos los botones (ver la misma regla en… */
+.menu-semanal-wrap button, .menu-semanal-wrap .btn {
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .18), 0 0 10px rgba(255, 255, 255, .22);
+}
+.menu-semanal-wrap .btn-outline-secondary {
+  border-radius: 999px;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.menu-semanal-wrap .btn-outline-secondary:hover { transform: translateY(-2px); }
+.menu-semanal-wrap .btn-primary {
+  border-radius: 999px; border-color: transparent;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0)), var(--bs-primary);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--bs-primary) 35%, transparent);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.menu-semanal-wrap .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 22px color-mix(in srgb, var(--bs-primary) 40%, transparent); }
+
+.menu-semanal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.menu-semanal-head .brand-row { display: flex; align-items: center; gap: 12px; }
+.menu-semanal-head .brand-mark {
+  width: 48px; height: 48px; border-radius: 14px; overflow: hidden;
+  background: color-mix(in srgb, var(--brand) 12%, #fff);
+  display: grid; place-items: center;
+}
+.menu-semanal-head .brand-mark img { width: 100%; height: 100%; object-fit: cover; }
+
+.menu-day-card { transition: transform .15s ease, box-shadow .15s ease; }
+.menu-day-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px color-mix(in srgb, var(--brand) 18%, transparent) !important; }
+.menu-day-today { outline: 2px solid var(--brand); outline-offset: -1px; }
+.menu-today-badge { background: var(--brand); color: #fff; }
+
+.menu-day-content .menu-day-list { margin: 0; padding-left: 1.15rem; }
+.menu-day-content .menu-day-list li { margin-bottom: 4px; }
+
+/* Tema nocturno */
+[data-theme="night"] {
+  --brand: #7296ff;
+  --bs-primary: #7296ff; --bs-primary-rgb: 114, 150, 255;
+}
+[data-theme="night"] body.page-menu-semanal { background: radial-gradient(circle at 20% 20%, rgba(114, 150, 255, .22), transparent 34%), #121824; }
+[data-theme="night"] .menu-semanal-wrap .card { background: #1a2130; color: #e7ecf5; }
+[data-theme="night"] .menu-semanal-wrap .text-secondary { color: #9aa7bd !important; }
+[data-theme="night"] .menu-semanal-head .brand-mark { background: color-mix(in srgb, var(--brand) 20%, #1a2130); }
+
+/* Tema bosque */
+[data-theme="forest"] {
+  --brand: #1f7a4d;
+  --bs-primary: #1f7a4d; --bs-primary-rgb: 31, 122, 77;
+}
+[data-theme="forest"] body.page-menu-semanal { background: radial-gradient(circle at 20% 20%, rgba(31, 122, 77, .2), transparent 34%), #dcefdc; }
+[data-theme="forest"] .menu-semanal-wrap .card { background: #eef7ee; color: #163821; }
+[data-theme="forest"] .menu-semanal-wrap .text-secondary { color: #4f7259 !important; }
+[data-theme="forest"] .menu-semanal-head .brand-mark { background: color-mix(in srgb, var(--brand) 20%, #eef7ee); }
+
+/* Navegadores sin color-mix(): tintes simples. */
+@supports not (background: color-mix(in srgb, red 50%, white)) {
+  .menu-semanal-head .brand-mark { background: #eef2ff; }
+  [data-theme="night"] .menu-semanal-head .brand-mark { background: #252f45; }
+  [data-theme="forest"] .menu-semanal-head .brand-mark { background: #e3f0e3; }
+}

@@ -1,0 +1,61 @@
+/* Paleta de botones de TODA la app (Login, portal del cliente, Menú Semanal y Panel) */
+:root {
+  --btn-blue: #3867f4;
+  --btn-red: #e4002b;
+  --btn-yellow: #f0a020;
+  --btn-orange: #f26a1b;
+  --btn-green: #1f9d5c;
+  --btn-violet: #8a5cf6;
+  --btn-whatsapp: #25d366;
+  --btn-slate: #64748b;
+}
+
+/* Píldora sólida con degradado, sombra y brillo de letra: la misma forma para todos; solo… */
+.cc-btn {
+  --cc: var(--btn-blue);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  min-height: 2.6rem;
+  padding: .55rem 1.2rem;
+  border: 0;
+  border-radius: 999px;
+  font-family: var(--font-display, Figtree, ui-sans-serif, system-ui, sans-serif);
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0)), var(--cc);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .24);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .22), 0 0 10px rgba(255, 255, 255, .2);
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+a.cc-btn, a.cc-btn:hover, a.cc-btn:focus { color: #fff; text-decoration: none; }
+.cc-btn:hover { color: #fff; transform: translateY(-2px); filter: brightness(.95); box-shadow: 0 8px 22px rgba(0, 0, 0, .3); }
+.cc-btn:active { transform: translateY(0) scale(.98); }
+.cc-btn:focus-visible { outline: 2px solid var(--cc); outline-offset: 2px; }
+.cc-btn:disabled, .cc-btn.disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; filter: none; }
+.cc-btn.cc-sm { min-height: 2rem; padding: .3rem .85rem; font-size: .875rem; }
+
+.cc-blue { --cc: var(--btn-blue); }
+.cc-red { --cc: var(--btn-red); }
+.cc-yellow { --cc: var(--btn-yellow); }
+.cc-orange { --cc: var(--btn-orange); }
+.cc-green { --cc: var(--btn-green); }
+.cc-violet { --cc: var(--btn-violet); }
+.cc-whatsapp { --cc: var(--btn-whatsapp); }
+.cc-slate { --cc: var(--btn-slate); }
+
+/* Compatibilidad: el fondo de los botones NO usa color-mix() (Chrome/WebView
+   viejos -- tablets Android antiguas -- lo ignoran y el botón quedaba sin
+   fondo, con letra blanca sobre blanco). Donde el navegador sí lo soporta se
+   agrega la sombra del color del botón. */
+@supports (background: color-mix(in srgb, red 50%, white)) {
+  .cc-btn { box-shadow: 0 4px 14px color-mix(in srgb, var(--cc) 38%, transparent); }
+  .cc-btn:hover { box-shadow: 0 8px 22px color-mix(in srgb, var(--cc) 42%, transparent); }
+  .cc-btn:disabled, .cc-btn.disabled { box-shadow: none; }
+}

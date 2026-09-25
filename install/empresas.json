@@ -1,0 +1,31 @@
+{
+  "empresas": [
+    {
+      "empresa": "Catering Control",
+      "carpeta": "Catering Control",
+      "storagePrefix": "catering-app",
+      "projectRef": "kkqcaiunetlikfyaldab",
+      "moneda": "BOB",
+      "idioma": "es",
+      "pruebas": true,
+      "version": "v71",
+      "alta": "2026-09-25",
+      "sql": null,
+      "migraciones": []
+    },
+    {
+      "empresa": "In Shape Catering",
+      "carpeta": "In Shape",
+      "storagePrefix": "catering-app-inshape",
+      "projectRef": "spvqcxomhkukwzijhvlm",
+      "moneda": "BOB",
+      "idioma": "es",
+      "pruebas": false,
+      "url": "https://go.inshapecatering.workers.dev",
+      "version": "v71",
+      "alta": "2026-09-25",
+      "sql": "supabase-setup-inshape.sql",
+      "migraciones": []
+    }
+  ]
+}

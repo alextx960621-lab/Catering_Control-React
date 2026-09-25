@@ -1,0 +1,87 @@
+.panel-shell .toolbar { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; margin-bottom: 13px; padding: 11px; border: 1px solid var(--panel-line); background: var(--panel-surface); border-radius: var(--panel-radius); }
+.panel-shell .toolbar .field { width: 175px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--panel-muted); }
+.panel-shell .toolbar .search { width: 230px; }
+.panel-shell .toolbar .spacer { flex: 1; }
+.panel-shell .date-input-wrap { width: 100%; display: flex; }
+.panel-shell .date-input-wrap input { flex: 1 1 0; width: 0; min-width: 0; }
+
+.panel-shell .sheet { overflow: auto; max-height: calc(100vh - 300px); min-height: 340px; border: 1px solid var(--panel-line); border-radius: var(--panel-radius); background: var(--panel-surface); }
+.panel-shell table { border-collapse: separate; border-spacing: 0; table-layout: fixed; width: max-content; }
+/* BUG GRAVE (reportado 14 sep, confirmado con una prueba real en navegador headless -- no… */
+/* overflow-wrap: al achicar una columna, si una sola palabra (ej. un apellido largo) no entra,
+   que se corte esa palabra en vez de bloquear el ancho de la columna en su tamaño; sin esto,
+   las columnas no bajaban de eso, aunque se soltara el arrastre mucho más chico. */
+.panel-shell th, .panel-shell td { box-sizing: border-box; border-right: 1px solid var(--panel-line); border-bottom: 1px solid var(--panel-line); padding: 8px 6px; vertical-align: middle; overflow-wrap: anywhere; }
+.panel-shell th { width: 150px; }
+.panel-shell td { position: relative; }
+/* `position: sticky` de acá abajo YA sirve como ancla para el `position:absolute` del… */
+.panel-shell th { position: sticky; top: 0; z-index: 2; background: var(--panel-surface-2); text-align: left; font-size: 11px; letter-spacing: .02em; color: var(--panel-muted); text-transform: uppercase; }
+.panel-shell th.th-sortable { padding: 0; }
+.panel-shell .th-sort-btn { all: unset; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; height: 100%; padding: 8px 14px 8px 10px; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; overflow-wrap: anywhere; min-width: 0; }
+.panel-shell .th-sort-btn:hover { background: color-mix(in srgb, var(--panel-primary) 10%, transparent); }
+.panel-shell .th-sort-btn:focus-visible { outline: 2px solid var(--panel-primary); outline-offset: -2px; }
+.panel-shell th[aria-sort="ascending"] .th-sort-btn, .panel-shell th[aria-sort="descending"] .th-sort-btn { color: var(--panel-primary); }
+.panel-shell .th-sort-icon { font-size: 10px; opacity: .55; flex-shrink: 0; }
+.panel-shell th[aria-sort="ascending"] .th-sort-icon, .panel-shell th[aria-sort="descending"] .th-sort-icon { opacity: 1; }
+.panel-shell .col-resize-handle { position: absolute; top: 0; right: 0; width: 8px; height: 100%; cursor: col-resize; z-index: 3; touch-action: none; }
+/* En mobile, 8px es muy angosto para acertarle con el dedo (por debajo de los ~44px que… */
+@media (pointer: coarse) {
+  .panel-shell .col-resize-handle { width: 12px; }
+  .panel-shell .col-resize-handle::after { content: ''; position: absolute; top: 0; bottom: 0; left: -10px; right: -10px; }
+}
+.panel-shell .col-resize-handle:hover { background: color-mix(in srgb, var(--panel-primary) 30%, transparent); }
+.panel-shell th:last-child, .panel-shell td:last-child { border-right: 0; }
+.panel-shell tbody tr:nth-child(even) td { background: var(--panel-surface-2); }
+.panel-shell tbody tr:hover td { background: color-mix(in srgb, var(--panel-primary) 4%, transparent); }
+.panel-shell td .day-edit { min-height: 30px; padding: 4px 6px; }
+/* Pedido 13 sep: en columnas angostas (sobre todo en mobile), el input de acá abajo solo… */
+.panel-shell td .day-edit:focus {
+  position: absolute; top: 2px; left: 2px; right: 2px;
+  width: max(100%, min(85vw, 340px));
+  z-index: 5;
+  background: var(--panel-surface);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .28);
+  border: 2px solid var(--panel-primary);
+}
+
+.panel-shell .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 650; }
+.panel-shell .badge.active { color: #087354; background: #dff7ed; }
+.panel-shell .badge.paused { color: #8d5a02; background: #fff2d9; }
+.panel-shell .badge.pending { color: #7551ad; background: #eee5ff; }
+.panel-shell .badge.off { color: #778293; background: #edf0f5; }
+.panel-shell .badge.done { color: #697589; background: #e8edf4; }
+[data-theme="night"] .panel-shell .badge.active { color: #7be3c4; background: #113329; }
+[data-theme="night"] .panel-shell .badge.paused { color: #ffd28a; background: #3a2a10; }
+[data-theme="night"] .panel-shell .badge.pending { color: #cbb3ff; background: #2a2140; }
+
+.panel-shell .pause-day-btn { margin-left: 8px; padding: 3px 10px; min-height: auto; font-size: 11.5px; }
+.panel-shell .maps-cell { display: flex; flex-direction: column; gap: 4px; }
+.panel-shell .maps-cell-link { font-size: 11px; white-space: nowrap; }
+.panel-shell .table-totals td { font-weight: 700; background: var(--panel-surface-2) !important; }
+.panel-shell .table-totals.general td { color: var(--panel-primary); }
+.panel-shell .table-totals.filtered td { border-top-width: 2px; }
+.panel-shell .empty { text-align: center; color: var(--panel-muted); padding: 30px; }
+.panel-shell .muted { color: var(--panel-muted); }
+
+@media (max-width: 850px) {
+  .panel-shell .toolbar .search, .panel-shell .toolbar .field { width: 100%; }
+  .panel-shell .sheet { max-height: calc(100vh - 380px); }
+}
+
+/* Aviso de días anteriores sin procesar (arriba de Día de trabajo) */
+.panel-shell .pending-days-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 13px; padding: 11px 14px; border: 1px solid color-mix(in srgb, var(--panel-warning) 55%, var(--panel-line)); background: color-mix(in srgb, var(--panel-warning) 12%, var(--panel-surface)); border-radius: var(--panel-radius); }
+.panel-shell .pending-days-text { display: grid; gap: 2px; min-width: 0; flex: 1 1 260px; }
+.panel-shell .pending-days-text span { font-size: 12.5px; color: var(--panel-muted); }
+.panel-shell .pending-days-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+@supports not (background: color-mix(in srgb, red 50%, white)) {
+  .panel-shell .pending-days-banner { background: #fff6e0; border: 1px solid #f0c060; }
+  .panel-shell tbody tr:hover td { background: var(--panel-surface-2); }
+}
+/* Fecha de retorno en la tabla: no se sale de la columna (iOS) y trae el ✕ para borrarla */
+.panel-shell td .day-edit[type="date"] { -webkit-appearance: none; appearance: none; max-width: 100%; box-sizing: border-box; }
+.panel-shell td .date-clear-wrap { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.panel-shell td .date-clear-wrap .day-edit:not(:focus) { flex: 1 1 0; width: 0; min-width: 0; }
+.panel-shell td .date-clear-wrap .icon-btn { flex: 0 0 auto; padding: 2px 8px; min-height: 30px; }
+.panel-shell .date-input-wrap .icon-btn { flex: 0 0 auto; align-self: center; margin-left: 4px; }
+.panel-shell .return-date-notice { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 6px 0 10px; padding: 8px 12px; border: 1px solid #f0c060; background: #fff6e0; border-radius: var(--panel-radius-sm); color: #5b3b00; }

@@ -1,0 +1,44 @@
+/* Estilo compartido por UpdateBanner e InstallBanner -- las mismas clases para los dos… */
+.app-banners {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: #1f2a3d;
+  color: #fff;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .25);
+}
+
+.app-banner__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Mismos colores fijos que el resto de la app (ver styles/buttons.css): la acción principal… */
+.app-banner__btn-primary, .app-banner__btn-secondary, .app-banner__btn-ok {
+  --cc: var(--btn-blue, #3867f4);
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0)), var(--cc);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--cc) 38%, transparent);
+}
+.app-banner__btn-secondary { --cc: var(--btn-red, #e4002b); }
+.app-banner__btn-ok { --cc: var(--btn-green, #1f9d5c); }
+
+/* Menos padding y texto un toque más chico en pantallas angostas -- ayuda a que el aviso… */
+@media (max-width: 480px) {
+  .app-banner { padding: 8px 12px; font-size: 13px; gap: 8px; }
+}
