@@ -211,7 +211,11 @@ ${FUNCIONES.map((f) => `   supabase functions deploy ${f.slug}${f.verifyJwt ? ''
 3. Secretos de Edge Functions: VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY (están en el .local.json),
    GEMINI_API_KEY (Google AI Studio) y SUPABASE_SERVICE_ROLE_KEY si el proyecto no la trae.
 4. Corré el alta del primer usuario (ver Guía-Nueva-Empresa-React.docx) y probá push + comprobante.
-5. Vercel: proyecto nuevo, dominios y variables según la guía.`);
+5. Despliegue: Workers para las empresas (Vercel para las pruebas), dominios según la guía.
+   El fallback de rutas de React en Workers se configura con
+   assets.not_found_handling = "single-page-application". NO agregues public/_redirects:
+   Cloudflare rechaza el deploy con "Infinite loop detected in this rule". Las cabeceras
+   de seguridad y de caché sí se leen de public/_headers.`);
 }
 
 // Lee un campo de public/config.js sin ejecutar el archivo.
