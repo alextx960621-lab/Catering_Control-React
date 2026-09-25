@@ -17,7 +17,7 @@ function itemValueOf(client, key, plans) {
 
 // "Foto" de cómo quedó el día (se guarda en db_dispatch_snapshots)
 export function buildDaySnapshot({ date, dayInfo, clients, clientIds, drivers, routes, plans, settings }) {
-  const activeClients = clientIds ? clients.filter((c) => clientIds.includes(c.id)) : clients.filter((c) => dispatchStatus(c, date, dayInfo, false) === 'Activo');
+  const activeClients = clientIds ? clients.filter((c) => clientIds.includes(c.id)) : clients.filter((c) => dispatchStatus(c, date, dayInfo) === 'Activo');
   const menuCols = menuItemsList(settings);
   const rows = activeClients.map((c) => {
     const rid = effectiveRouteId(c, date);
@@ -58,7 +58,7 @@ export function planDayClose({ date, days, clients, drivers, routes, plans, sett
     return m?.status === 'no_entregado' && m?.fault === 'personal';
   };
 
-  const activeClients = clients.filter((c) => dispatchStatus(c, date, dayInfo, false) === 'Activo');
+  const activeClients = clients.filter((c) => dispatchStatus(c, date, dayInfo) === 'Activo');
   const processedIds = activeClients.map((c) => c.id);
   const chargedClients = activeClients.filter((c) => !isStaffFault(c));
   const chargedIds = chargedClients.map((c) => c.id);

@@ -67,7 +67,7 @@ export default function DeliveryPage({ user }) {
   function listForRoutes(routeIds) {
     const ids = Array.isArray(routeIds) ? routeIds : [routeIds];
     return clients
-      .filter((c) => ids.includes(effectiveRouteId(c, date)) && dispatchStatus(c, date, dayInfo, false) === 'Activo')
+      .filter((c) => ids.includes(effectiveRouteId(c, date)) && dispatchStatus(c, date, dayInfo) === 'Activo')
       .sort((a, b) => (n(effectiveOrder(a, date)) || 9999) - (n(effectiveOrder(b, date)) || 9999) || a.name.localeCompare(b.name));
   }
 

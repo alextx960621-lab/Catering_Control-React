@@ -66,7 +66,7 @@ export async function findInactiveClientsToDelete(clients, days, refDate, rows) 
   const dayInfo = days?.[refDate] || { laborable: true };
   const toDelete = [];
   (clients || []).forEach((c) => {
-    if (dispatchStatus(c, refDate, dayInfo, false) !== 'Retorno pendiente') return;
+    if (dispatchStatus(c, refDate, dayInfo) !== 'Retorno pendiente') return;
     const lastActivity = lastDeliveryByClient[c.id] || c.startDate || '';
     if (!lastActivity) return; // sin ninguna fecha de referencia -> no tocar, por seguridad
     const d = daysSince(lastActivity, refDate);

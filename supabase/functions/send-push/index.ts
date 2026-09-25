@@ -147,6 +147,14 @@ Deno.serve(async (req) => {
       return json({ error: 'No tenés permiso para enviar notificaciones.' }, 403);
     }
 
+    // Avisos manuales = función Premium. El candado vive en SQL (plan_blocks_page) para que
+    // no dependa de que el panel muestre o no el botón.
+    if (session.role !== 'superadmin') {
+      const { data: blockedByPlan, error: blockedErr } = await admin.rpc('plan_blocks_page', { p_page: 'manualPush' });
+      if (blockedErr) return json({ error: blockedErr.message }, 500);
+      if (blockedByPlan) return json({ error: 'Las notificaciones manuales son una función del plan Premium.' }, 403);
+    }
+
     sendToAllSubscribed = !!allSubscribed;
     if (!sendToAllSubscribed) {
       targets = clientIds.map((id: string) => ({ client_id: id }));

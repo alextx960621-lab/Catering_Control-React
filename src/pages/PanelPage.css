@@ -198,7 +198,15 @@
   }
   .panel-shell .aside-title { padding: 0; flex: 0 1 auto; min-width: 0; }
   .panel-shell nav { display: none; width: 100%; flex-direction: column; padding: 12px 0 4px; border-top: 1px solid var(--panel-line); margin-top: 8px; }
-  .panel-shell nav.open { display: flex; }
+  /* Con el tamaño de letra grande del teléfono, la lista de pantallas mide más que la… */
+  /* pantalla. Como el aside está en el flujo de la página, sin scroll propio el único… */
+  /* scroll que existía era el de la página de atrás: había que bajar todo el contenido… */
+  /* para que apareciera Configuración al final de la lista. Con esto la lista se mueve sola. */
+  .panel-shell nav.open {
+    display: flex;
+    max-height: 70vh; max-height: 70dvh; overflow-y: auto;
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding-bottom: 6px;
+  }
   .panel-shell .aside-bottom { margin: 0; padding: 0; border-top: 0; flex: 1 1 100%; }
   .panel-shell .summary-grid { grid-template-columns: repeat(2, 1fr); }
 }

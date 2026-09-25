@@ -335,9 +335,11 @@
       "audit": "Auditoria",
       "metrics": "Métricas",
       "weeklySchedule": "Horário semanal (Clientes)",
-      "returnDate": "Reativação automática por data",
       "specialDietPrint": "Exportar dietas especiais",
-      "clientPortal": "Portal do cliente"
+      "clientPortal": "Portal do cliente",
+      "delivery": "Entrega (marcar saídas)",
+      "autoReminder": "Lembrete automático",
+      "manualPush": "Notificação manual"
     },
     "presence": {
       "title": "Conectados agora",

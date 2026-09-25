@@ -109,7 +109,7 @@ export default function MetricsPage({ user }) {
       const dayInfo = days[date] || {};
       for (const r of routes) {
         if (routeFilter && r.id !== routeFilter) continue;
-        const fullList = clients.filter((c) => effectiveRouteId(c, date) === r.id && dispatchStatus(c, date, dayInfo, false) === 'Activo');
+        const fullList = clients.filter((c) => effectiveRouteId(c, date) === r.id && dispatchStatus(c, date, dayInfo) === 'Activo');
         if (!fullList.length) continue;
         const list = driverFilter ? fullList.filter((c) => effectiveDriverId(c, date, drivers) === driverFilter) : fullList;
         if (!list.length) continue;

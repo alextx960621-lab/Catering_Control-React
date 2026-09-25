@@ -311,7 +311,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
   const q = search.toLowerCase();
   const list = scope
     .filter((c) => !routeFilter || effectiveRouteId(c, currentDate) === routeFilter)
-    .filter((c) => !q || [c.name, c.carnet, ...(c.addresses || []).map((a) => a.address), c.phone1, c.phone2, routeName(effectiveRouteId(c, currentDate)), planName(c.planId), driverName(c.driverId), dispatchStatus(c, currentDate, dayInfo, false), c.specialDiet, c.specialDietSnacks].join(' ').toLowerCase().includes(q));
+    .filter((c) => !q || [c.name, c.carnet, ...(c.addresses || []).map((a) => a.address), c.phone1, c.phone2, routeName(effectiveRouteId(c, currentDate)), planName(c.planId), driverName(c.driverId), dispatchStatus(c, currentDate, dayInfo), c.specialDiet, c.specialDietSnacks].join(' ').toLowerCase().includes(q));
 
   function openEdit(c) {
     setEditing(c || {});
@@ -324,7 +324,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
 
   // Mismo mecanismo que en Día de trabajo, pero aplicado sobre el formulario sin guardar todavía
   function askOrderConflict({ index, addressId, value, routeId, prevValue }) {
-    const conflict = clients.some((x) => x.id !== editing?.id && dispatchStatus(x, currentDate, dayInfo, false) === 'Activo'
+    const conflict = clients.some((x) => x.id !== editing?.id && dispatchStatus(x, currentDate, dayInfo) === 'Activo'
       && effectiveRouteId(x, currentDate) === routeId && String(effectiveOrder(x, currentDate)) === value);
     if (conflict) setOrderConflict({ index, addressId, value, routeId, prevValue });
   }
@@ -394,7 +394,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
   }
 
   function togglePause(c) {
-    const current = dispatchStatus(c, currentDate, dayInfo, false);
+    const current = dispatchStatus(c, currentDate, dayInfo);
     // Al reactivar hay que limpiar TAMBIÉN pauseDates (no solo pauseStart): si el cliente había…
     saveClients([{ ...c, status: current === 'Pausado' ? 'Activo' : 'Pausado', pauseStart: current === 'Pausado' ? '' : currentDate, pauseDates: current === 'Pausado' ? [] : (c.pauseDates || []) }]);
     showNotice(current === 'Pausado' ? t('panel.clients.clientActivated') : t('panel.clients.clientPaused'));
@@ -458,14 +458,14 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     { key: 'phone1', label: t('panel.common.phone'), sortValue: (c) => c.phone1, render: (c) => { const link = clientWaLink(c.phone1); return link ? <a href={link} target="_blank" rel="noopener" title={t('panel.clients.openWhatsappChat')}>{c.phone1}</a> : (c.phone1 || '—'); } },
     { key: 'plan', label: t('panel.common.plan'), sortValue: (c) => planName(c.planId), render: (c) => planName(c.planId) },
     { key: 'driver', label: t('panel.common.driver'), sortValue: (c) => driverName(c.driverId), render: (c) => driverName(c.driverId) },
-    { key: 'status', label: t('panel.common.status'), sortValue: (c) => dispatchStatus(c, currentDate, dayInfo, false), render: (c) => <span className={`badge ${statusBadgeClass(dispatchStatus(c, currentDate, dayInfo, false))}`}>{dispatchStatus(c, currentDate, dayInfo, false)}</span> },
+    { key: 'status', label: t('panel.common.status'), sortValue: (c) => dispatchStatus(c, currentDate, dayInfo), render: (c) => <span className={`badge ${statusBadgeClass(dispatchStatus(c, currentDate, dayInfo))}`}>{dispatchStatus(c, currentDate, dayInfo)}</span> },
     { key: 'paidDays', label: t('panel.clients.paidDays'), sortValue: (c) => n(c.paidDays), render: (c) => n(c.paidDays) },
     { key: 'consumedDays', label: t('panel.clients.consumedDaysCol'), sortValue: (c) => n(c.consumedDays), render: (c) => n(c.consumedDays) },
     { key: 'specialDiet', label: t('panel.clients.specialDiet'), sortValue: (c) => c.specialDiet || '', render: (c) => c.specialDiet || '—' },
     { key: 'specialDietSnacks', label: t('panel.clients.specialDietSnacks'), sortValue: (c) => c.specialDietSnacks || '', render: (c) => c.specialDietSnacks || '—' },
     { key: 'id', label: t('panel.common.actions'), sortable: false, render: (c) => canEdit ? (
       <>
-        <button className={`icon-btn ${dispatchStatus(c, currentDate, dayInfo, false) === 'Pausado' ? 'success' : 'orange'}`} onClick={() => togglePause(c)}>{dispatchStatus(c, currentDate, dayInfo, false) === 'Pausado' ? t('panel.clients.activate') : t('panel.clients.pause')}</button>
+        <button className={`icon-btn ${dispatchStatus(c, currentDate, dayInfo) === 'Pausado' ? 'success' : 'orange'}`} onClick={() => togglePause(c)}>{dispatchStatus(c, currentDate, dayInfo) === 'Pausado' ? t('panel.clients.activate') : t('panel.clients.pause')}</button>
         <button className="icon-btn warning" onClick={() => openRenew(c, 'renew')}>{t('panel.clients.renew')}</button>
         <button className="icon-btn info" onClick={() => openEdit(c)}>{t('panel.common.edit')}</button>
         <button className="icon-btn delete" onClick={() => handleDelete(c)}>{t('panel.clients.remove')}</button>

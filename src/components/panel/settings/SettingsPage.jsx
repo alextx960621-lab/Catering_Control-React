@@ -10,9 +10,13 @@ import { useStaffPushSubscription } from '../../../hooks/useStaffPushSubscriptio
 import { dbGetAllAuditLog, dbGetAllDeliveryStatus, dbGetAllSnapshots, dbInsertAuditBulk, dbUpsertDeliveryRows, dbUpsertSnapshotsBulk } from '../../../services/db';
 import { setTheme as saveMyTheme } from '../../../services/userPrefs';
 import { fmtDate } from '../panelUtils';
+import { isPagePremiumLocked } from '../../../services/panelAuth';
 
+// Qué puede bloquear el Super Administrador por empresa. Las que no están acá no tienen…
+// relación con el plan (Día de trabajo, Clientes, Rutas, Configuración...).
 const PREMIUM_LOCKABLE_PAGES = [
-  'notes', 'payroll', 'inventory', 'audit', 'metrics', 'weeklySchedule', 'returnDate', 'specialDietPrint', 'clientPortal',
+  'clientPortal', 'delivery', 'notes', 'payroll', 'inventory', 'weeklySchedule', 'specialDietPrint',
+  'autoReminder', 'manualPush', 'metrics', 'audit',
 ];
 
 // Lista de zonas horarias para el selector de Configuración
@@ -276,7 +280,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
             <h3 style={{ marginTop: 10 }}>{t('settings.plan.menusTitle')}</h3>
             <div className="toggle-list-col">
               {PREMIUM_LOCKABLE_PAGES.map((key) => (
-                <label key={key}><input type="checkbox" checked={!!settings.premiumLockedPages?.[key]} onChange={(e) => togglePremiumPage(key, e.target.checked)} /> {t('settings.pages.' + key)}</label>
+                <label key={key}><input type="checkbox" checked={isPagePremiumLocked(key, settings.premiumLockedPages)} onChange={(e) => togglePremiumPage(key, e.target.checked)} /> {t('settings.pages.' + key)}</label>
               ))}
             </div>
           </div>

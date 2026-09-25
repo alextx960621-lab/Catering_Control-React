@@ -100,7 +100,7 @@ export function writeOrderValue(client, date, val) {
 export function shiftOrdersFrom(clients, routeId, date, fromValue, excludeId, dayInfo) {
   const updated = [];
   clients
-    .filter((x) => x.id !== excludeId && dispatchStatus(x, date, dayInfo, false) === 'Activo' && effectiveRouteId(x, date) === routeId)
+    .filter((x) => x.id !== excludeId && dispatchStatus(x, date, dayInfo) === 'Activo' && effectiveRouteId(x, date) === routeId)
     .forEach((x) => {
       const val = Number(effectiveOrder(x, date));
       if (!isNaN(val) && val >= fromValue) {
@@ -125,10 +125,10 @@ export function effectiveDriverId(client, date, drivers) {
   return client.driverId;
 }
 
-// Estado del pedido para ESE día. `premiumReturnDateLocked` refleja si la reactivación…
-export function dispatchStatus(client, date, dayInfo, premiumReturnDateLocked) {
+// Estado del pedido para ESE día.
+export function dispatchStatus(client, date, dayInfo) {
   if (!dayInfo?.laborable) return 'No laborable';
-  if (client.returnDate && date >= client.returnDate && !premiumReturnDateLocked) return 'Activo';
+  if (client.returnDate && date >= client.returnDate) return 'Activo';
   if (client.pauseStart && date >= client.pauseStart && (!client.returnDate || date < client.returnDate)) return 'Pausado';
   if (client.pauseDates?.includes(date)) return 'Pausado';
   // Sin días cargados (o ya todos consumidos) no hay servicio que dar: queda esperando

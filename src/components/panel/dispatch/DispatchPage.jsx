@@ -85,7 +85,7 @@ export default function DispatchPage({ user, onGoToClient }) {
   const rf = isDriver ? '' : routeFilter;
   const list = routeScoped
     .filter((c) => (!rf || effectiveRouteId(c, date) === rf) && (!q || [c.name, c.carnet, effectiveAddress(c, date), c.phone1, c.phone2, c.specialDiet, c.specialDietSnacks, effectiveNotes(c, date)].join(' ').toLowerCase().includes(q)))
-    .filter((c) => statusFilter === 'all' || dispatchStatus(c, date, dayInfo, false) === statusFilter)
+    .filter((c) => statusFilter === 'all' || dispatchStatus(c, date, dayInfo) === statusFilter)
     .sort((a, b) => {
       const oa = Number(effectiveOrder(a, date));
       const ob = Number(effectiveOrder(b, date));
@@ -95,8 +95,8 @@ export default function DispatchPage({ user, onGoToClient }) {
       return oa - ob;
     });
 
-  const activeOrders = useMemo(() => routeScoped.filter((c) => dispatchStatus(c, date, dayInfo, false) === 'Activo'), [routeScoped, date, dayInfo]);
-  const filteredActive = list.filter((c) => dispatchStatus(c, date, dayInfo, false) === 'Activo');
+  const activeOrders = useMemo(() => routeScoped.filter((c) => dispatchStatus(c, date, dayInfo) === 'Activo'), [routeScoped, date, dayInfo]);
+  const filteredActive = list.filter((c) => dispatchStatus(c, date, dayInfo) === 'Activo');
 
   function updateClient(id, mutate) {
     const client = clients.find((c) => c.id === id);
@@ -114,7 +114,7 @@ export default function DispatchPage({ user, onGoToClient }) {
       const trimmed = value.trim();
       if (trimmed !== '') {
         const routeId = effectiveRouteId(client, date);
-        const conflicts = clients.filter((x) => x.id !== client.id && dispatchStatus(x, date, dayInfo, false) === 'Activo' && effectiveRouteId(x, date) === routeId && String(effectiveOrder(x, date)) === trimmed);
+        const conflicts = clients.filter((x) => x.id !== client.id && dispatchStatus(x, date, dayInfo) === 'Activo' && effectiveRouteId(x, date) === routeId && String(effectiveOrder(x, date)) === trimmed);
         if (conflicts.length) {
           setOrderConflict({ client, value: trimmed, routeId, inputEl, prevValue: String(effectiveOrder(client, date) ?? '') });
           return;
@@ -319,7 +319,7 @@ export default function DispatchPage({ user, onGoToClient }) {
     if (!dayInfo.processed) { showNotice(t('panel.dispatch.dayNotProcessed'), true); return; }
     if (!confirm(t('panel.dispatch.unprocessDayConfirm', { date: fmtDate(date) }))) return;
     // Se revierte solo lo que se llegó a descontar: los "no entregados" por falla del personal nunca consumieron
-    const ids = dayInfo.chargedClientIds ?? dayInfo.processedClientIds ?? clients.filter((c) => dispatchStatus(c, date, dayInfo, false) === 'Activo').map((c) => c.id);
+    const ids = dayInfo.chargedClientIds ?? dayInfo.processedClientIds ?? clients.filter((c) => dispatchStatus(c, date, dayInfo) === 'Activo').map((c) => c.id);
     saveClients(clients.filter((c) => ids.includes(c.id)).map((c) => ({ ...c, consumedDays: Math.max(0, n(c.consumedDays) - 1) })));
     saveDays({ ...days, [date]: { ...dayInfo, processed: false, processedClientIds: [], chargedClientIds: [], payrollSnapshot: [] } });
     // Repone el inventario descontado automáticamente al procesar (quantity ya quedó guardado…
@@ -366,7 +366,7 @@ export default function DispatchPage({ user, onGoToClient }) {
 
   async function exportDiets() {
     if (dietsLocked) { showNotice(t('panel.dispatch.dietsPremiumNotice'), true); return; }
-    const activeClients = clients.filter((c) => dispatchStatus(c, date, dayInfo, false) === 'Activo');
+    const activeClients = clients.filter((c) => dispatchStatus(c, date, dayInfo) === 'Activo');
     if (!activeClients.length) { showNotice(t('panel.dispatch.noActiveClientsToday'), true); return; }
     const { Workbook } = await import('exceljs');
     const wb = new Workbook();
@@ -408,7 +408,7 @@ export default function DispatchPage({ user, onGoToClient }) {
   async function exportRouteOrder() {
     const routeIds = isDriver ? myRoutes : [routeFilter].filter(Boolean);
     if (!routeIds.length) { showNotice(t('panel.dispatch.selectRouteFirst'), true); return; }
-    let activeClients = clients.filter((c) => routeIds.includes(effectiveRouteId(c, date)) && dispatchStatus(c, date, dayInfo, false) === 'Activo');
+    let activeClients = clients.filter((c) => routeIds.includes(effectiveRouteId(c, date)) && dispatchStatus(c, date, dayInfo) === 'Activo');
     activeClients = [...activeClients].sort((a, b) => (n(effectiveOrder(a, date)) || 9999) - (n(effectiveOrder(b, date)) || 9999));
     if (!activeClients.length) { showNotice(t('panel.dispatch.noActiveClientsInRoute'), true); return; }
     const { Workbook } = await import('exceljs');
@@ -469,8 +469,8 @@ export default function DispatchPage({ user, onGoToClient }) {
     { key: 'specialDietSnacks', label: t('panel.dispatch.colSpecialDietSnacks'), sortValue: (c) => c.specialDietSnacks || '', render: (c) => c.specialDietSnacks || '—' },
     { key: 'career', label: t('panel.dispatch.colCareersDelivery'), sortValue: (c) => n(c.career || 1), render: (c) => n(c.career || 1) },
     { key: 'bags', label: t('panel.dispatch.colBags'), sortValue: (c) => n(c.bags), render: (c) => n(c.bags) },
-    { key: 'status', label: t('panel.common.status'), sortValue: (c) => dispatchStatus(c, date, dayInfo, false) || '', render: (c) => {
-      const current = dispatchStatus(c, date, dayInfo, false);
+    { key: 'status', label: t('panel.common.status'), sortValue: (c) => dispatchStatus(c, date, dayInfo) || '', render: (c) => {
+      const current = dispatchStatus(c, date, dayInfo);
       const pausedToday = c.pauseDates?.includes(date);
       const canToggle = current === 'Activo' || pausedToday;
       return (

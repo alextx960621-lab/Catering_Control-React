@@ -32,7 +32,7 @@ export default function PayrollPage({ user }) {
       if (!rec?.processed) return '';
       // Si el día tiene una foto congelada (payrollSnapshot), se usa esa — así editar un cliente…
       if (rec.payrollSnapshot) return rec.payrollSnapshot.filter((s) => s.driverId === d.id).reduce((a, s) => a + n(s.career), 0);
-      return clients.filter((c) => effectiveDriverId(c, date, drivers) === d.id && dispatchStatus(c, date, rec, false) === 'Activo').reduce((a, c) => a + n(c.career || 1), 0);
+      return clients.filter((c) => effectiveDriverId(c, date, drivers) === d.id && dispatchStatus(c, date, rec) === 'Activo').reduce((a, c) => a + n(c.career || 1), 0);
     });
   }
 

@@ -1,5 +1,19 @@
 -- Catering Control · instalación completa para una empresa nueva (un solo archivo).
 -- Pegarlo entero en el SQL Editor de Supabase; se puede volver a correr sin romper nada.
+-- Sirve igual para instalar de cero que para actualizar una base vieja: todo es
+-- create table if not exists / create or replace function / on conflict do nothing. Medido:
+-- 79 funciones, 26 sentencias de nivel superior que tocan tablas (habilitan RLS, crean buckets
+-- y semillas con "do nothing"), y UN solo bloque do$$ (repasa permisos, no escribe datos).
+-- No hay drop table, truncate ni delete de filas de la app: correrlo sobre una base con datos
+-- reales deja los datos intactos.
+-- Al actualizar una base existente, después hay que redesplegar las Edge Functions que cambiaron
+-- (hoy: send-push, porque llama a plan_blocks_page). Ver el detalle en CAMBIOS.md.
+-- Ojo con los datos de configuración: un valor explícito en premiumLockedPages manda sobre el
+-- default de código, así que en bases viejas con {"audit": true, "metrics": true} Métricas y
+-- Auditoría seguirían bloqueadas al bajar a Básico. Se quitan así (una sola vez, a mano):
+--   update db_personal set payload = jsonb_set(payload, '{premiumLockedPages}',
+--     (payload -> 'premiumLockedPages') - 'audit' - 'metrics')
+--     where id = 'settings' and payload -> 'premiumLockedPages' ?| array['audit','metrics'];
 set search_path = public, extensions;
 
 -- 1. Extensiones necesarias
@@ -187,6 +201,93 @@ end;
 $$;
 revoke all on function public._require_staff(text) from public;
 
+-- ---- Candado del plan Premium (lado servidor) -------------------------------------------
+-- Antes de esto, el plan solo se miraba en React: un cliente en Básico veía la pantalla de…
+-- bloqueo, pero sus datos salían igual llamando a la RPC (y un Premium vencido seguía…
+-- funcionando para siempre porque premiumUntil no lo leía nadie). Válido para todo el…
+-- panel, porque TODAS las escrituras pasan por _require_permission.
+--
+-- Qué páginas vienen bloqueadas de fábrica cuando la empresa no configuró nada. TIENE que…
+-- coincidir con PREMIUM_DEFAULT_LOCKED de src/services/panelAuth.js.
+create or replace function public._premium_default_locked(p_page text)
+returns boolean
+language sql
+immutable
+set search_path = public, extensions
+as $$
+  select p_page = any (array[
+    'notes', 'payroll', 'inventory', 'delivery', 'weeklySchedule', 'specialDietPrint',
+    'clientPortal', 'autoReminder', 'manualPush'
+  ]);
+$$;
+revoke all on function public._premium_default_locked(text) from public;
+
+-- Qué páginas pueden llegar a bloquearse por plan (la lista que ve el Super Administrador en…
+-- Configuración). Está acá en vez de repetida en cada función para que la migración sea corta.
+create or replace function public._premium_lockable_pages()
+returns text[]
+language sql
+immutable
+set search_path = public, extensions
+as $$
+  select array[
+    'notes', 'payroll', 'inventory', 'audit', 'metrics', 'delivery', 'weeklySchedule',
+    'specialDietPrint', 'clientPortal', 'autoReminder', 'manualPush'
+  ];
+$$;
+revoke all on function public._premium_lockable_pages() from public;
+
+-- Bloqueo por lock de páginas Premium: valor efectivo de cada página (si no está en la configuración…
+create or replace function public._premium_page_locked(p_settings jsonb, p_page text)
+returns boolean
+language sql
+immutable
+set search_path = public, extensions
+as $$
+  select coalesce(
+    (p_settings -> 'premiumLockedPages' ->> p_page)::boolean,
+    public._premium_default_locked(p_page)
+  );
+$$;
+revoke all on function public._premium_page_locked(jsonb, text) from public;
+
+-- La pregunta real: ¿esta empresa, HOY, tiene bloqueada esta pantalla?
+create or replace function public._plan_blocks(p_page text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_settings jsonb := coalesce((select payload from db_personal where id = 'settings'), '{}'::jsonb);
+  v_until text := nullif(coalesce((select payload ->> 'premiumUntil' from db_personal where id = 'settings'), ''), '');
+begin
+  if coalesce(v_settings ->> 'plan', 'basico') = 'premium' then
+    -- Premium sin fecha de vencimiento = no vence nunca
+    if v_until is null then return false; end if;
+    -- Una fecha mal escrita no puede dejar al cliente sin sus funciones: no bloquea
+    if v_until !~ '^\d{4}-\d{2}-\d{2}$' then return false; end if;
+    if v_until::date >= (now() at time zone public.get_company_timezone())::date then return false; end if;
+  end if;
+  return public._premium_page_locked(v_settings, p_page);
+end;
+$$;
+revoke all on function public._plan_blocks(text) from public;
+
+-- La misma respuesta para las Edge Functions, que entran con service_role y no tienen token.
+create or replace function public.plan_blocks_page(p_page text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, extensions
+as $$
+  select public._plan_blocks(p_page);
+$$;
+revoke all on function public.plan_blocks_page(text) from public;
+grant execute on function public.plan_blocks_page(text) to service_role;
+
 -- Igual que _require_staff, pero además exige permiso de EDICIÓN sobre p_page (mismo criterio que…
 create or replace function public._require_permission(p_token text, p_page text)
 returns table(subject_id text, subject_name text, role text)
@@ -217,6 +318,13 @@ begin
 
   if not coalesce(v_allowed, false) then
     raise exception 'Tu rol no tiene permiso para hacer esto.';
+  end if;
+
+  -- El rol manda primero; después manda el plan. Un admin de una empresa en Básico no puede…
+  -- escribir en una pantalla Premium. Super Administrador queda afuera: es el que configura…
+  -- el plan, y necesita poder tocar todo mientras arma la empresa.
+  if v_role <> 'superadmin' and public._plan_blocks(p_page) then
+    raise exception 'Esa función es del plan Premium y no está activa para esta empresa.';
   end if;
 
   return query select v_id, v_name, v_role;
@@ -364,7 +472,8 @@ set search_path = public, extensions
 as $$
   select jsonb_build_object(
     'plan', coalesce(payload->>'plan', 'basico'),
-    'clientPortalLocked', coalesce((payload->'premiumLockedPages'->>'clientPortal')::boolean, true)
+    'premiumUntil', coalesce(payload->>'premiumUntil', ''),
+    'clientPortalLocked', public._plan_blocks('clientPortal')
   )
   from db_personal
   where id = 'settings';
@@ -440,6 +549,11 @@ declare
 begin
   -- Un carnet o teléfono vacío (o ridículamente corto) NUNCA puede coincidir con nada: antes, un…
   if length(v_carnet) < 4 or length(v_phone) < 6 then
+    return;
+  end if;
+
+  -- El portal es Premium: sin plan no se crea sesión (esto antes solo se ocultaba en React).
+  if public._plan_blocks('clientPortal') then
     return;
   end if;
 
@@ -578,7 +692,11 @@ begin
       v_payload := jsonb_set(v_payload, '{staffUsers}', public._sanitize_staff_users(v_payload -> 'staffUsers', v_role));
     end if;
   elsif p_table_key = 'inventario' then
-    select payload into v_payload from db_inventario where id = 'main';
+    -- Inventario es Premium: en Básico la lectura sale vacía (no falla) para no romper la…
+    -- carga general del panel, que pide los tres bloques juntos.
+    if not public._plan_blocks('inventory') then
+      select payload into v_payload from db_inventario where id = 'main';
+    end if;
   else
     raise exception 'Tabla no permitida.';
   end if;
@@ -642,6 +760,7 @@ begin
       from db_personal r
       where r.id = any(p_ids) and r.id <> 'main';
   elsif p_table_key = 'inventario' then
+    if public._plan_blocks('inventory') then return; end if;
     return query select r.id, r.payload from db_inventario r where r.id = any(p_ids);
   else
     raise exception 'Tabla no permitida.';
@@ -665,7 +784,7 @@ declare
   v_u jsonb; v_o jsonb; v_hash text; v_old_hash text;
   v_changed_ids text[] := '{}';
   v_page text;
-  v_pages text[] := array['notes','payroll','inventory','audit','metrics','delivery','weeklySchedule','returnDate','specialDietPrint','clientPortal'];
+  v_pages text[] := public._premium_lockable_pages();
 begin
   select s.role into v_role from public._staff_session(p_token) s;
 
@@ -864,6 +983,7 @@ declare v_role text;
 begin
   select s.role into v_role from public._staff_session(p_token) s;
   if not public._staff_can_view(v_role, 'notes') then return; end if;
+  if public._plan_blocks('notes') then return; end if;
   return query select r.id, r.payload from db_notas_rows r;
 end; $$;
 revoke all on function public.staff_get_note_rows(text) from public;
@@ -979,7 +1099,13 @@ grant execute on function public.staff_upsert_snapshot(text, date, jsonb) to ano
 create or replace function public.staff_get_snapshot(p_token text, p_date date)
 returns table(date date, payload jsonb, created_at timestamptz)
 language plpgsql security definer set search_path = public, extensions
-as $$ begin perform public._require_staff(p_token); return query select s.date, s.payload, s.created_at from db_dispatch_snapshots s where s.date = p_date; end; $$;
+as $$
+declare v_hide boolean := public._plan_blocks('payroll');
+begin
+  perform public._require_staff(p_token);
+  return query select s.date, case when v_hide then s.payload - 'payrollSnapshot' else s.payload end, s.created_at
+    from db_dispatch_snapshots s where s.date = p_date;
+end; $$;
 revoke all on function public.staff_get_snapshot(text, date) from public;
 grant execute on function public.staff_get_snapshot(text, date) to anon, authenticated;
 
@@ -994,12 +1120,13 @@ create or replace function public.staff_get_all_snapshots(p_token text, p_since 
 returns table(date date, payload jsonb)
 language plpgsql security definer set search_path = public, extensions
 as $$
+declare v_hide boolean := public._plan_blocks('payroll');
 begin
   perform public._require_staff(p_token);
   if p_since is null then
-    return query select s.date, s.payload from db_dispatch_snapshots s;
+    return query select s.date, case when v_hide then s.payload - 'payrollSnapshot' else s.payload end from db_dispatch_snapshots s;
   else
-    return query select s.date, s.payload from db_dispatch_snapshots s where s.date >= p_since;
+    return query select s.date, case when v_hide then s.payload - 'payrollSnapshot' else s.payload end from db_dispatch_snapshots s where s.date >= p_since;
   end if;
 end; $$;
 revoke all on function public.staff_get_all_snapshots(text, date) from public;
@@ -1028,7 +1155,12 @@ grant execute on function public.staff_upsert_snapshots_bulk(text, jsonb) to ano
 create or replace function public.staff_get_delivery_rows(p_token text, p_date date)
 returns table(id text, client_id text, payload jsonb)
 language plpgsql security definer set search_path = public, extensions
-as $$ begin perform public._require_staff(p_token); return query select r.id, r.client_id, r.payload from db_delivery_status r where r.date = p_date; end; $$;
+as $$
+begin
+  perform public._require_staff(p_token);
+  if public._plan_blocks('delivery') then return; end if;
+  return query select r.id, r.client_id, r.payload from db_delivery_status r where r.date = p_date;
+end; $$;
 revoke all on function public.staff_get_delivery_rows(text, date) from public;
 grant execute on function public.staff_get_delivery_rows(text, date) to anon, authenticated;
 
@@ -1104,6 +1236,7 @@ language plpgsql security definer set search_path = public, extensions
 as $$
 begin
   perform public._require_staff(p_token);
+  if public._plan_blocks('delivery') then return; end if;
   if p_since is null then
     return query select r.date, r.client_id, r.payload from db_delivery_status r;
   else
@@ -1999,6 +2132,12 @@ declare
   v_note_due_date text;
   v_recent int;
 begin
+  -- El portal es Premium: sin plan tampoco se deja crear la cuenta.
+  if public._plan_blocks('clientPortal') then
+    return query select null::text, null::text, 0, null::text,
+      'El portal de clientes es una función del plan Premium.';
+    return;
+  end if;
   -- Freno global contra "barridos" de carnets (adivinar quién ya es cliente)
   select * into v_global from public.db_client_login_attempts where carnet = '__signup_probe__';
   if found and v_global.locked_until is not null and v_global.locked_until > now() then
@@ -2344,6 +2483,7 @@ declare
   v_secret text := coalesce(p_secret, (select valor from public.db_secretos_internos where clave = 'cron_secret'));
 begin
   if not (v_cfg ->> 'enabled')::boolean then return 'desactivado'; end if;
+  if public._plan_blocks('autoReminder') then return 'plan basico'; end if;
   if not (v_cfg -> 'days') @> to_jsonb(extract(dow from v_local)::int) then return 'hoy no toca'; end if;
 
   v_minutes_since := extract(epoch from (v_local::time - (v_cfg ->> 'time')::time)) / 60;
@@ -2483,20 +2623,6 @@ begin
 end;
 $$;
 revoke all on function public._staff_can_view(text, text) from public;
-
--- Bloqueo por lock de páginas Premium: valor efectivo de cada página (si no está en la configuración…
-create or replace function public._premium_page_locked(p_settings jsonb, p_page text)
-returns boolean
-language sql
-immutable
-set search_path = public, extensions
-as $$
-  select coalesce(
-    (p_settings -> 'premiumLockedPages' ->> p_page)::boolean,
-    p_page <> 'delivery'
-  );
-$$;
-revoke all on function public._premium_page_locked(jsonb, text) from public;
 
 -- Sesión de staff: dura 7 días (deslizantes) y la sesión "de arranque"
 revoke all on function public._staff_session(text) from public;
@@ -2895,3 +3021,31 @@ end;
 $$;
 revoke all on function public.staff_get_ratings(text) from public;
 grant execute on function public.staff_get_ratings(text) to anon, authenticated;
+
+-- ============================================================================
+-- 24. Las funciones internas no se llaman desde afuera
+-- ============================================================================
+-- Cualquier función cuyo nombre empieza con "_" es interna: la llaman otras funciones
+-- SECURITY DEFINER o una Edge Function con la clave de servicio. Supabase las crea ya
+-- ejecutables por `anon` y `authenticated` (son los default privileges de la plataforma),
+-- así que `revoke ... from public` solo no alcanza: hay que nombrar esos dos roles. Sin
+-- esto, alguien sin token puede preguntar `_plan_blocks('notes')` y averiguar el plan de
+-- su empresa. Es un bucle a propósito: cualquier "_" nueva queda cubierta sola.
+-- El listado final son funciones sin token que solo dispara el cron (`run_push_reminder`: sin
+-- esto, un anónimo podría provocar el aviso del día) o una Edge Function con clave de servicio.
+do $$
+declare r record;
+begin
+  for r in
+    select p.oid
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and (p.proname like '\_%' escape '\'
+           or p.proname in ('plan_blocks_page', 'run_push_reminder', 'get_push_reminder_config',
+                            'get_push_reminder_targets', 'get_clients_for_push_reminder',
+                            'get_company_timezone', 'get_day_cutoff_hour'))
+  loop
+    execute format('revoke all on function %s from public, anon, authenticated', r.oid::regprocedure);
+    execute format('grant execute on function %s to service_role', r.oid::regprocedure);
+  end loop;
+end $$;

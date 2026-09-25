@@ -31,17 +31,25 @@ export const NAV_PERMS = {
 };
 
 // Qué páginas puede desbloquear el plan Premium, y si por defecto (sin configurar nada)…
+// Las que dicen true nacen bloqueadas (solo Premium). TIENE que coincidir con el arreglo…
+// default_locked de _premium_page_locked() en install/supabase-setup-final.sql.
 export const PREMIUM_DEFAULT_LOCKED = {
   notes: true,
   payroll: true,
   inventory: true,
-  audit: true,
-  metrics: true,
-  delivery: false,
+  // Despacho es Premium: sin él, el driver no tiene pantalla propia donde marcar la entrega.
+  delivery: true,
   weeklySchedule: true,
-  returnDate: true,
   specialDietPrint: true,
   clientPortal: true,
+  // "publicidad" es la ficha de la empresa (logo, WhatsApp, QR). Lo que se cobra por separado…
+  // son los avisos: el recordatorio automático y el envío manual de notificaciones push.
+  autoReminder: true,
+  manualPush: true,
+  // Métricas y Auditoría se regalan en Básico: son lo que convence al dueño de confiarle sus…
+  // datos a la app, y Auditoría es también nuestro respaldo cuando alguien reclama un borrado.
+  metrics: false,
+  audit: false,
 };
 
 export function isBuiltinRole(role) {

@@ -335,9 +335,11 @@
       "audit": "Audit",
       "metrics": "Metrics",
       "weeklySchedule": "Weekly schedule (Clients)",
-      "returnDate": "Automatic reactivation by date",
       "specialDietPrint": "Export special diets",
-      "clientPortal": "Client portal"
+      "clientPortal": "Client portal",
+      "delivery": "Dispatch (mark drop-offs)",
+      "autoReminder": "Automatic reminder",
+      "manualPush": "Manual notification"
     },
     "presence": {
       "title": "Connected now",

@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useOperations } from '../../../context/OperationsContext';
 import { n } from '../../../services/planHelpers';
+import { isPagePremiumLocked } from '../../../services/panelAuth';
 import { dbSendManualPush } from '../../../services/supabaseClient';
 import ImageField from '../ImageField';
+import PremiumPageLock from '../PremiumPageLock';
 import ReminderCard from './ReminderCard';
 
 const FILTERS = [
@@ -25,6 +27,9 @@ export default function PublicidadPage() {
 
   const activeClients = useMemo(() => (clients || []).filter((c) => c.status !== 'Retorno pendiente'), [clients]);
   const isAllSubscribed = filter === 'subscribedAll';
+  // Los datos de la empresa (logo, WhatsApp, QR) son Básicos; los avisos —automáticos y…
+  // manuales— son Premium. Criterio igual al resto del panel.
+  const locked = (page) => isPagePremiumLocked(page, settings.premiumLockedPages) && settings.plan !== 'premium';
 
   const targetClients = useMemo(() => {
     if (filter === 'tenure') return activeClients.filter((c) => n(c.consumedDays) > n(tenureDays));
@@ -113,9 +118,16 @@ export default function PublicidadPage() {
           </label>
         </div>
 
-        <ReminderCard />
+        {locked('autoReminder')
+          ? <PremiumPageLock featureLabel={t('panel.reminder.title')} premiumWhatsapp={settings.premiumWhatsapp} />
+          : <ReminderCard />}
       </div>
 
+      {locked('manualPush') ? (
+        <div style={{ marginTop: 18 }}>
+          <PremiumPageLock featureLabel={t('panel.publicidad.manualPushTitle')} premiumWhatsapp={settings.premiumWhatsapp} />
+        </div>
+      ) : (
       <div className="card card-pad stack" style={{ marginTop: 18 }}>
         <h3>{t('panel.publicidad.manualPushTitle')}</h3>
         <label>{t('panel.publicidad.titleLabel')}<input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('panel.publicidad.titlePlaceholder')} /></label>
@@ -146,6 +158,7 @@ export default function PublicidadPage() {
           {sending ? t('panel.publicidad.sending') : t('panel.publicidad.sendNotification')}
         </button>
       </div>
+      )}
     </section>
   );
 }
