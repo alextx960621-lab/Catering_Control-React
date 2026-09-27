@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test": "node --test tests/",
     "sync-edge": "node scripts/sync-edge-shared.mjs",
     "nueva-empresa": "node scripts/nueva-empresa.mjs",
     "prebuild": "node scripts/sync-edge-shared.mjs"

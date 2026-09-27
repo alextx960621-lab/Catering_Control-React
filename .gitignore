@@ -1,6 +1,8 @@
 node_modules/
+.sincronizado.json
 dist/
 *.local.json
 *.rar
 *.zip
 .vercel
+supabase/.temp/

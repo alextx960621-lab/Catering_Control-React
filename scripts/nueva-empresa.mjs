@@ -18,7 +18,7 @@ import { generateKeyPairSync } from 'node:crypto';
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // Hay que actualizarla cuando esta carpeta se reemplace por un ZIP de otra versión.
-const VERSION_CODIGO = 'v71';
+const VERSION_CODIGO = 'v72';
 const GENERICA = new Set(['catering', 'comida', 'gourmet', 'food', 'y', '&', 'de', 'la', 'el', 'los', 'las']);
 const MONEDAS = { BOB: 'es', Bs: 'es', PYG: 'es', Gs: 'es', ARS: 'es', CLP: 'es', COP: 'es', PEN: 'es', MXN: 'es', DOP: 'es', CRC: 'es', GTQ: 'es', UYU: 'es', USD: 'en', EUR: 'en' };
 
@@ -114,8 +114,16 @@ function leerRegistro(archivo) {
 function init(opts) {
   const ref = exigir(opts.ref, 'ref', /^[a-z0-9]{20}$/, 'es el ID de 20 caracteres de la URL del proyecto en Supabase.');
   const nombre = exigir(opts.empresa, 'empresa', null, 'nombre tal como se mostrará en la app.');
+  // Sin --out se escribe SOBRE el maestro: `destinoConfig`, el SQL y `carpeta: basename(RAIZ)`
+  // caerían encima de la copia de pruebas. Se permite solo si se lo pide explícitamente.
+  if (!opts.out && !opts.pruebas) {
+    throw new Error('Falta --out "<carpeta de la empresa>": sin esa bandera el script escribiría sobre la carpeta del maestro. Usá --pruebas solo si querés regenerar la copia de pruebas.');
+  }
   const salida = opts.out ? resolve(opts.out) : RAIZ;
-  const destinoConfig = opts.out ? join(salida, 'config.js') : join(RAIZ, 'public', 'config.js');
+  // Con --out el destino es el árbol de la empresa: config.js y manifest.json viven en public/,
+  // no en la raíz (escribirlos en la raíz deja la app sin branding y nadie se entera).
+  const destinoConfig = opts.out ? join(salida, 'public', 'config.js') : join(RAIZ, 'public', 'config.js');
+  if (opts.out) mkdirSync(join(salida, 'public'), { recursive: true });
   const destSqlDir = join(salida, 'install');
   mkdirSync(destSqlDir, { recursive: true });
 
@@ -129,41 +137,65 @@ function init(opts) {
   }
   const reutiliza = registro.some((e) => e.storagePrefix === prefix && e.empresa === nombre);
 
-  const moneda = (opts.moneda || 'BOB').toUpperCase();
-  const idioma = exigir(opts.idioma || MONEDAS[moneda] || 'es', 'idioma', /^(es|en|pt)$/, 'es, en o pt.');
-  const whatsapp = exigir(opts.whatsapp, 'whatsapp', /^[0-9]{8,15}$/, 'sólo dígitos, con código de país.');
+  // Si la empresa YA tiene su config (el dueño la llenó a mano o se corre init por segunda vez),
+  // esa es la base: init completa lo que falta y no borra lo que no se pasó por bandera.
+  const yaExiste = existsSync(destinoConfig);
+  const baseConfig = yaExiste ? destinoConfig : join(RAIZ, 'public', 'config.js');
+  const textoConfig = readFileSync(baseConfig, 'utf8');
+  const enConfig = (clave) => (textoConfig.match(new RegExp(`^\\s*${clave}:\\s*'([^']*)'`, 'm')) || [])[1] || '';
+
+  const moneda = (opts.moneda || (yaExiste ? enConfig('currency') : '') || 'BOB').toUpperCase();
+  const idioma = exigir(opts.idioma || (yaExiste ? enConfig('defaultLanguage') : '') || MONEDAS[moneda] || 'es', 'idioma', /^(es|en|pt)$/, 'es, en o pt.');
+  // El WhatsApp ya puede estar cargado a mano en el config: exigirlo otra vez sería obligarlo a
+  // escribir un número de cliente en la línea de comandos.
+  const whatsapp = exigir(opts.whatsapp || enConfig('whatsappNumber'), 'whatsapp', /^[0-9]{8,15}$/, 'sólo dígitos, con código de país (o dejalo cargado en public/config.js).');
   const instagram = opts.instagram || '';
   // El link de la bio suele traer ?stkn=..., que no forma parte del @usuario.
   const handle = opts.handle || (instagram ? `@${instagram.split(/[?#]/)[0].split('/').filter(Boolean).pop()}` : '');
   const logo = opts.logo || 'icons/icon-512.png';
   const publishable = opts['publishable-key'] || '';
 
-  let config = readFileSync(join(RAIZ, 'public', 'config.js'), 'utf8');
-  for (const [clave, valor] of [
-    ['companyName', nombre], ['logoUrl', logo], ['whatsappNumber', whatsapp],
-    ['instagramUrl', instagram], ['instagramHandle', handle], ['storagePrefix', prefix],
-    ['defaultLanguage', idioma], ['currency', moneda],
-    ['supabaseUrl', `https://${ref}.supabase.co`], ['supabaseKey', publishable],
-  ]) config = campo(config, clave, valor, 'public/config.js');
+  let config = textoConfig;
+
+  for (const [clave, valor, bandera] of [
+    ['companyName', nombre, 'empresa'], ['logoUrl', logo, 'logo'], ['whatsappNumber', whatsapp, 'whatsapp'],
+    ['instagramUrl', instagram, 'instagram'], ['instagramHandle', handle, 'handle'], ['storagePrefix', prefix, 'storage-prefix'],
+    ['defaultLanguage', idioma, 'idioma'], ['currency', moneda, 'moneda'],
+    ['supabaseUrl', `https://${ref}.supabase.co`, 'ref'], ['supabaseKey', publishable, 'publishable-key'],
+  ]) {
+    if (yaExiste && !opts[bandera]) continue; // bandera ausente + valor ya cargado: no se toca
+    config = campo(config, clave, valor, 'public/config.js');
+  }
 
   let vap;
   if (opts['vapid-public'] && opts['vapid-private']) vap = { publica: opts['vapid-public'], privada: opts['vapid-private'], reutilizada: true };
-  else vap = vapid();
+  else if ((config.match(/vapidPublicKey:\s*'([^']+)'/) || [])[1]) {
+    // Reusar el par existente: cambiar la clave pública VAPID INVALIDA todas las suscripciones de
+    // push ya dadas de alta en esa empresa (el push se suscribe contra clave pública + origen).
+    vap = { publica: config.match(/vapidPublicKey:\s*'([^']+)'/)[1], reutilizada: true, yaEnConfig: true };
+  } else vap = vapid();
   config = campo(config, 'vapidPublicKey', vap.publica, 'public/config.js');
   writeFileSync(destinoConfig, config);
 
   const plantillaManifest = join(RAIZ, 'public', 'manifest.json');
-  const destinoManifest = opts.out ? join(salida, 'manifest.json') : plantillaManifest;
+  const destinoManifest = opts.out ? join(salida, 'public', 'manifest.json') : plantillaManifest;
   const manifiesto = escribirManifest(readFileSync(plantillaManifest, 'utf8'), destinoManifest, nombre, idioma, opts.corto);
 
   const sqlOriginal = join(RAIZ, 'install', 'supabase-setup-final.sql');
   const crudo = readFileSync(sqlOriginal, 'utf8');
   const ocurrencias = crudo.split('<PROJECT_REF>').length - 1;
   if (!ocurrencias) throw new Error(`${sqlOriginal} no tiene <PROJECT_REF>: revisá el archivo antes de seguir.`);
-  const resuelto = crudo.replaceAll('<PROJECT_REF>', ref);
-  const sobrantes = resuelto.split('PROJECT_REF').length - 1;
+  const refResuelto = crudo.replaceAll('<PROJECT_REF>', ref);
+  const sobrantes = refResuelto.split('PROJECT_REF').length - 1;
   if (sobrantes) throw new Error(`Quedaron ${sobrantes} referencias a PROJECT_REF sin reemplazar en el SQL.`);
-  const sqlSalida = join(destSqlDir, `supabase-setup-${prefix.replace('catering-app-', '')}.sql`);
+  const sqlNombre = `supabase-setup-${prefix.replace('catering-app-', '')}.sql`;
+  // El snapshot tiene que reportar SU propio nombre en el marcador db_app_version (sección 23).
+  // Medido: sin este reemplazo las bases de los clientes decían "supabase-setup-final.sql" — el
+  // nombre del maestro copiado tal cual — y versiones.mjs armaba un inventario de versiones falso.
+  const AUTONOMBRE = `'setup', 'supabase-setup-final.sql'`;
+  if (!refResuelto.includes(AUTONOMBRE)) throw new Error(`${sqlOriginal} no tiene el literal ${AUTONOMBRE}: revisá la sección 23 (db_app_version) antes de seguir.`);
+  const resuelto = sqlNombre === 'supabase-setup-final.sql' ? refResuelto : refResuelto.replace(AUTONOMBRE, `'setup', '${sqlNombre}'`);
+  const sqlSalida = join(destSqlDir, sqlNombre);
   const previo = existsSync(sqlSalida) ? readFileSync(sqlSalida, 'utf8') : null;
   if (previo !== null && previo !== resuelto && !opts.force) {
     throw new Error(`${sqlSalida} ya existe con otro contenido. Usá --force para reemplazarlo.`);
@@ -188,8 +220,13 @@ function init(opts) {
   };
   const resto = registro.filter((e) => e.storagePrefix !== prefix);
   // El registro es uno solo y vive en el master, aunque la empresa se genere en otra carpeta.
+  // Se reescribe SOBRE el objeto existente para no tirar `esquemaVersion` ni `actualizado`
+  // (los lee versiones.mjs; perderlos dejaría el inventario de versiones sin referencia).
   const destinoRegistro = join(RAIZ, 'install', REGISTRO_NOMBRE);
-  writeFileSync(destinoRegistro, JSON.stringify({ empresas: [...resto, empresa].sort((a, b) => a.empresa.localeCompare(b.empresa)) }, null, 2));
+  const envoltorio = JSON.parse(readFileSync(destinoRegistro, 'utf8'));
+  envoltorio.empresas = [...resto, empresa].sort((a, b) => a.empresa.localeCompare(b.empresa));
+  envoltorio.actualizado = new Date().toISOString().slice(0, 10);
+  writeFileSync(destinoRegistro, JSON.stringify(envoltorio, null, 2));
 
   console.log(`\n== ${nombre} ==${reutiliza ? '  (ya estaba registrada: registro actualizado)' : ''}`);
   console.log(`  prefijo      ${prefix}`);
@@ -247,10 +284,14 @@ function lista() {
   console.log(`\n${registro.length} entrada(s).`);
 }
 
-const USO = `node scripts/nueva-empresa.mjs init --ref <project-ref> --empresa "Nombre" --whatsapp <dígitos con país> \\
+const USO = `node scripts/nueva-empresa.mjs init --ref <project-ref> --empresa "Nombre" [--whatsapp <dígitos con país>] \\
      [--instagram <url>] [--handle @usuario] [--logo icons/icon-512.png] [--moneda BOB] [--idioma es] \\
      [--corto "Catering Control"] [--publishable-key sb_publishable_...] \\
      [--vapid-public K --vapid-private K] [--out <dir>] [--pruebas] [--force]
+     --out es OBLIGATORIO para una empresa nueva (o --pruebas para regenerar la copia del maestro):
+     sin él el script escribiría sobre la carpeta master.
+     --out escribe en <dir>/public/config.js y <dir>/public/manifest.json y no pisa los valores
+     que ya estén cargados ahí; el VAPID existente se reusa (cambiarlo invalida el push suscripto).
 node scripts/nueva-empresa.mjs manifest [--corto "Rótulo del ícono PWA"]
 node scripts/nueva-empresa.mjs lista`;
 

@@ -1,9 +1,12 @@
 -- Catering Control · instalación completa para una empresa nueva (un solo archivo).
+-- version de esquema: 1.24   <-- única marca que edita el humano; debe coincidir con el literal del INSERT de db_app_version (sección 23).
 -- Pegarlo entero en el SQL Editor de Supabase; se puede volver a correr sin romper nada.
 -- Sirve igual para instalar de cero que para actualizar una base vieja: todo es
 -- create table if not exists / create or replace function / on conflict do nothing. Medido:
--- 79 funciones, 26 sentencias de nivel superior que tocan tablas (habilitan RLS, crean buckets
--- y semillas con "do nothing"), y UN solo bloque do$$ (repasa permisos, no escribe datos).
+-- 80 funciones (una sobrecarga), 28 sentencias de nivel superior que tocan tablas (habilitan RLS,
+-- crean buckets y semillas con "do nothing"), y UN solo bloque do$$ (repasa permisos, no escribe datos).
+-- La única excepción al "do nothing" es el registro de versión (sección 23): su "on conflict do update"
+-- escribe solo en db_app_version, una tabla propia que no es dato de la app.
 -- No hay drop table, truncate ni delete de filas de la app: correrlo sobre una base con datos
 -- reales deja los datos intactos.
 -- Al actualizar una base existente, después hay que redesplegar las Edge Functions que cambiaron
@@ -2514,9 +2517,17 @@ declare
   v_old text;
   v_url text;
   v_secret text;
+  v_actual text;
 begin
-  if exists (select 1 from cron.job where jobname = 'push-recordatorio') then
-    return;  -- ya instalado: no se pisa la URL ni el secreto que tenga
+  select command into v_actual from cron.job where jobname = 'push-recordatorio';
+  if v_actual is not null and v_actual not like '%<%>%' then
+    return;  -- ya instalado con una URL real: no se pisa la URL ni el secreto que tenga
+  end if;
+  -- Si el job existente quedó con el ref sin reemplazar (el placeholder de empresa nueva), el aviso
+  -- nunca pudo salir: se da de baja y se vuelve a programar con la URL de este archivo. Sin esto, una
+  -- base a la que primero le corrieron la plantilla del maestro queda rota para siempre.
+  if v_actual is not null then
+    perform cron.unschedule('push-recordatorio');
   end if;
 
   select command into v_old from cron.job where jobname = 'push-recordatorio-plan-diario';
@@ -2525,13 +2536,15 @@ begin
     v_secret := substring(v_old from '''x-cron-secret'', ''([^'']+)''');
     -- Si el secreto quedó como el placeholder sin reemplazar (<CRON_SECRET>), ese aviso nunca funcionó: se usa el secreto interno
     if v_secret is null or v_secret like '<%>' then v_secret := null; end if;
+    -- Lo mismo con la URL heredada: si trae el ref sin reemplazar se descarta y se usa la de este archivo
+    if v_url is not null and v_url like '%<%>%' then v_url := null; end if;
   end if;
 
   perform cron.schedule(
     'push-recordatorio',
     '* * * * *',
     case
-      when v_secret is not null then format('select public.run_push_reminder(%L, %L)', v_url, v_secret)
+      when v_secret is not null and v_url is not null then format('select public.run_push_reminder(%L, %L)', v_url, v_secret)
       else format('select public.run_push_reminder(%L)', coalesce(v_url, 'https://<PROJECT_REF>.functions.supabase.co/send-push'))
     end
   );
@@ -2791,11 +2804,20 @@ revoke all on function public._cerrar_dia_aplicar(jsonb) from public, anon, auth
 grant execute on function public._cerrar_dia_aplicar(jsonb) to service_role;
 
 -- Corre cada hora y solo llama a la función cuando en la empresa son las 22:00 (para cambiar la hora, edita el 22).
--- Empresa nueva: reemplaza <PROJECT_REF> (el "project ref" de Supabase) ANTES de correr esto. Si el job ya existe no se toca.
+-- Empresa nueva: reemplaza <PROJECT_REF> (el "project ref" de Supabase) ANTES de correr esto.
+-- Si el job ya existe con una URL real no se toca; si existe con el ref sin reemplazar se recrea,
+-- porque ese cierre de día nunca se iba a disparar.
 do $do$
+declare v_cmd text;
 begin
-  if not exists (select 1 from cron.job where jobname = 'cierre-automatico-dia') then
-    perform cron.schedule(
+  select command into v_cmd from cron.job where jobname = 'cierre-automatico-dia';
+  if v_cmd is not null and v_cmd not like '%<%>%' then
+    return;
+  end if;
+  if v_cmd is not null then
+    perform cron.unschedule('cierre-automatico-dia');
+  end if;
+  perform cron.schedule(
       'cierre-automatico-dia',
       '0 * * * *',
       $cron$
@@ -2808,7 +2830,6 @@ begin
       where extract(hour from now() at time zone public.get_company_timezone()) = 22;
       $cron$
     );
-  end if;
 end $do$;
 
 -- 21. Aviso push a editores/administradores/superadmin cuando un cliente escribe una nota
@@ -3021,6 +3042,47 @@ end;
 $$;
 revoke all on function public.staff_get_ratings(text) from public;
 grant execute on function public.staff_get_ratings(text) to anon, authenticated;
+
+-- ============================================================================
+-- 23. Registro de versión del esquema (db_app_version)
+-- ----------------------------------------------------------------------------
+-- Marca qué versión de este setup está instalada en cada base, para saber en qué
+-- versión está cada cliente y qué le falta. Vive en una tabla PROPIA porque la fila
+-- 'settings' de db_personal la sobreescribe POR COMPLETO el panel en cada guardado
+-- (rama 'personal' del guardado: payload = excluded.payload), así que ahí la marca
+-- desaparecería al primer guardado. Es lo único que escribe este bloque y no toca
+-- ninguna fila de datos de la app. El literal '1.24' debe coincidir con el del
+-- encabezado "-- version de esquema" al inicio del archivo.
+-- ============================================================================
+
+-- Tabla
+create table if not exists public.db_app_version (
+  id text primary key default 'main',
+  payload jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+-- RLS cerrado (el acceso va solo por la RPC _app_version / service_role), mismo patrón que db_ratings.
+alter table public.db_app_version enable row level security;
+drop policy if exists "no direct access app_version" on public.db_app_version;
+create policy "no direct access app_version" on public.db_app_version for all using (false) with check (false);
+
+-- Dejar sentada la versión de esquema recién instalada; la tabla es el registro, no datos de la app.
+insert into public.db_app_version (id, payload)
+  values ('main', jsonb_build_object('esquema', '1.24', 'setup', 'supabase-setup-final.sql'))
+  on conflict (id) do update set payload = excluded.payload, updated_at = now();
+
+-- Lectura del registro. SECURITY DEFINER porque la tabla está cerrada por RLS; el barrido de
+-- permisos de la sección 24 le quita EXECUTE a anon/authenticated y se lo deja a service_role.
+create or replace function public._app_version()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public, extensions
+as $$
+  select payload from public.db_app_version where id = 'main';
+$$;
 
 -- ============================================================================
 -- 24. Las funciones internas no se llaman desde afuera
