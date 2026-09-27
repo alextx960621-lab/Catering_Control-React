@@ -12,7 +12,7 @@ const MOVEMENT_LABELS = { entry: 'Ingreso', waste: 'Merma', delivery: 'Entrega p
 
 export default function InventoryPage({ user }) {
   const { t } = useTranslation();
-  const { inventory, settings, saveInventory, showNotice, loading } = useOperations();
+  const { inventory, settings, saveInventory, showNotice, loading, serverToday } = useOperations();
   const [editingItem, setEditingItem] = useState(null);
   const [editingLink, setEditingLink] = useState(null);
   const [movementModal, setMovementModal] = useState(null); // 'entry' | 'use' | 'waste'
@@ -91,7 +91,9 @@ export default function InventoryPage({ user }) {
       showNotice(t('panel.inventory.movementUpdated'));
       logAudit('Movimiento de inventario editado', item.name, item.id, { cantidad: signedQty });
     } else {
-      const movement = { id: uid('mov'), date: new Date().toISOString().slice(0, 10), inventoryId: item.id, type, quantity: signedQty, note: data.note || '' };
+      // serverToday, no new Date(): el "hoy" operativo sigue la hora de corte de la empresa.
+      // Con UTC-4 (Bolivia) fecha UTC-0 registra el movimiento en el día siguiente desde las 20:00.
+      const movement = { id: uid('mov'), date: serverToday, inventoryId: item.id, type, quantity: signedQty, note: data.note || '' };
       saveInventory({ ...inventory, items: inventory.items.map((i) => (i.id === item.id ? { ...i, stock: n(i.stock) + signedQty } : i)), movements: [movement, ...inventory.movements] });
       showNotice(t('panel.inventory.movementRegistered'));
       logAudit(`Inventario: ${MOVEMENT_LABELS[type]}`, item.name, item.id, { cantidad: signedQty });

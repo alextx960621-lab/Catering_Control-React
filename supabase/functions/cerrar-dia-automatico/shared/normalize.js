@@ -31,7 +31,7 @@ export function normalizeSettings(settings) {
   s.premiumWhatsapp ||= '';
   s.paymentQrUrl ||= '';
   const cutoff = Number(s.dayCutoffHour);
-  s.dayCutoffHour = s.dayCutoffHour !== '' && s.dayCutoffHour != null && Number.isInteger(cutoff) && cutoff >= 0 && cutoff <= 12 ? cutoff : 4;
+  s.dayCutoffHour = s.dayCutoffHour !== '' && s.dayCutoffHour != null && Number.isInteger(cutoff) && cutoff >= 0 && cutoff <= 23 ? cutoff : 4;
   return s;
 }
 

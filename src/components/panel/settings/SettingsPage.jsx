@@ -215,13 +215,13 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
           <div className="card card-pad stack">
             <h3>{t('settings.company.title')}</h3>
             <label>{t('settings.company.timezone')}
-              <select defaultValue={settings.timezone || 'America/La_Paz'} onChange={(e) => saveSettings({ ...settings, timezone: e.target.value }).then(() => syncToday())}>
+              <select value={settings.timezone || 'America/La_Paz'} onChange={(e) => saveSettings({ ...settings, timezone: e.target.value }).then(() => syncToday())}>
                 {timezoneOptions.map((tz) => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>)}
               </select>
             </label>
             <p className="muted" style={{ marginTop: -6 }}>{t('settings.company.timezoneHint')}</p>
             <label>{t('settings.company.cutoff')}
-              <select defaultValue={settings.dayCutoffHour ?? 4} onChange={(e) => saveSettings({ ...settings, dayCutoffHour: Number(e.target.value) }).then(() => syncToday())}>
+              <select value={settings.dayCutoffHour ?? 4} onChange={(e) => saveSettings({ ...settings, dayCutoffHour: Number(e.target.value) }).then(() => syncToday())}>
                 {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00{h === 0 ? t('settings.company.midnight') : ''}</option>)}
               </select>
             </label>
@@ -252,7 +252,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
             <h3>{t('settings.plan.title')}</h3>
             <p className="muted">{t('settings.plan.intro')}</p>
             <label>{t('settings.plan.whatsappLabel')}
-              <input defaultValue={settings.premiumWhatsapp} placeholder={t('settings.plan.whatsappPlaceholder')} onBlur={(e) => saveSettings({ ...settings, premiumWhatsapp: e.target.value.replace(/\D/g, '') })} />
+              <input key={`premiumWhatsapp-${settings.premiumWhatsapp ?? ''}`} defaultValue={settings.premiumWhatsapp} placeholder={t('settings.plan.whatsappPlaceholder')} onBlur={(e) => saveSettings({ ...settings, premiumWhatsapp: e.target.value.replace(/\D/g, '') })} />
             </label>
             <div className="plan-options">
               <button

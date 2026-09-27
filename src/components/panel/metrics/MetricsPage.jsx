@@ -284,7 +284,7 @@ export default function MetricsPage({ user }) {
         <label className="field">{t('panel.common.route')}<select id="metrics-route-filter" name="metrics-route-filter" value={routeFilter} onChange={(e) => setRouteFilter(e.target.value)}><option value="">{t('panel.metrics.allRoutes')}</option>{routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
         <label className="field">{t('panel.roles.driver')}<select id="metrics-driver-filter" name="metrics-driver-filter" value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)}><option value="">{t('panel.metrics.allDrivers')}</option>{drivers.map((d) => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}</select></label>
         <label className="field" style={{ width: 150 }}>{t('panel.metrics.costPerKmCurrency', { symbol: currencySymbol })}
-          {canSetCost ? <input type="number" min="0" step="0.01" defaultValue={n(settings.costPerKm)} onBlur={(e) => saveSettings({ ...settings, costPerKm: n(e.target.value) })} /> : <div className="muted">{n(settings.costPerKm).toFixed(2)}</div>}
+          {canSetCost ? <input type="number" min="0" step="0.01" key={`costPerKm-${settings.costPerKm ?? ''}`} defaultValue={n(settings.costPerKm)} onBlur={(e) => saveSettings({ ...settings, costPerKm: n(e.target.value) })} /> : <div className="muted">{n(settings.costPerKm).toFixed(2)}</div>}
         </label>
         <span className="spacer" />
         <button className="excel" onClick={exportMetrics} disabled={!metrics}>{t('panel.metrics.exportExcel')}</button>

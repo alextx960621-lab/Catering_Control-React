@@ -90,10 +90,14 @@ export default function PublicidadPage() {
             maxDim={300}
             hint={t('panel.publicidad.logoHint')}
           />
-          <label>{t('panel.publicidad.companyName')}<input defaultValue={settings.companyName} onBlur={(e) => saveSettings({ ...settings, companyName: e.target.value })} /></label>
-          <label>{t('panel.publicidad.whatsappNumber')}<input defaultValue={settings.whatsappNumber} placeholder={t('panel.publicidad.whatsappPlaceholder')} onBlur={(e) => saveSettings({ ...settings, whatsappNumber: e.target.value.replace(/\D/g, '') })} /></label>
-          <label>{t('panel.publicidad.instagramLink')}<input defaultValue={settings.instagramUrl} placeholder={t('panel.publicidad.instagramPlaceholder')} onBlur={(e) => saveSettings({ ...settings, instagramUrl: e.target.value.trim() })} /></label>
-          <label>{t('panel.publicidad.instagramHandle')}<input defaultValue={settings.instagramHandle} placeholder={t('panel.publicidad.instagramHandlePlaceholder')} onBlur={(e) => saveSettings({ ...settings, instagramHandle: e.target.value.trim() })} /></label>
+          {/* `key` basado en el valor: son inputs NO controlados (guardan en el blur), así que sin
+              la key React conserva el `defaultValue` con el que se montaron y, si `settings` llega
+              después (o lo cambia un refresco), la pantalla muestra un valor viejo — y el blur lo
+              re-escribe sobre el real. Con la key, al cambiar el dato el input se resiembra. */}
+          <label>{t('panel.publicidad.companyName')}<input key={`companyName-${settings.companyName ?? ''}`} defaultValue={settings.companyName} onBlur={(e) => saveSettings({ ...settings, companyName: e.target.value })} /></label>
+          <label>{t('panel.publicidad.whatsappNumber')}<input key={`whatsappNumber-${settings.whatsappNumber ?? ''}`} defaultValue={settings.whatsappNumber} placeholder={t('panel.publicidad.whatsappPlaceholder')} onBlur={(e) => saveSettings({ ...settings, whatsappNumber: e.target.value.replace(/\D/g, '') })} /></label>
+          <label>{t('panel.publicidad.instagramLink')}<input key={`instagramUrl-${settings.instagramUrl ?? ''}`} defaultValue={settings.instagramUrl} placeholder={t('panel.publicidad.instagramPlaceholder')} onBlur={(e) => saveSettings({ ...settings, instagramUrl: e.target.value.trim() })} /></label>
+          <label>{t('panel.publicidad.instagramHandle')}<input key={`instagramHandle-${settings.instagramHandle ?? ''}`} defaultValue={settings.instagramHandle} placeholder={t('panel.publicidad.instagramHandlePlaceholder')} onBlur={(e) => saveSettings({ ...settings, instagramHandle: e.target.value.trim() })} /></label>
           <ImageField
             label={t('panel.publicidad.adImageLabel')}
             name="_ad"
@@ -114,7 +118,9 @@ export default function PublicidadPage() {
             hint={t('panel.publicidad.qrHint')}
           />
           <label>{t('panel.publicidad.renewalWarningDays')}
-            <input type="number" min="0" max="30" defaultValue={n(settings.renewalWarningDays)} onBlur={(e) => saveSettings({ ...settings, renewalWarningDays: Math.max(0, n(e.target.value)) })} />
+            {/* También re-sembrado con `key`: el guardado es en el blur, así que sin esto un cambio
+                externo (refresco, otra pestaña) queda tapado por el valor viejo del input. */}
+            <input type="number" min="0" max="30" key={`renewalWarningDays-${settings.renewalWarningDays ?? ''}`} defaultValue={n(settings.renewalWarningDays)} onBlur={(e) => saveSettings({ ...settings, renewalWarningDays: Math.max(0, n(e.target.value)) })} />
           </label>
         </div>
 

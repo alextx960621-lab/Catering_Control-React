@@ -184,6 +184,7 @@ export default function ReminderCard() {
           <label>{t('panel.reminder.notificationTextLabel')}
             <textarea
               rows={3}
+              key={`pushReminderText-${settings.pushReminderText ?? ''}`}
               defaultValue={settings.pushReminderText || ''}
               placeholder={t('panel.reminder.textPlaceholder')}
               onBlur={(e) => saveSettings({ ...settings, pushReminderText: e.target.value })}

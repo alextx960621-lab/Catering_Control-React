@@ -29,6 +29,135 @@ que ya están en producción** para ponerlas al día.
 
 ---
 
+## esquema 1.25 · v72 · 2026-09-27 — La hora de cierre sobrevivía a todo, y dos lecturas Premium sin candado
+
+Reporte del dueño: "cambio la hora de cierre en Configuración, salgo y entro, vuelve a aparecer
+4am", en **las dos empresas probadas**. No era un bug: eran cuatro capas con el mismo error, y
+ninguna alcanzaba sola.
+
+### 1. El tope 12 repartido en cuatro lados
+
+El selector de Configuración ofrece las 24 horas (`Array.from({length: 24})`), pero el resto del
+sistema rechazaba todo lo mayor a 12 y lo tiraba a 4:
+
+| Capa | Archivo | Estaba | Ahora |
+|---|---|---|---|
+| Normalización del panel | `src/services/normalize.js` | `cutoff <= 12` | `<= 23` |
+| Cierre automático (cron) | `supabase/functions/cerrar-dia-automatico/shared/normalize.js` | `<= 12` | `<= 23` |
+| SQL | `get_day_cutoff_hour()` | `least(12, …)` | `least(23, …)` |
+| UI | `SettingsPage.jsx` (timezone y cutoff) | `defaultValue=` (input muerto) | `value=` (controlado) |
+
+El circuito que destruía el dato: el dueño ponía 18:00 → se guardaba 18 bien → al recargar,
+`normalizeSettings` lo aplastaba a 4 → **el siguiente guardado de cualquier campo de Configuración
+escribía ese 4 sobre el 18 real**. Por eso "salgo y entro". Medido en las bases: In Shape tenía
+`dayCutoffHour = 23` guardado y el panel mostraba 4; Green Fork ya estaba en 4 (el dato se perdió).
+
+La copia de la Edge Function estaba **dormida** (el cron solo usa `menuItems` y `companyName` de
+`settings`, y la hora de corte la pregunta al SQL), pero seguía siendo código viejo que alguien
+puede encender. Se corrigió igual y ahora un test la vigila (ver abajo).
+
+### 2. La misma clase de bug en otros cinco campos
+
+Inputs no controlados (`defaultValue` + guardar en el `blur`) muestran el valor con el que se
+montaron, no el que hay en la base: si `settings` llega después, o lo cambia un refresco, la pantalla
+muestra un valor viejo y el blur lo re-escribe encima. Cure del proyecto: `key=` basado en el valor,
+para que el input se resiembra. Aplicado a `PublicidadPage.jsx` (`companyName`, `whatsappNumber`,
+`instagramUrl`, `instagramHandle`, `renewalWarningDays`), `SettingsPage.jsx` (`premiumWhatsapp`),
+`MetricsPage.jsx` (`costPerKm`), `ReminderCard.jsx` (`pushReminderText`) y `PayrollPage.jsx` (la
+tarifa por driver, que además dependía de `currentDate`, no del mes).
+Ya estaban bien: las filas de `DispatchPage.jsx` usan `key={`${c.id}::${date}`}` desde antes.
+
+### 3. "Hoy" con `toISOString()` (UTC) en un movimiento de inventario
+
+`InventoryPage.jsx` fechaba el movimiento con `new Date().toISOString().slice(0,10)`: en Bolivia
+(UTC-4) entre las 20:00 y las 23:59 eso es el **día siguiente**, y cualquier reloj mal ajustes del
+teléfono también. Cambió a `serverToday` (la fecha operativa real del servidor, la que ya usa todo
+el panel).
+Se evaluaron y se dejaron como están: los `toISOString()` de `OperationsContext.jsx` son default de
+`dueDate` de notas que el `...nt` de la propia fila siempre pisa, y `serverToday` en esa misma línea
+es el estado inicial antes de que conteste el servidor.
+
+### 4. Dos lecturas Premium que respetaban el rol pero no el plan
+
+Encontrado en el barrido de seguridad. La escritura de esas mismas pantallas ya pasaba por
+`_require_permission` (que sí consulta el plan), así que el candado era de un solo lado:
+
+- `staff_listar_comprobantes` leía `db_comprobantes_rows` con solo tener rol con acceso a `notes`.
+  Un admin de plan Básico podía llamar la RPC directo con su token y ver todos los comprobantes
+  (monto esperado, monto leído), aunque la pantalla estuviera bloqueada de fábrica. Agregado
+  `if public._plan_blocks('notes') then return; end if;`.
+- `staff_get_audit_log` lo mismo con `audit`. Gate agregado.
+- `staff_get_all_audit_log` quedó **sin gate a propósito**: es la lectura que usa el respaldo
+  completo de Configuración. Bloquearla por plan haría que un cliente con "audit" bloqueado
+  exportara un respaldo sin historial y, al restaurarlo, perdiera filas (la restauración
+  `staff_insert_audit_bulk` no está bloqueada). Para que la pantalla no se aprovechara del hueco,
+  el botón "ver todo" de `AuditPage.jsx` ahora usa `staff_get_audit_log` (tope 2000) en vez de la
+  lectura libre.
+- El barrido de la sección 24 sigue igual. Medido en las tres bases: `has_function_privilege('anon',
+  'hash_password(text)', 'execute')` = **false**, o sea el oráculo de hashing que marcó el análisis
+  ya estaba cerrado por la línea 2650 del setup (`revoke … from anon, authenticated`).
+
+**Comprobado en la base de pruebas, dentro de una transacción con `rollback`** (token de un admin
+sintético, 1 comprobante y 1 fila de auditoría sembrados, nada persistido):
+
+| Plan | Comprobantes visibles | Auditoría visible | Filas reales |
+|---|---|---|---|
+| premium | 5 | 169 | 5 / 169 |
+| básico | **0** | 169 (audit se regala en Básico, es la regla vigente) | 5 / 169 |
+
+### 5. Tests: de 49 a 52 (`node --test tests/`, 50 pasan, 0 fallan, 2 `todo`)
+
+- `tests/sql-plan-lock-reads.test.js` (nuevo): recorre **todas** las funciones `staff_*` y exige que
+  cualquiera que pregunte `_staff_can_view(rol, 'página')` consulte también `_plan_blocks('página')`
+  para esa misma página, con excepciones nombradas y su motivo. Este test habría encontrado los dos
+  agujeros del punto 4 solo. Verificado con mutación: al sacar el gate de comprobantes, falla.
+- `tests/normalize-settings.test.js`: toda hora de 0 a 23 se conserva, lo inválido (`24`, `-1`, `''`,
+  `null`, `1.5`, `'x'`, `{}`, `NaN`) vuelve a 4, y el `normalize.js` del panel y el de la Edge
+  Function tienen que dar **el mismo texto** (la deriva que produjo la capa dormida).
+- `tests/sql-invariants.test.js`: el tope del `least()` del SQL y el del `normalize.js` tienen que
+  ser el mismo número, y la marca de esquema del encabezado tiene que coincidir con la del `insert`
+  de `db_app_version`.
+
+### 6. Difusión y aseo de las carpetas
+
+- Esquema del maestro `1.24 → 1.25`. Los dos snapshots de cliente se **regeneraron enteros** desde
+  el maestro (sustitución de `<PROJECT_REF>` ×6 y del nombre del setup) y verificados byte a byte:
+  revertida la sustitución, el archivo vuelve a ser idéntico al del maestro.
+- Inventario de las tres carpetas (162 rutas): **0 archivos distintos** que no sean lo white-label
+  (`config.js`, `manifest.json`, `icons`, el SQL propio, `*.local.json`, `panel-catering.bat`). Lo
+  exclusivo del maestro: `CAMBIOS.md`, `install/empresas.json`, `tests/`, `.sincronizado.json`.
+- Borrado lo generado que no es proyecto: `supabase/.temp/` en las tres carpetas (cache del CLI) y
+  un `normalize.js` suelto que había quedado en `G:\catering control\` (copia exacta del del maestro,
+  verificada con `diff`). Después de verificar el build (`npm ci` + `npm run build` en el maestro),
+  se volvieron a borrar `node_modules/` y `dist/`: se recrean con `npm ci && npm run build`.
+- Pendiente del lado del dueño: en **Green Fork** el archivo `supabase/.temp/cli-latest` sigue
+  **seguido por git** (en el maestro e In Shape no), por eso `git status` ahí muestra una `D`.
+  Basta `git rm --cached supabase/.temp/cli-latest` en esa carpeta para que las tres repos queden iguales.
+
+### Estado por base
+
+| Base | SQL | Edge Functions |
+|---|---|---|
+| `kkqcaiunetlikfyaldab` (pruebas) | ✅ 1.25 (`71cd97a4`), verificado en la base 2026-09-27 | ✅ `cerrar-dia-automatico` v6 (las otras 4 no cambiaron) |
+| `spvqcxomhkukwzijhvlm` (In Shape) | ✅ 1.25 (`f0bc6396`), verificado en la base | ✅ `cerrar-dia-automatico` v5, smoke test `dryRun` HTTP 200 |
+| `inirizkgxkpvqnityvud` (Green Fork) | ✅ 1.25 (`70e8d8ba`), verificado en la base | ✅ `cerrar-dia-automatico` v3, smoke test `dryRun` HTTP 200, `verify_jwt` sigue `false` |
+
+Verificado en cada base después de correr el setup: marca `db_app_version = 1.25`,
+`get_day_cutoff_hour` con `least(23`, los dos gates nuevos presentes en `pg_proc`, `cron.job` con
+sus 13 trabajos, y conteos de datos sin cambios (`db_clientes`, `db_personal`, `db_sessions`,
+`db_audit_log`, `db_dispatch_snapshots`). In Shape: `dayCutoffHour` guardado 23 → hora efectiva 23
+(y antes de esto el panel mostraba 4). Green Fork: sigue 4 porque el valor real se perdió con el bug
+→ **hay que volver a ponerlo en Configuración** cuando el frontend nuevo esté desplegado.
+
+### Qué falta del lado del dueño
+
+1. `npm install` + `npm run build` + desplegar en Vercel (las tres carpetas están sin
+   `node_modules` y sin `dist`; el fix del panel no llega al navegador hasta ese push).
+2. Green Fork: volver a elegir la hora de cierre (23 en In Shape ya funciona solo).
+3. Commitear y pushear las tres carpetas (en las tres hay cambios sin commitear: 8-12 archivos).
+
+---
+
 ## esquema 1.24 · v72 · 2026-09-27 — Versión de código v72, panel operatorio `.bat` y maestro sin tests en las copias
 
 ### Qué cambió

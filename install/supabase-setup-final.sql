@@ -1,5 +1,5 @@
 -- Catering Control · instalación completa para una empresa nueva (un solo archivo).
--- version de esquema: 1.24   <-- única marca que edita el humano; debe coincidir con el literal del INSERT de db_app_version (sección 23).
+-- version de esquema: 1.25   <-- única marca que edita el humano; debe coincidir con el literal del INSERT de db_app_version (sección 23).
 -- Pegarlo entero en el SQL Editor de Supabase; se puede volver a correr sin romper nada.
 -- Sirve igual para instalar de cero que para actualizar una base vieja: todo es
 -- create table if not exists / create or replace function / on conflict do nothing. Medido:
@@ -428,7 +428,7 @@ security definer
 stable
 set search_path = public, extensions
 as $$
-  select least(12, greatest(0, coalesce(
+  select least(23, greatest(0, coalesce(
     (select case when payload ->> 'dayCutoffHour' ~ '^[0-9]{1,2}$' then (payload ->> 'dayCutoffHour')::int end
        from db_personal where id = 'settings'),
     4)));
@@ -1040,6 +1040,9 @@ declare v_role text;
 begin
   select s.role into v_role from public._staff_session(p_token) s;
   if not public._staff_can_view(v_role, 'audit') then return; end if;
+  -- "audit" es bloqueable por plan: si el Super Admin lo bloquea, la pantalla no solo se oculta
+  -- en React, la RPC tampoco devuelve nada. Sin esta línea el candado era solo de escritura.
+  if public._plan_blocks('audit') then return; end if;
   return query select * from db_audit_log order by at desc limit least(coalesce(p_limit, 200), 2000);
 end; $$;
 revoke all on function public.staff_get_audit_log(text, int) from public;
@@ -1053,6 +1056,10 @@ declare v_role text;
 begin
   select s.role into v_role from public._staff_session(p_token) s;
   if not public._staff_can_view(v_role, 'audit') then return; end if;
+  -- Sin candado de plan a propósito: esta es LA lectura que usa el respaldo completo de
+  -- Configuración. Bloquearla por plan haría que un cliente con "audit" bloqueado exportara un
+  -- respaldo sin historial y, al restaurarlo, perdiera filas. La pantalla de Auditoría lee con
+  -- staff_get_audit_log (esa sí bloqueada) y su botón "ver todo" usa el mismo camino.
   if p_since is null then
     return query select * from db_audit_log order by at desc;
   else
@@ -1961,6 +1968,10 @@ declare v_role text;
 begin
   select s.role into v_role from public._staff_session(p_token) s;
   if not public._staff_can_view(v_role, 'notes') then return; end if;
+  -- Los comprobantes son datos financieros y viven dentro de la página "notes": sin esta línea,
+  -- un admin de plan Básico podía llamar la RPC directo y leerlos todos aunque la pantalla esté
+  -- bloqueada. La escritura ya pasa por _require_permission('notes'), que sí consulta el plan.
+  if public._plan_blocks('notes') then return; end if;
   return query select r.id, r.payload, r.updated_at from db_comprobantes_rows r order by r.updated_at desc;
 end;
 $$;
@@ -3051,7 +3062,7 @@ grant execute on function public.staff_get_ratings(text) to anon, authenticated;
 -- 'settings' de db_personal la sobreescribe POR COMPLETO el panel en cada guardado
 -- (rama 'personal' del guardado: payload = excluded.payload), así que ahí la marca
 -- desaparecería al primer guardado. Es lo único que escribe este bloque y no toca
--- ninguna fila de datos de la app. El literal '1.24' debe coincidir con el del
+-- ninguna fila de datos de la app. El literal '1.25' debe coincidir con el del
 -- encabezado "-- version de esquema" al inicio del archivo.
 -- ============================================================================
 
@@ -3069,7 +3080,7 @@ create policy "no direct access app_version" on public.db_app_version for all us
 
 -- Dejar sentada la versión de esquema recién instalada; la tabla es el registro, no datos de la app.
 insert into public.db_app_version (id, payload)
-  values ('main', jsonb_build_object('esquema', '1.24', 'setup', 'supabase-setup-final.sql'))
+  values ('main', jsonb_build_object('esquema', '1.25', 'setup', 'supabase-setup-final.sql'))
   on conflict (id) do update set payload = excluded.payload, updated_at = now();
 
 -- Lectura del registro. SECURITY DEFINER porque la tabla está cerrada por RLS; el barrido de

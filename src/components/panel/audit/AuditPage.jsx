@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { dbGetAuditLog, dbGetAllAuditLog } from '../../../services/db';
+import { dbGetAuditLog } from '../../../services/db';
 import { roleLabel } from '../../../services/panelAuth';
 import DataTable from '../DataTable';
 
@@ -21,7 +21,9 @@ export default function AuditPage({ user }) {
 
   async function loadAll() {
     setLoadingLog(true);
-    const rows = await dbGetAllAuditLog();
+    // 2000 es el tope que admite staff_get_audit_log. Se usa esa y no staff_get_all_audit_log
+    // porque es la que respeta el candado de plan; la otra queda solo para el respaldo.
+    const rows = await dbGetAuditLog(2000);
     setEntries(rows || []);
     setShowingAll(true);
     setLoadingLog(false);
