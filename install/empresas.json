@@ -1,5 +1,5 @@
 {
-  "esquemaVersion": "1.25",
+  "esquemaVersion": "1.26",
   "actualizado": "2026-09-27",
   "empresas": [
     {
@@ -11,8 +11,8 @@
       "idioma": "es",
       "pruebas": true,
       "version": "v72",
-      "schemaVersion": "1.25",
-      "sqlHash": "71cd97a4962b6a73c47234bae0242e97b3ea73c402ffe588d6bd1a9185090c06",
+      "schemaVersion": "1.26",
+      "sqlHash": "799b3537de7d4f4a14e2175e870cf3729502c4ad03e8a31d70244547238d34ab",
       "alta": "2026-09-25",
       "sql": null,
       "migraciones": []
@@ -27,8 +27,8 @@
       "pruebas": false,
       "url": "https://greenforkcatering.vercel.app",
       "version": "v72",
-      "schemaVersion": "1.25",
-      "sqlHash": "70e8d8baeeebb0e071b62b99b357bd136d62b8c37a061a2f63c1314e76ef6636",
+      "schemaVersion": "1.26",
+      "sqlHash": "b6cd704050481a13bab73c1a6fd82860c5f8b00ccb0a89b6e796a099fe18be86",
       "alta": "2026-09-26",
       "sql": "supabase-setup-greenfork.sql",
       "migraciones": []
@@ -43,8 +43,8 @@
       "pruebas": false,
       "url": "https://go.inshapecatering.workers.dev",
       "version": "v72",
-      "schemaVersion": "1.25",
-      "sqlHash": "f0bc639684932d2639582b1f86a7e4d8d79280163725dd3c73c501d728760c28",
+      "schemaVersion": "1.26",
+      "sqlHash": "0b6f221262fbc86e42c4aa58d6007acdfa3277594176f5a646a0fed4669402fa",
       "alta": "2026-09-25",
       "sql": "supabase-setup-inshape.sql",
       "migraciones": []

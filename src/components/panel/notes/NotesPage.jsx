@@ -1,4 +1,4 @@
-import { canManage } from '../../../services/panelAuth';
+import { canAccessPage, canManage } from '../../../services/panelAuth';
 import config from '../../../services/config';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -53,7 +53,7 @@ function renewalWaMessage({ kind, clientName, planName, days }, t) {
   return t('panel.notes.waMessage', { clientName, action: accion, planName, days: t('panel.notes.waDays', { count: days }) });
 }
 
-export default function NotesPage({ user, onGoToClient, renewalByClient = {}, onConsumeRenewal }) {
+export default function NotesPage({ user, active = true, onGoToClient, renewalByClient = {}, onConsumeRenewal }) {
   const { t } = useTranslation();
   const { notes, clients, currentDate, settings, days, saveNotes, deleteNote, showNotice, refreshNotes, loading } = useOperations();
   const [filter, setFilter] = useState('today');
@@ -64,12 +64,14 @@ export default function NotesPage({ user, onGoToClient, renewalByClient = {}, on
 
   // El aviso de una falla lo genera el servidor cuando el chofer marca "no entregado": sin
   // recargar todo el panel, el editor lo vería recién al tocar "Actualizar".
+  // `active` importa porque el panel mantiene esta página montada con display:none cuando se
+  // navega a otra: sin ese chequeo el poll seguiría disparando RPCs desde una pantalla invisible.
   useEffect(() => {
     const id = setInterval(() => {
-      if (!document.hidden && !editing && !rescheduling && !showComprobantes) refreshNotes();
+      if (active && !document.hidden && !editing && !rescheduling && !showComprobantes) refreshNotes();
     }, 15000);
     return () => clearInterval(id);
-  }, [refreshNotes, editing, rescheduling, showComprobantes]);
+  }, [active, refreshNotes, editing, rescheduling, showComprobantes]);
 
   const today = currentDate;
   const q = search.toLowerCase();
@@ -168,6 +170,9 @@ export default function NotesPage({ user, onGoToClient, renewalByClient = {}, on
   const emptyMsg = { today: t('panel.notes.emptyToday'), upcoming: t('panel.notes.emptyUpcoming'), history: t('panel.notes.emptyHistory'), all: t('panel.notes.emptyAll') }[filter];
   const canEdit = canManage(user?.role, settings.customRoles, 'notes');
   const canDecideFaults = canManage(user?.role, settings.customRoles, 'delivery');
+  // Ir a un cliente es otra pantalla: si el rol no la tiene, PanelPage rebotaría al usuario…
+  // atrás y el botón quedaría muerto, así que directamente no se muestra.
+  const canOpenClient = canAccessPage('clients', user?.role, settings.customRoles);
 
   if (loading) return <p className="muted">{t('panel.notes.loadingNotes')}</p>;
 
@@ -246,7 +251,7 @@ export default function NotesPage({ user, onGoToClient, renewalByClient = {}, on
                         <button className="warning" onClick={() => setRescheduling(nt)}>{t('panel.notes.reopen')}</button>
                       </>
                     )}
-                    {nt.clientId && (
+                    {nt.clientId && canOpenClient && (
                       <>
                         <button className="info" onClick={() => onGoToClient?.(nt.clientId, 'edit')}>{t('panel.notes.editClient')}</button>
                         <button className="warning" onClick={() => onGoToClient?.(nt.clientId, 'renew')}>{t('panel.notes.renew')}</button>

@@ -1,24 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ROLE_LABELS, canAccessPage } from '../../services/panelAuth';
-
-const NAV_ITEMS = [
-  ['dispatch', '📅'],
-  ['notes', '🔔'],
-  ['menu', '🍲'],
-  ['publicidad', '📣'],
-  ['clients', '👥'],
-  ['delivery', '🚚'],
-  ['drivers', '🛵'],
-  ['routes', '🚦'],
-  ['plans', '📝'],
-  ['payroll', '💵'],
-  ['inventory', '📊'],
-  ['metrics', '📈'],
-  ['users', '👨‍✈️'],
-  ['audit', '🕘'],
-  ['settings', '🛠️'],
-];
+import { NAV_ITEMS } from './navItems';
 
 const RefreshIcon = (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -31,9 +14,9 @@ const LogoutIcon = (
   </svg>
 );
 
-export default function Sidebar({ brandName, brandLogo, user, activePage, onNavigate, onLogout, collapsed, onToggleCollapse, notesCount, pendingDaysCount, onRefresh, syncStatus }) {
+export default function Sidebar({ brandName, brandLogo, user, customRoles = [], activePage, onNavigate, onLogout, collapsed, onToggleCollapse, notesCount, pendingDaysCount, onRefresh, syncStatus }) {
   const { t } = useTranslation();
-  const visibleItems = NAV_ITEMS.filter(([page]) => canAccessPage(page, user?.role));
+  const visibleItems = NAV_ITEMS.filter(([page]) => canAccessPage(page, user?.role, customRoles));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 

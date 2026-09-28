@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import './ClientePage.css';
 import config from '../services/config';
-import { readClientSession, clearSessions } from '../services/session';
+import { readClientSession, clearClientSession } from '../services/session';
 import { readOperations, writeOperations, readClientRow, writeClientRow, readCachedBranding, readCachedIsPremium, getClientTheme, saveClientTheme } from '../services/clienteStorage';
 import { fetchBrandingRemote, fetchIsPremium, fetchServerSync, saveClient } from '../services/clienteData';
 import { setSessionToken, dbGetClientRow, dbSaveOwnClientProfile, dbGetOwnDriver, joinPresence, leavePresence, revokeSession } from '../services/supabaseClient';
@@ -49,7 +49,7 @@ export default function ClientePage() {
       if (hasFullCache) {
         setData(localData);
         setClient(localClient);
-        setTheme(localClient.uiTheme || getClientTheme());
+        setTheme(localClient.uiTheme || getClientTheme(localClient.id));
         setBranding(cachedBranding);
         setPhase(cachedIsPremium ? 'portal' : 'locked');
         if (cachedIsPremium) joinPresence({ id: localClient.id, role: 'cliente', name: localClient.name });
@@ -77,7 +77,7 @@ export default function ClientePage() {
       setData(localData);
       setClient(localClient);
       // Si el cliente ya eligió un tema desde ALGÚN dispositivo, ese es el que manda (uiTheme…
-      setTheme(localClient.uiTheme || getClientTheme());
+      setTheme(localClient.uiTheme || getClientTheme(localClient.id));
       if (freshBranding) setBranding(freshBranding);
 
       // isPremium === null → la red falló (get_plan_status no respondió)
@@ -92,7 +92,7 @@ export default function ClientePage() {
       // Segunda pasada: refresca en segundo plano con lo último del servidor (por si algo cambió…
       const [{ remoteMeta, remoteClient }, freshBranding2] = await Promise.all([fetchServerSync(session.id), fetchBrandingRemote()]);
       if (remoteMeta) {
-        const merged = { ...localData, plans: remoteMeta.plans ?? localData.plans, days: remoteMeta.days ?? localData.days, currentDate: remoteMeta.currentDate ?? localData.currentDate };
+        const merged = { ...localData, plans: remoteMeta.plans ?? localData.plans, days: remoteMeta.days ?? localData.days, currentDate: remoteMeta.currentDate ?? localData.currentDate, autoservicioCerrado: remoteMeta.autoservicioCerrado ?? localData.autoservicioCerrado };
         writeOperations(merged);
         localData = merged;
         setData(merged);
@@ -119,7 +119,7 @@ export default function ClientePage() {
       const { remoteMeta, remoteClient } = await fetchServerSync(session.id);
       if (remoteMeta) {
         const local = readOperations();
-        const merged = { ...local, plans: remoteMeta.plans ?? local.plans, days: remoteMeta.days ?? local.days, currentDate: remoteMeta.currentDate ?? local.currentDate };
+        const merged = { ...local, plans: remoteMeta.plans ?? local.plans, days: remoteMeta.days ?? local.days, currentDate: remoteMeta.currentDate ?? local.currentDate, autoservicioCerrado: remoteMeta.autoservicioCerrado ?? local.autoservicioCerrado };
         writeOperations(merged);
         setData(merged);
       }
@@ -184,7 +184,7 @@ export default function ClientePage() {
   function handleLogout() {
     leavePresence();
     revokeSession();
-    clearSessions();
+    clearClientSession();
     navigate('/', { replace: true });
   }
 

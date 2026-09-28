@@ -96,6 +96,10 @@ Encontrado en el barrido de seguridad. La escritura de esas mismas pantallas ya 
 - El barrido de la sección 24 sigue igual. Medido en las tres bases: `has_function_privilege('anon',
   'hash_password(text)', 'execute')` = **false**, o sea el oráculo de hashing que marcó el análisis
   ya estaba cerrado por la línea 2650 del setup (`revoke … from anon, authenticated`).
+- Medido en pruebas sobre las RPCs de lectura (`staff_get_audit_log('')`, `staff_listar_comprobantes('')`,
+  `staff_get_all_audit_log('')`): las tres lanzan `Sesión inválida o expirada` desde `_staff_session`.
+  El `EXECUTE` que sí tienen `anon`/`authenticated` (lo necesita el panel, que llama con la publishable)
+  no expone nada sin un token de sesión válido.
 
 **Comprobado en la base de pruebas, dentro de una transacción con `rollback`** (token de un admin
 sintético, 1 comprobante y 1 fila de auditoría sembrados, nada persistido):
@@ -134,13 +138,36 @@ sintético, 1 comprobante y 1 fila de auditoría sembrados, nada persistido):
   **seguido por git** (en el maestro e In Shape no), por eso `git status` ahí muestra una `D`.
   Basta `git rm --cached supabase/.temp/cli-latest` en esa carpeta para que las tres repos queden iguales.
 
+### 7. El hallazgo más importante del barrido final: `verify_jwt` en las dos bases de cliente
+
+Medido en las tres cuentas desplegadas: en **pruebas** las 5 funciones tienen `verify_jwt = false`,
+pero en **Green Fork** y **In Shape** `image-storage` y `verificar-comprobante` estaban en **`true`**.
+Como la app **nunca** usa Supabase Auth (en `src/` no hay ni un `supabase.auth`; se autentica con su
+propio `p_token` contra `db_sessions`), el gateway de Supabase cortaba **antes** de que corriera el
+código: `POST` sin header de autorización devolvía **HTTP 401 `UNAUTHORIZED_NO_AUTH_HEADER`** (medido
+con `net.http_post` desde la propia base de Green Fork). O sea: subir una foto y verificar un
+comprobante fallaban en producción en las dos marcas, y en pruebas funcionaban. Root cause: esas dos
+se desplegaron con `supabase functions deploy` sin `--no-verify-jwt`, y el `PATCH` corrector solo se
+había aplicado a las tres que daban error visible.
+
+Arreglado con `PATCH /functions/{slug} {"verify_jwt":false}` sobre esas dos funciones en las dos
+marcas (leído antes y después: `true → false`, HTTP 200). Verificación posterior, misma técnica: las
+dos responden **HTTP 400 `Parámetros inválidos.`**, o sea ya entran al código y lo rechaza la
+validación propia de la función — el candado de sesión sigue adentro, lo que se quitó es la barrera
+del gateway. Las cinco funciones de las dos marcas quedaron con body idéntico entre sí (sha256 del
+ESZIP: `fd9aac6f`, `4f6047f8`, `07a307cd`, `ec086536`, `ee7faf3e`) y con el mismo patrón de
+`verify_jwt` que pruebas.
+
+**Regla para la próxima empresa:** `nueva-empresa.mjs` ya imprime los 5 deploys con
+`--no-verify-jwt`; hay que correr los cinco, no solo los que fallan a la vista.
+
 ### Estado por base
 
 | Base | SQL | Edge Functions |
 |---|---|---|
-| `kkqcaiunetlikfyaldab` (pruebas) | ✅ 1.25 (`71cd97a4`), verificado en la base 2026-09-27 | ✅ `cerrar-dia-automatico` v6 (las otras 4 no cambiaron) |
-| `spvqcxomhkukwzijhvlm` (In Shape) | ✅ 1.25 (`f0bc6396`), verificado en la base | ✅ `cerrar-dia-automatico` v5, smoke test `dryRun` HTTP 200 |
-| `inirizkgxkpvqnityvud` (Green Fork) | ✅ 1.25 (`70e8d8ba`), verificado en la base | ✅ `cerrar-dia-automatico` v3, smoke test `dryRun` HTTP 200, `verify_jwt` sigue `false` |
+| `kkqcaiunetlikfyaldab` (pruebas) | ✅ 1.25 (`71cd97a4`), verificado en la base 2026-09-27 | ✅ `cerrar-dia-automatico` v6 con `cutoff <= 23` (0 ocurrencias de `<= 12`), las 5 con `verify_jwt=false` |
+| `spvqcxomhkukwzijhvlm` (In Shape) | ✅ 1.25 (`f0bc6396`), releído en la base 2026-09-27 | ✅ 5 funciones, body idéntico al de Green Fork, `cerrar-dia-automatico` v5 con `cutoff <= 23`; `image-storage` y `verificar-comprobante` corregidas `true → false` |
+| `inirizkgxkpvqnityvud` (Green Fork) | ✅ 1.25 (`70e8d8ba`), releído en la base 2026-09-27 | ✅ 5 funciones, `cerrar-dia-automatico` v3 con `cutoff <= 23`, smoke test `dryRun` HTTP 200; `image-storage` y `verificar-comprobante` corregidas `true → false` |
 
 Verificado en cada base después de correr el setup: marca `db_app_version = 1.25`,
 `get_day_cutoff_hour` con `least(23`, los dos gates nuevos presentes en `pg_proc`, `cron.job` con
@@ -149,12 +176,300 @@ sus 13 trabajos, y conteos de datos sin cambios (`db_clientes`, `db_personal`, `
 (y antes de esto el panel mostraba 4). Green Fork: sigue 4 porque el valor real se perdió con el bug
 → **hay que volver a ponerlo en Configuración** cuando el frontend nuevo esté desplegado.
 
+Re-medido en las dos bases de cliente el 2026-09-27 por la tarde (API de gestión con la sesión del
+dashboard): `esquema = 1.25`, **9** funciones `staff_*` que consultan `_plan_blocks`, 13 jobs de
+`pg_cron`, `db_clientes_rows = 0` y `db_push_subscriptions = 0` en las dos (el trayecto con un
+cliente real sigue sin probarse), `db_audit_log` 3 en Green Fork y 6 en In Shape,
+`db_comprobantes_rows = 0`.
+
 ### Qué falta del lado del dueño
 
 1. `npm install` + `npm run build` + desplegar en Vercel (las tres carpetas están sin
    `node_modules` y sin `dist`; el fix del panel no llega al navegador hasta ese push).
 2. Green Fork: volver a elegir la hora de cierre (23 en In Shape ya funciona solo).
 3. Commitear y pushear las tres carpetas (en las tres hay cambios sin commitear: 8-12 archivos).
+
+---
+
+## esquema 1.26 · v72 · 2026-09-27 — Once fallas del dueño: sesiones cruzadas, direcciones que se perdían y el corte del autoservicio en el servidor
+
+Segunda lista del dueño (11 puntos, sobre login/sesiones, ClientsPage y portal). Se midió cada
+afirmación contra el código antes de tocar nada: **8 ciertas, 1 cierta pero con otro alcance, 2 no
+eran bugs**. Se corrigieron 8 y se dejaron 3 a propósito (sección 7, con el porqué).
+
+### 1. El logout de un staff expulsaba al cliente del mismo teléfono (falla 1, cierta)
+
+`clearSessions()` borraba staff **y** cliente. La sesión de cliente es la única que vive en
+`localStorage` (en la PWA tiene que sobrevivir al cierre de la pestaña), así que salir del panel en
+el teléfono personal del repartivo mandaba al portal al login. Dividido en `clearStaffSession()` y
+`clearClientSession()` (`src/services/session.js`), cada página usa el suyo
+(`PanelPage.jsx:169`, `ClientePage.jsx:187`), y `clearSessions` ya no existe como código: queda solo
+en el comentario que explica el porqué y en el test que lo vigila
+(`tests/sessions-portal-cache.test.js`).
+
+### 2. Con dos sesiones abiertas, LoginPage elegía al azar (falla 1, continuación)
+
+Podía existir sesión de staff (en `sessionStorage`) y de cliente (en `localStorage`) a la vez: el
+`useEffect` miraba primero la de staff, así que el cliente que además usa el panel caía al panel en
+cada F5. Ahora la última entrada de **esta pestaña** desempata: los dos logins marcan
+`STORAGE_KEYS.lastLoginOrigin` (nuevo, en `sessionStorage`) y sin marca LoginPage **no redirige** y
+muestra el formulario, que es lo único honesto.
+
+### 3. Escrituras optimistas que no se revertían (falla 3, cierta)
+
+`dbUpsert*`/`dbSet` devuelven `false` cuando fallan (no lanzan), y los guardadores de
+`OperationsContext` pintaban el estado antes de saber el resultado: la pantalla quedaba mostrando
+un cliente/nota/día que la base nunca tuvo. `saveClients`, `saveNotes`, `deleteNote` y
+`deleteClients` ahora hacen snapshot → set → escribir → **revertir con el snapshot si devolvió
+`false`**, igual que ya hacían `saveDays`/`saveInventory`. Los espejos `clientsRef`/`notesRef`
+existen solo para eso. Cuatro checks parametrizados en `tests/operations-snapshot-guards.test.js`.
+
+### 4. ClientsPage: datos que se perdían al Guardar (fallas 5, 6, 7, 8, todas ciertas)
+
+- **Direcciones con solo el link de Maps** (5): el filtro era `(a) => a.address`, así que una
+  dirección pasada como link (sin texto — lo habitual cuando el cliente lo manda por WhatsApp) se
+  botaba enterita al guardar: link, coordenadas, orden y observaciones. Nuevo
+  `hasAddressData()` (acepta `address`, `maps`, `lat` o `lng`), usado tanto al guardar como por
+  `ScheduleRows`, que antes mostraba la dirección ya descartada.
+- **Horario semanal borrado en silencio** (6): quitar una dirección filtra las franjas que apuntan
+  a ella en `handleSubmit`. `AddressRows` ahora recibe el `schedule`, cuenta las franjas afectadas y
+  pide `window.confirm`; si aun así caen, el guardado avisa cuántas (`scheduleRowsDroppedNotice`), y
+  **no** cuenta las del horario bloqueado (`scheduleLocked`).
+- **`togglePause` usaba `currentDate`** (7): que es la fecha que se está *mirando* (puede ser
+  pasada o futura), no el hoy. Pausar desde el lunes escribía `pauseStart` del martes visto. Ahora
+  `serverToday` + `dayInfoToday`, y la etiqueta del botón consulta lo mismo que escribe.
+- **Guardado en dos pasos sin transacción** (8): "correr el orden de los demás" se escribía aunque
+  el cliente no se hubiera guardado, dejando dos clientes con el mismo número en la base. Ahora solo
+  corre si `saved`, el `addressId` de la fila sigue siendo el mismo, y su propio fallo se avisa por
+  separado (`shiftOrdersSaveFailed`).
+
+### 5. El corte del autoservicio se medía con la relojera del cliente (falla 2, cierta)
+
+`Portal.jsx` tenía `pastCutoff() { return new Date().getHours() >= 22; }`: atrasando el reloj del
+teléfono el cliente pausaba o cambiaba la dirección a cualquier hora. El candado del SQL en
+`set_client_address_override` sí existía, pero `cliente_save_profile` (pausa/reactivación) **no
+tenía ninguno**, así que un POST directo al RPC lo saltaba aunque la pantalla se comportara.
+
+- SQL: nuevo helper `_autoservicio_cerrado()` (`security definer`, revocado de `public/anon/
+  authenticated`) que mide `extract(hour from now() at time zone get_company_timezone()) >= 22`. Se
+  usa en `cliente_save_profile` (dentro de la rama `pauseStart`/`returnDate`), en
+  `set_client_address_override` y se expone como `autoservicioCerrado` en `get_portal_catalog`.
+- Frontend: `pastCutoff()` lee esa marca; el catálogo la propaga en las dos fusiones de
+  `ClientePage.jsx` (95 y 122) y el resync por `visibilitychange` la refresca.
+
+**Decisión de semántica (para revisar si él quiere otra cosa):** se mantuvo la regla de las **22:00
+de la hora local de la empresa**, no se ató a `dayCutoffHour`. Medido por qué: `get_business_date()`
+resta la hora de corte, así que "mañana" (`currentDate + 1`) recién se cierra al empezar su propio
+día operativo; una condición `_autoservicio_cerrado(p_date)` por fecha **nunca se cumplía** dentro de
+la jornada (era código muerto). La regla global de las 22:00 es lo que el dueño ya tiene hoy, solo
+que ahora la pone el servidor.
+
+### 6. Cache del portal (fallas 10 y 3-b, ciertas)
+
+- `getClientTheme()`/`saveClientTheme()` ignoraban el `clientId`: dos clientes que comparten teléfono
+  (familia, mismo origen) se pintaban el portal el uno al otro. La llave ahora es
+  `${STORAGE_KEYS.uiTheme}:${clientId}`; la llave genérica queda solo para el login (`useTheme.js`).
+- `saveClient()` escribía `writeClientRow()` (el cache que la ruta rápida pinta al abrir) **antes**
+  de la confirmación: un "Pausado" que la base nunca tuvo, visible hasta el siguiente sync. Ahora se
+  escribe solo si `saved`.
+
+### 7. Dejada a propósito, con el motivo
+
+- **Duplicado de carnet en signup** (4): no se agrega una lectura previa. `signup_cliente` ya falla
+  con su propio mensaje y agregar un `SELECT` abierto por carnet sería un oráculo de existencia
+  (`login_cliente` tiene candado de 3 intentos justamente para eso).
+- **Conflicto de orden con un solo slot** (9): es verdad que solo vive el último blur, pero el
+  diagnóstico real es otro — `orderConflict` y `orderShift` son un estado único, así que editar el
+  orden de dos direcciones del mismo cliente solo corre a los demás para el último. No rompe datos
+  (el orden duplicado queda visible en la ruta) y arreglarlo pide convertir el corrimiento en lista;
+  queda para otra ronda si él lo pide.
+- **`fetchIsPremium` con cache viejo** (11): el cache solo decide la fase *inicial* del camino
+  rápido; a los segundos `fetchIsPremium()` re-confirma y `setPhase('locked')` si corresponde, y
+  desde 1.24/1.25 el servidor gatingea `clientPortal` en cada RPC del portal. Impacto: un flash, no
+  una puerta abierta. Sin cambio.
+
+### 8. Tests: de 68 a 81 (`node --test tests/` → 79 pasan, 0 fallan, 2 `todo`)
+
+- `tests/clients-page-gates.test.js` (nuevo, 6): forma de `hasAddressData`, confirmación al quitar
+  una dirección referenciada, aviso de franjas caídas, orden de los dos guardados, `serverToday` en
+  `togglePause` y su botón, y que **todas** las claves `t(...)` del archivo existan en es/en/pt.
+- `tests/sessions-portal-cache.test.js` (nuevo, 7): los dos cierres separados, la marca
+  `lastLoginOrigin`, el cache de la fila después de la confirmación, el tema por cliente, el corte
+  del lado del servidor (JS y SQL), y que la marca de esquema del encabezado coincida con el literal
+  de `db_app_version`.
+- Lint: 1 aviso (el de siempre, `CompanyPrefsContext.jsx:70`). Build: OK.
+- Locales: 4 claves nuevas en `panel.clients` (`clientSaveFailed`, `removeAddressScheduleConfirm`,
+  `scheduleRowsDroppedNotice`, `shiftOrdersSaveFailed`) en es/en/pt; paridad verificada por el test.
+
+### 9. El setup 1.26 ya está corrido en las tres bases (medido, no assumed)
+
+Esta vez el CLI llegó a las tres (`supabase projects list` muestra los cuatro proyectos con el token
+local; antes solo alcanzaba a pruebas). Ruta usada en las dos bases de cliente, con el snapshot propio
+de cada una: `supabase link --project-ref <ref>` → dry-run (`begin;` + setup + `rollback;`) → aplicar
+el archivo → verificar. Los conteos de las 20 tablas antes y después dan `diff` vacío: cero filas
+perdidas.
+
+| Base | antes | después | verificado |
+|---|---|---|---|
+| pruebas | 1.25 | 1.26 | `_autoservicio_cerrado()` con una sola sobrecarga de 0 argumentos, el gate presente en los dos RPC y `autoservicioCerrado` en el catálogo |
+| In Shape | 1.25 · 81 funciones · 13 jobs | 1.26 · 82 funciones · 13 jobs | `proacl` del helper = `{postgres=X, service_role=X}` (anon ya no puede ejecutarlo), gate en `cliente_save_profile` (posición 1236) y en `set_client_address_override` (436), catálogo con la bandera, conteos idénticos |
+| Green Fork | 1.25 · 81 funciones · 13 jobs | 1.26 · 82 funciones · 13 jobs | igual que In Shape, más las dos URLs de `cron.job` (`cierre-automatico-dia`, `push-recordatorio`) apuntando a `inirizkgxkpvqnityvud.functions.supabase.co` |
+
+Huella de funciones (cuerpo + ACL por firma, con el projectRef normalizado para poder comparar): In
+Shape y Green Fork **coinciden exacto** — `8d8ed664a30259e445306dcceb41143d`, 82 funciones. El
+`currentDate` del catálogo salió `2026-09-26` en In Shape y `2026-09-27` en Green Fork: es la
+diferencia de `dayCutoffHour` (23 contra 4), no un desfase.
+
+Edge Functions: `supabase/functions` no cambió contra las copias (`diff -rq` vacío), así que no hay
+que redesplegarlas; por eso la columna Edge dice "sin cambios".
+
+### Estado por base
+
+| Base | SQL | Edge Functions |
+|---|---|---|
+| `kkqcaiunetlikfyaldab` (pruebas) | ✅ 1.26 | ✅ sin cambios |
+| `spvqcxomhkukwzijhvlm` (In Shape) | ✅ 1.26 | ✅ sin cambios |
+| `inirizkgxkpvqnityvud` (Green Fork) | ✅ 1.26 | ✅ sin cambios |
+
+### Qué falta del lado del dueño
+
+1. `npm install` + `npm run build` + desplegar Vercel/Workers en las tres carpetas.
+2. Commitear y pushear las tres carpetas.
+3. Green Fork no tiene catálogo que mostrar: `db_clientes` tiene una sola fila, `main` con `{}` (medido
+   por SQL el 2026-09-27, mismo día del despliegue). In Shape y pruebas sí tienen las cuatro
+   (`plans`, `days`, `currentDate`, `main`). Con `db_clientes_rows = 0`, el portal de Green Fork no va
+   a listar ningún plan hasta cargar Configuración. La hora de cierre ahí ya está en 4 (el default).
+4. El `site_url` de Auth sigue en `localhost` en las dos marcas.
+5. Ningún trayecto con un cliente real ni push notifications probado end-to-end.
+6. Deriva entre bases que el setup no borra (medida con `pg_proc` el 2026-09-27, tras el 1.26):
+   - Pruebas tiene 3 funciones que ya no están en el setup ni en el código:
+     `cliente_save_feedback`, `cliente_get_own_feedback`, `staff_get_feedback` — las tres con
+     `anon=X` y `authenticated=X` (llamables desde internet, aunque se auto-validan por `p_token`).
+     Ninguna se usa: `grep` en `src/` y `supabase/functions/` da cero coincidencias.
+   - Las dos bases de cliente tienen `public.rls_auto_enable` (= SECURITY DEFINER, ejecutable por
+     `anon`) colgada del event trigger `ensure_rls`; pruebas no la tiene. No la creó este setup.
+     No la creó este setup. Solo actúa dentro de un event trigger de DDL, pero dejarla pública es la
+     excepción a la regla de que `public` solo expone lo que el setup declara.
+   - Huella comparable de funciones (cuerpos + ACLs, con el projectRef normalizado): In Shape y Green
+     Fork coinciden exacto (`8d8ed664…`, 82 funciones); pruebas da 84 por esas 3 huérfanas menos una
+     (`rls_auto_enable`) que nunca tuvo.
+
+---
+
+## esquema 1.25 · v72 · 2026-09-27 — Seis fallas de frontend que el dueño reportó: menú vacío por rol custom, poll oculto y escrituras sin revertir
+
+Lista de 6 fallas enviada por el dueño. Se midió cada una contra el código **antes** de tocar nada:
+3 ciertas, 2 ciertas pero con el alcance distinto al que él describió, 1 con el diagnóstico mal
+enquiciado. Todas quedaron corregidas en el maestro y difundidas a las dos copias.
+
+### 1. Menú lateral vacío para cualquier rol custom (cierta — la más grave de las 6)
+
+`Sidebar.jsx` filtraba con `canAccessPage(page, user?.role)`, pero la firma es
+`canAccessPage(page, role, customRoles = [])`: sin el tercer argumento, `customRoles.find(...)` se
+resolvía sobre `[]` y devolvía `false` para **todas** las páginas de un rol custom. Un usuario con
+rol custom no veía ninguna opción del menú (podía quedar encerrado en `dispatch`, que tampoco le
+correspondía). Ahora `PanelShell` baja `settings.customRoles` al `Sidebar` y, además, corrige la
+pantalla activa: si el rol no tiene permiso sobre ella, salta a la primera página visible, así no
+queda una pantalla sin botón de menú.
+
+Efecto secundario corregido: `goToClient` desde Notas mandaba a `clients` a un rol sin permiso,
+donde `PanelPage` lo rebotaba y el botón quedaba muerto. Esos dos botones ahora solo se muestran si
+el rol puede abrir clientes. El arreglo anterior ya tapaba el agujero real (antes el rol custom
+**sí** veía la pantalla de clientes aunque el menú no la listara).
+
+`NAV_ITEMS` se movió a `src/components/panel/navItems.js` porque ahora lo consumen dos componentes;
+dejarlo exportado desde `Sidebar.jsx` sumaba un aviso de fast-refresh de oxlint.
+
+### 2. `NotesPage` seguía consultando aunque estuviera invisible (cierta)
+
+El panel mantiene `dispatch`/`notes`/`clients` montados con `display:none` (no desmontados, para no
+perder el estado de los formularios). `NotesPage` tiene un `setInterval` de 15 s que llama
+`refreshNotes()` → 1 RPC; al no desmontarse, el poll seguía corriendo desde una pantalla invisible:
+4 RPC/min por pestaña abierta en otra pantalla, y x3 con tres pestañas. Se le pasó `active` y el
+callback del intervalo lo mira (junto con `document.hidden`, `editing`, `rescheduling`,
+`showComprobantes` que ya estaba).
+
+**Corrección a lo que reportó el dueño:** no son 13 páginas vivas sino 3 (las otras 12 se montan
+condicionalmente), y por lo tanto no son 12 RPC/min sino 4 por pestaña.
+
+### 3. `saveDays` mutate antes del guard y sin rollback (cierta, y se extendió)
+
+`setDays(newDays)` corría antes de `if (!confirmed.current.days)`, y el `dbSetFields` no se miraba:
+un fallo de escritura dejaba en pantalla días que la base no tiene. Ahora es guard → snapshot →
+set → escritura → `if (!ok) setDays(prev)` (los `db*` devuelven `false`, no tiran). El rollback
+re-disparaba el efecto de cierre automático de días no laborables con el mismo arreglo en bucle, así
+que se agregó `autoCloseAttempt` (una sola intención por conjunto de días).
+
+Se replicó la misma forma a `saveInventory` y, en esta pasada, a los cuatro escritores de listas que
+faltaban: `saveClients`, `saveNotes`, `deleteNote`, `deleteClients`.
+
+**Queda sin hacer (a decidir):** `saveStaffUsers`, `saveSettings`, `saveRoutes`, `saveDrivers`,
+`savePlans` (en el objeto de contexto, líneas ~411) sí hacen el set local antes de que
+`savePersonalFields` / `saveClientesFields` rechacen por falta de confirmación, y no revierten si la
+escritura falla. Están en la misma familia pero cada uno necesita su espejo del estado previo.
+
+### 4. El default UTC de `serverToday` al arrancar (cierto pero acotado)
+
+`useState(new Date().toISOString().slice(0, 10))` es fecha UTC: en UTC-4 (Bolivia) da el día
+siguiente de 20:00 a 23:59 locales. Solo ocurre mientras el arranque no consigue la fecha del
+servidor — si `get_business_date()` responde, el valor se pisa en el mismo `boot`. Con la RPC caída
+o lenta, ese bulto se mostraba como si fuera el día operativo. Ahora hay un `dateConfirmed` que
+distingue "confirmado por el servidor" de "bulto de arranque", y el aviso de sincronización parcial
+del `boot` y de `refreshAll` lo cuenta como fallo (lo reintenta `syncToday` cada 60 s). No se cambió
+el default a `''`/`null`: `PayrollPage` corta `currentDate.slice(0, 7)` y otras comparaciones
+esperan `YYYY-MM-DD`.
+
+### 5. La columna "Tarifa/día" de Planilla no decía de qué día era (cierto, con alcance distinto)
+
+La tarifa se escribe en `days[currentDate]`, o sea en el **día que se está mirando** (puede ser un
+`viewOverride` de otro mes). Eso es intencional, no un bug: es la tarifa del día en curso. El problema
+real era que la grilla podía mostrar otro mes mientras editaba otro día, y el encabezado no aclaraba
+en qué día se escribía. Ahora el encabezado dice "Tarifa/día de {fecha}" (clave nueva
+`panel.payroll.ratePerDayForDay` en es/en/pt) y el mes de la grilla se deriva de `currentDate` salvo
+que el selector lo haya cambiado para ese mismo día — sin `useEffect` de sincronización (hubiera
+sumado un aviso `set-state-in-effect` y un render extra).
+
+### 6. `userPrefs` con clave de localStorage sin prefijo de empresa (diagnóstico mal encuciado)
+
+Es verdad que `STORE_KEY = 'catering-user-prefs-v2'` no lleva `config.storagePrefix` y que
+`STORAGE_KEYS` sí. Pero `localStorage` es por **origen**: dos marcas en dominios distintos nunca se
+pisan, y las preferencias que guarda (tema, orden de columnas) no son secrets ni datos de cliente.
+El caso real de colisión es desarrollo local, donde las carpetas se turnan `localhost:3000`. Se
+arregló igual (consistencia con el resto del código) y la migración de la clave vieja a la nueva es
+de una sola vez por carga: si no, cualquiera arrancaba sin tema y sin orden de columnas guardados.
+
+### Tests: de 52 a 68 (`node --test tests/`, 66 pasan, 0 fallan, 2 `todo`)
+
+Tres archivos nuevos: `tests/panel-nav-customroles.test.js` (la firma de 3 argumentos y el cableado
+`customRoles` por fuente), `tests/operations-snapshot-guards.test.js` (guard antes del set, rollback
+en los seis escritores, `dateConfirmed`, y que toda clave `t(...)` del contexto exista en los tres
+idiomas), `tests/user-prefs-key.test.js` (clave derivada de `storagePrefix` y migración de la vieja).
+
+Medición final del maestro: `npm run lint` → **0 errores, 1 warning** (el único preexistente, de
+`CompanyPrefsContext`), `npm run build` ok, `node --test tests/` → 68/66/0/2. `node_modules/` y
+`dist/` se borraron después de medir.
+
+### Estado por base
+
+| Base | SQL | Edge Functions |
+|---|---|---|
+| `kkqcaiunetlikfyaldab` (pruebas) | ✅ sin cambios (1.25) | ✅ sin cambios |
+| `spvqcxomhkukwzijhvlm` (In Shape) | ✅ sin cambios (1.25) | ✅ sin cambios |
+| `inirizkgxkpvqnityvud` (Green Fork) | ✅ sin cambios (1.25) | ✅ sin cambios |
+
+Entrada 100 % de frontend: no se tocó `supabase-setup-final.sql` ni ninguna Edge Function, así que
+no hay que volver a correr SQL ni redesplegar funciones por esta entrada. Verificado con `diff -rq`
+entre las tres carpetas: `src/` idéntico (las diferencias de `public/` son solo `config.js`,
+`manifest.json` e íconos, que `difundir` protege a propósito).
+
+### Qué falta del lado del dueño
+
+1. `npm install` + `npm run build` + desplegar en Vercel/Workers en las tres carpetas (sin eso, el
+   navegador sigue con el bundle viejo).
+2. Commitear y pushear las tres carpetas: maestro 13 archivos (10 modified + 3 tests nuevos), cada
+   copia 10.
+3. Prueba real con un cliente y una suscripción de push (las dos bases de cliente siguen con
+   `db_clientes_rows = 0`).
 
 ---
 

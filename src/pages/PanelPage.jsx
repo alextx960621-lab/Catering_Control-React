@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import './PanelPage.css';
 import config from '../services/config';
-import { readStaffSession, clearSessions } from '../services/session';
+import { readStaffSession, clearStaffSession } from '../services/session';
 import { setSessionToken, revokeSession, joinPresence, leavePresence } from '../services/supabaseClient';
 import { fetchBrandingRemote } from '../services/clienteData';
 import { OperationsProvider, useOperations } from '../context/OperationsContext';
 import { getTheme as getMyCachedTheme } from '../services/userPrefs';
 import Sidebar from '../components/panel/Sidebar';
+import { NAV_ITEMS } from '../components/panel/navItems';
 import DispatchPage from '../components/panel/dispatch/DispatchPage';
 import NotesPage from '../components/panel/notes/NotesPage';
 import MenuPage from '../components/panel/menu/MenuPage';
@@ -25,7 +26,7 @@ import PayrollPage from '../components/panel/payroll/PayrollPage';
 import InventoryPage from '../components/panel/inventory/InventoryPage';
 import MetricsPage from '../components/panel/metrics/MetricsPage';
 import PremiumPageLock from '../components/panel/PremiumPageLock';
-import { canManage, isPagePremiumLocked } from '../services/panelAuth';
+import { canAccessPage, canManage, isPagePremiumLocked } from '../services/panelAuth';
 
 function PanelShell({ user, branding, theme, onThemeChange, activePage, onNavigate, onLogout, collapsed, onToggleCollapse }) {
   const { t, i18n } = useTranslation();
@@ -40,6 +41,14 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
   const [pendingClientAction, setPendingClientAction] = useState(null);
   // Última renovación/compra de plan confirmada por cliente, para que Notas pueda armar el…
   const [renewalByClient, setRenewalByClient] = useState({});
+
+  // Un rol custom sin permiso de dispatch quedaría encerrado en una pantalla sin botón del
+  // menú: si la pantalla activa no está entre las suyas, salta a la primera visible.
+  useEffect(() => {
+    if (canAccessPage(activePage, user?.role, settings.customRoles)) return;
+    const first = NAV_ITEMS.map(([page]) => page).find((page) => canAccessPage(page, user?.role, settings.customRoles));
+    if (first) onNavigate(first);
+  }, [activePage, user?.role, settings.customRoles, onNavigate]);
 
   // origin = la pantalla desde la que se pidió esto (queda "congelada" acá porque activePage…
   function goToClient(clientId, action) {
@@ -76,6 +85,7 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
     <div id="app" className={collapsed ? 'sidebar-collapsed' : ''}>
       <Sidebar
         brandName={branding.companyName} brandLogo={branding.logoUrl} user={user}
+        customRoles={settings.customRoles}
         activePage={activePage} onNavigate={onNavigate} onLogout={onLogout}
         collapsed={collapsed} onToggleCollapse={onToggleCollapse} notesCount={notesCount}
         pendingDaysCount={canManage(user?.role, settings.customRoles, 'dispatch') ? pendingDays.length : 0}
@@ -92,7 +102,7 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
           ? (activePage === 'notes' && <PremiumPageLock featureLabel={t('panel.nav.notes')} premiumWhatsapp={settings.premiumWhatsapp} />)
           : (
             <div style={{ display: activePage === 'notes' ? '' : 'none' }}>
-              <NotesPage user={user} onGoToClient={goToClient} renewalByClient={renewalByClient} onConsumeRenewal={consumeRenewal} />
+              <NotesPage user={user} active={activePage === 'notes'} onGoToClient={goToClient} renewalByClient={renewalByClient} onConsumeRenewal={consumeRenewal} />
             </div>
           )}
         {activePage === 'drivers' && <DriversPage user={user} />}
@@ -156,7 +166,7 @@ export default function PanelPage() {
   function handleLogout() {
     leavePresence();
     revokeSession();
-    clearSessions();
+    clearStaffSession();
     navigate('/', { replace: true });
   }
 

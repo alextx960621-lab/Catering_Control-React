@@ -146,8 +146,10 @@ export default function Portal({ data, client, driver, appConfig, branding, them
   const remaining = Math.max(0, n(client.paidDays) - n(client.consumedDays));
   const included = client.items && Object.keys(client.items).length ? client.items : plan?.items || {};
 
+  // El corte del autoservicio lo decide el reloj del servidor (viene en el catálogo), no la hora
+  // del teléfono del cliente: mover la relojera del aparato saltaba el bloqueo.
   function pastCutoff() {
-    return new Date().getHours() >= 22;
+    return Boolean(data.autoservicioCerrado);
   }
 
   async function handlePause(mode, returnDateInput) {

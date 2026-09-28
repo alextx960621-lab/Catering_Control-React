@@ -10,4 +10,5 @@ export const STORAGE_KEYS = {
   uiTheme: `${prefix}-ui-theme-v1`,
   clientSignupWelcome: `${prefix}-client-signup-welcome-v1`,
   pendingPlanPurchase: `${prefix}-pending-plan-purchase-v1`,
+  lastLoginOrigin: `${prefix}-last-login-origin-v1`,
 };

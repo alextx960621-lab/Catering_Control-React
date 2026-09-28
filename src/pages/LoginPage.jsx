@@ -5,7 +5,7 @@ import './LoginPage.css';
 import { useTheme } from '../hooks/useTheme';
 import { usePageBodyClass } from '../hooks/usePageBodyClass';
 import { useBranding } from '../hooks/useBranding';
-import { readStaffSession, readClientSession } from '../services/session';
+import { readLastLoginOrigin, readStaffSession, readClientSession } from '../services/session';
 import BrandMark from '../components/login/BrandMark';
 import ThemeSelect from '../components/login/ThemeSelect';
 import ShareAppButton from '../components/login/ShareAppButton';
@@ -32,15 +32,24 @@ export default function LoginPage() {
   }, [brandName, t]);
 
   // Si ya había una sesión abierta (staff o cliente) guardada de antes, saltar directo a su…
+  // Cuando conviven las dos (el mismo teléfono se usó para panel y portal sin cerrar sesión) no se
+  // elige al azar: manda la última entrada de ESTA pestaña. Sin marca, se muestra el formulario.
   useEffect(() => {
     if (redirected.current) return;
     const existingStaff = readStaffSession();
+    const existingClient = readClientSession();
+    if (existingStaff && existingClient) {
+      const origin = readLastLoginOrigin();
+      if (!origin) return;
+      redirected.current = true;
+      navigate(origin === 'client' ? '/cliente' : '/panel');
+      return;
+    }
     if (existingStaff) {
       redirected.current = true;
       navigate('/panel');
       return;
     }
-    const existingClient = readClientSession();
     if (existingClient) {
       redirected.current = true;
       navigate('/cliente');

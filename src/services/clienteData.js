@@ -45,7 +45,10 @@ export async function fetchServerSync(clientId) {
 
 // Guarda los cambios que el cliente hace sobre su propio perfil (pausa, reactivación…
 export async function saveClient(updatedClient) {
-  writeClientRow(updatedClient);
   const { pauseStart, returnDate, status, pauseDates, activeAddressId } = updatedClient;
-  return dbSaveOwnClientProfile(updatedClient.id, { pauseStart, returnDate, status, pauseDates, activeAddressId });
+  const saved = await dbSaveOwnClientProfile(updatedClient.id, { pauseStart, returnDate, status, pauseDates, activeAddressId });
+  // El cache se escribe DESPUÉS de la confirmación: la ruta rápida del portal pinta readClientRow()…
+  // al abrir, así que un cache adelantado mostraría un "Pausado" que la base nunca tuvo.
+  if (saved) writeClientRow(updatedClient);
+  return saved;
 }

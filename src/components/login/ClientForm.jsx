@@ -69,6 +69,12 @@ export default function ClientForm({ active, mode, onModeChange, onError, onClea
       const cleanCarnet = carnet.trim();
       const cleanPhone = phone.replace(/\D/g, '');
       // login_cliente tiene candado de fuerza bruta: 3 intentos fallidos seguidos con el mismo…
+      // El RPC ya descarta carnet < 4 y teléfono < 6 antes de tocar la tabla de intentos; este…
+      // guard local evita una vuelta a la red que no puede dar más que "no encontrado".
+      if (cleanCarnet.length < 4 || cleanPhone.length < 6) {
+        onError(purchasePlan ? t('login.clientNotFoundBuy') : t('login.clientNotFound'));
+        return;
+      }
       const rows = await rpc('login_cliente', { p_carnet: cleanCarnet, p_phone: cleanPhone });
       const client = Array.isArray(rows) ? rows[0] : null;
 

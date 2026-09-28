@@ -39,13 +39,17 @@ export const writeCachedBranding = (branding) => writeJSON(CLIENTE_KEYS.branding
 export const readCachedIsPremium = () => readJSON(CLIENTE_KEYS.isPremium, null);
 export const writeCachedIsPremium = (value) => writeJSON(CLIENTE_KEYS.isPremium, value);
 
-// Misma llave que usan login.html y panel.html (STORAGE_KEYS.uiTheme): es el cache LOCAL de…
-export function getClientTheme() {
-  return localStorage.getItem(STORAGE_KEYS.uiTheme) || 'light';
+// El tema del portal se guarda POR CLIENTE: dos clientes que comparten teléfono (familia, mismo…
+// origen) no tienen por qué ver el portal del otro coloreado. STORAGE_KEYS.uiTheme a secas queda…
+// solo para la pantalla de login (la lee useTheme.js).
+const clientThemeKey = (clientId) => `${STORAGE_KEYS.uiTheme}:${clientId || 'default'}`;
+
+export function getClientTheme(clientId) {
+  return localStorage.getItem(clientThemeKey(clientId)) || 'light';
 }
 
-export function saveClientTheme(_clientId, theme) {
+export function saveClientTheme(clientId, theme) {
   try {
-    localStorage.setItem(STORAGE_KEYS.uiTheme, theme);
+    localStorage.setItem(clientThemeKey(clientId), theme);
   } catch {/* localStorage lleno/bloqueado: no es crítico */}
 }

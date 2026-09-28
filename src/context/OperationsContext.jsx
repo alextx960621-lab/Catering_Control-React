@@ -55,10 +55,19 @@ export function OperationsProvider({ children, userId, user, onThemeFromSettings
   const [days, setDays] = useState({});
   const [notes, setNotes] = useState([]);
   const [inventory, setInventory] = useState({ items: [], links: [], movements: [] });
+  const inventoryRef = useRef(inventory);
+  inventoryRef.current = inventory;
+  const clientsRef = useRef(clients);
+  clientsRef.current = clients;
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
   const [settings, setSettings] = useState(normalizeSettings({}));
   const [staffUsers, setStaffUsers] = useState([]);
   // serverToday = el "hoy" operativo del servidor (cambia a la hora de corte)
   const [serverToday, setServerToday] = useState(new Date().toISOString().slice(0, 10));
+  // El default de arriba es la fecha UTC del navegador (20:00-23:59 locales en Bolivia = día equivocado):
+  // este flag distingue "confirmada por el servidor" de "todavía es el bulto de arranque"
+  const dateConfirmed = useRef(false);
   // Día que este usuario eligió mirar en Día de trabajo cuando no es el de hoy (por ejemplo…
   const [viewOverride, setViewOverride] = useState(null);
   const [notice, setNoticeState] = useState(null);
@@ -108,10 +117,18 @@ export function OperationsProvider({ children, userId, user, onThemeFromSettings
   daysRef.current = days;
   const daysSaving = useRef(0);
   const saveDays = useCallback((newDays) => {
+    // El guard de confirmación va ANTES del setDays (patrón de saveClients/saveInventory): si el bloque no está
+    // confirmado, mostrar los días nuevos dejaría en pantalla algo que la base no tiene y que desaparece al recargar
+    if (!confirmed.current.days) { notConfirmedNotice(); return Promise.resolve(false); }
+    const prev = daysRef.current;
     setDays(newDays);
     daysSaving.current += 1;
-    return Promise.resolve(saveClientesFields({ days: newDays })).finally(() => { daysSaving.current -= 1; });
-  }, [saveClientesFields]);
+    return Promise.resolve(saveClientesFields({ days: newDays })).then((ok) => {
+      // Los db* devuelven false en vez de tirar (ver services/db.js): si no se escribió, se revierte lo mostrado
+      if (!ok) setDays(prev);
+      return ok;
+    }).finally(() => { daysSaving.current -= 1; });
+  }, [notConfirmedNotice, saveClientesFields]);
 
   const syncDays = useCallback(async () => {
     if (daysSaving.current || !confirmed.current.days) return;
@@ -136,10 +153,16 @@ export function OperationsProvider({ children, userId, user, onThemeFromSettings
 
   // Los días no laborables que vienen seguidos después del último procesado se cierran solos…
   const canCloseDays = canManage(user?.role, settings.customRoles, 'dispatch');
+  // saveDays ahora revierte ante escritura fallida; sin esta memoria el rollback cambiaría `days`, re-dispararía
+  // el efecto y reintentaría el mismo cierre en bucle infinito
+  const autoCloseAttempt = useRef('');
   useEffect(() => {
     if (loading || !confirmed.current.days || !canCloseDays) return;
     const toClose = leadingNonWorkingDays(days, serverToday);
     if (!toClose.length) return;
+    const key = toClose.join('|');
+    if (autoCloseAttempt.current === key) return;
+    autoCloseAttempt.current = key;
     const patched = { ...days };
     toClose.forEach((d) => { patched[d] = { ...patched[d], processed: true, processedClientIds: [], payrollSnapshot: [] }; });
     saveDays(patched);
@@ -148,7 +171,7 @@ export function OperationsProvider({ children, userId, user, onThemeFromSettings
   // El día operativo puede cambiar con el Panel abierto (pasa la hora de corte): se vuelve a…
   const syncToday = useCallback(async () => {
     const d = await fetchBusinessDate();
-    if (d) setServerToday((prev) => (prev === d ? prev : d));
+    if (d) { dateConfirmed.current = true; setServerToday((prev) => (prev === d ? prev : d)); }
   }, []);
   useEffect(() => {
     if (loading) return undefined;
@@ -161,28 +184,42 @@ export function OperationsProvider({ children, userId, user, onThemeFromSettings
   // Sube SOLO los clientes de la lista que cambiaron (identificados por id) -- evita mandar…
   const saveClients = useCallback((updatedClients) => {
     if (!clientsConfirmed.current) { notConfirmedNotice(); return Promise.resolve(false); }
-    setClients((prev) => {
-      const byId = new Map(prev.map((c) => [c.id, c]));
+    const prev = clientsRef.current;
+    setClients((cur) => {
+      const byId = new Map(cur.map((c) => [c.id, c]));
       updatedClients.forEach((c) => byId.set(c.id, c));
       return [...byId.values()];
     });
-    return dbUpsertClientRows(updatedClients);
+    return Promise.resolve(dbUpsertClientRows(updatedClients)).then((ok) => {
+      // db* devuelve false en vez de tirar: si no se escribió, se revierte lo mostrado para no…
+      // dejar en pantalla clientes que la base no tiene
+      if (!ok) setClients(prev);
+      return ok;
+    });
   }, [notConfirmedNotice]);
 
   const saveNotes = useCallback((updatedNotes) => {
     if (!notesConfirmed.current) { notConfirmedNotice(); return Promise.resolve(false); }
-    setNotes((prev) => {
-      const byId = new Map(prev.map((nt) => [nt.id, nt]));
+    const prev = notesRef.current;
+    setNotes((cur) => {
+      const byId = new Map(cur.map((nt) => [nt.id, nt]));
       updatedNotes.forEach((nt) => byId.set(nt.id, nt));
       return [...byId.values()];
     });
-    return dbUpsertNoteRows(updatedNotes);
+    return Promise.resolve(dbUpsertNoteRows(updatedNotes)).then((ok) => {
+      if (!ok) setNotes(prev);
+      return ok;
+    });
   }, [notConfirmedNotice]);
 
   const deleteNote = useCallback((id) => {
     if (!notesConfirmed.current) { notConfirmedNotice(); return Promise.resolve(false); }
-    setNotes((prev) => prev.filter((nt) => nt.id !== id));
-    return dbDeleteNoteRows([id]);
+    const prev = notesRef.current;
+    setNotes((cur) => cur.filter((nt) => nt.id !== id));
+    return Promise.resolve(dbDeleteNoteRows([id])).then((ok) => {
+      if (!ok) setNotes(prev);
+      return ok;
+    });
   }, [notConfirmedNotice]);
 
   // Solo notas, sin avisos ni recargar todo: así el editor ve el aviso nuevo de un chofer sin…
@@ -197,8 +234,12 @@ export function OperationsProvider({ children, userId, user, onThemeFromSettings
 
   const deleteClients = useCallback((ids) => {
     if (!clientsConfirmed.current) { notConfirmedNotice(); return Promise.resolve(false); }
-    setClients((prev) => prev.filter((c) => !ids.includes(c.id)));
-    return dbDeleteClientRows(ids);
+    const prev = clientsRef.current;
+    setClients((cur) => cur.filter((c) => !ids.includes(c.id)));
+    return Promise.resolve(dbDeleteClientRows(ids)).then((ok) => {
+      if (!ok) setClients(prev);
+      return ok;
+    });
   }, [notConfirmedNotice]);
 
   // Reglas de retención de datos (ver services/dataCleanup.js): comprobantes de pago y fotos…
@@ -301,6 +342,7 @@ export function OperationsProvider({ children, userId, user, onThemeFromSettings
 
       const refDate = businessDate;
       if (refDate) {
+        dateConfirmed.current = true;
         setServerToday(refDate);
         if (userId && user?.role !== 'driver') {
           const savedView = getWorkViewDate(userId, refDate);
@@ -317,7 +359,9 @@ export function OperationsProvider({ children, userId, user, onThemeFromSettings
       setDays(days);
       setSettings(settingsNormalized);
 
-      const anyFailed = clientRows === null || noteRows === null || inventoryBlock === null || clientesFields === null || personalFields === null;
+      // La fecha sin confirmar cuenta como fallo parcial: serverToday quedó en el bulto UTC del navegador
+      // (día equivocado de 20:00 a 23:59 locales) y syncToday lo reintentará cada 60 s mientras tanto
+      const anyFailed = clientRows === null || noteRows === null || inventoryBlock === null || clientesFields === null || personalFields === null || !dateConfirmed.current;
       if (anyFailed) showNotice(t('panel.common.syncIncomplete'), true);
 
       // Nunca se espera (sin await): no debe demorar el arranque normal de la app por la vuelta…
@@ -331,8 +375,13 @@ export function OperationsProvider({ children, userId, user, onThemeFromSettings
 
   const saveInventory = useCallback((inv) => {
     if (!confirmed.current.inventory) { notConfirmedNotice(); return Promise.resolve(false); }
+    const prev = inventoryRef.current;
     setInventory(inv);
-    return dbSet('inventario', inv);
+    return Promise.resolve(dbSet('inventario', inv)).then((ok) => {
+      // dbSet devuelve false si la escritura falló (no tira): se revierte para que la pantalla no muestre movimientos que no están en la base
+      if (!ok) setInventory(prev);
+      return ok;
+    });
   }, [notConfirmedNotice]);
 
   // Trae todo de nuevo desde el servidor (botón "Actualizar" del menú)
@@ -368,8 +417,8 @@ export function OperationsProvider({ children, userId, user, onThemeFromSettings
       confirmed.current.drivers = true; confirmed.current.routes = true; confirmed.current.settings = true; confirmed.current.staffUsers = true;
     }
     const refreshedDate = businessDate;
-    if (refreshedDate) setServerToday(refreshedDate);
-    const anyFailed = clientRows === null || noteRows === null || inventoryBlock === null || clientesFields === null || personalFields === null;
+    if (refreshedDate) { dateConfirmed.current = true; setServerToday(refreshedDate); }
+    const anyFailed = clientRows === null || noteRows === null || inventoryBlock === null || clientesFields === null || personalFields === null || !refreshedDate;
     showNotice(anyFailed ? t('panel.common.syncFailed') : t('panel.common.dataUpdated'), anyFailed);
     if (normalizedClients !== null && normalizedNotes !== null && clientesFields !== null && personalFields !== null && refreshedDate) {
       // Ojo: refreshAll está memoizada con deps=[showNotice] (fijas), así que NO puede confiar en…

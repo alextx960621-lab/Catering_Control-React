@@ -12,6 +12,10 @@ import { uid, fmtDate } from '../panelUtils';
 
 const WEEKDAYS = [{ v: 1, k: 'Mon' }, { v: 2, k: 'Tue' }, { v: 3, k: 'Wed' }, { v: 4, k: 'Thu' }, { v: 5, k: 'Fri' }, { v: 6, k: 'Sat' }, { v: 0, k: 'Sun' }];
 
+// Una dirección vale aunque no tenga texto: es común que el cliente mande solo el link de Maps.
+// Filtrar por `address` a secas descartaba la fila entera (link, coordenadas, orden, notas) al guardar.
+const hasAddressData = (a) => Boolean((a.address || '').trim() || (a.maps || '').trim() || a.lat != null || a.lng != null);
+
 // Campo de texto que crece con el contenido en vez de quedarse fijo en una sola línea y…
 function AutoTextarea({ className, ...props }) {
   const ref = useRef(null);
@@ -25,7 +29,7 @@ function AutoTextarea({ className, ...props }) {
 }
 
 // Filas de direcciones editables dentro del formulario de cliente
-function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, onOrderChange }) {
+function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, onOrderChange, schedule = [] }) {
   const { t } = useTranslation();
   function update(i, field, value) {
     setAddresses((prev) => prev.map((a, idx) => (idx === i ? { ...a, [field]: value } : a)));
@@ -35,6 +39,10 @@ function AddressRows({ addresses, setAddresses, activeId, setActiveId, routes, o
   }
   function remove(i) {
     const removed = addresses[i];
+    // Borrar la dirección arrastra las franjas del horario semanal que apuntan a ella (se filtra…
+    // en handleSubmit), así que sin confirmación el usuario perdía semanas de horario sin aviso.
+    const referencing = schedule.filter((row) => row.addressId === removed?.id && row.days.length).length;
+    if (referencing && !window.confirm(t('panel.clients.removeAddressScheduleConfirm', { count: referencing }))) return;
     const next = addresses.filter((_, idx) => idx !== i);
     setAddresses(next);
     if (removed?.id === activeId) setActiveId(next[0]?.id || '');
@@ -254,9 +262,12 @@ function RenewPlanModal({ client, mode, plans, onClose, onConfirm }) {
 
 export default function ClientsPage({ user, pendingClientAction, onConsumePendingClientAction, onRenewalCompleted, onReturnToOrigin }) {
   const { t } = useTranslation();
-  const { clients, routes, plans, drivers, settings, currentDate, days, saveClients, deleteClients, showNotice, loading } = useOperations();
+  const { clients, routes, plans, drivers, settings, currentDate, serverToday, days, saveClients, deleteClients, showNotice, loading } = useOperations();
   // dispatchStatus() necesita el día real (con su laborable/procesado); si todavía no tiene…
   const dayInfo = days[currentDate] || { laborable: true };
+  // Pausar/reactivar es una acción sobre el día operativo de HOY, no sobre el día que se está…
+  // mirando: con viewOverride en "ayer" se evaluaba y se escribía el estado del día equivocado.
+  const dayInfoToday = days[serverToday] || { laborable: true };
   const [search, setSearch] = useState('');
   const [routeFilter, setRouteFilter] = useState('');
   const [editing, setEditing] = useState(null);
@@ -355,11 +366,12 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     if (data.status !== 'Programado' && data.status !== 'Pausado') data.returnDate = '';
     // Igual que en togglePause: si desde este formulario se elige a mano cualquier estado que…
     if (data.status !== 'Pausado') { data.pauseStart = ''; data.pauseDates = []; }
-    const resolvedAddresses = await Promise.all(addresses.filter((a) => a.address.trim()).map(resolveShortMapsLinkIfNeeded));
+    const resolvedAddresses = await Promise.all(addresses.filter(hasAddressData).map(resolveShortMapsLinkIfNeeded));
     // `_coordsDraft` es un campo interno solo para mientras se escribe a mano en el campo de…
     const finalAddresses = resolvedAddresses.map(({ _coordsDraft, ...a }) => a);
     const finalAddressIds = new Set(finalAddresses.map((a) => a.id));
     const finalSchedule = schedule.filter((row) => row.days.length && finalAddressIds.has(row.addressId));
+    const droppedScheduleRows = scheduleLocked ? 0 : schedule.length - finalSchedule.length;
     const isNew = !editing?.id;
     const activeAddr = finalAddresses.find((a) => a.id === activeAddressId) || finalAddresses[0];
     const c = {
@@ -370,17 +382,21 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
       routeId: activeAddr?.routeId || editing?.routeId || '',
       id: editing?.id || uid('c'),
     };
-    saveClients([c]);
-    if (orderShift) {
+    const saved = await saveClients([c]);
+    if (saved && orderShift) {
       // Se corre a los demás solo si el número elegido sigue siendo el que se guarda
       const row = finalAddresses.find((a) => a.id === orderShift.addressId);
       if (row && String(row.order ?? '').trim() === orderShift.value) {
         const shifted = shiftOrdersFrom(clients, orderShift.routeId, currentDate, Number(orderShift.value), c.id, dayInfo);
-        if (shifted.length) saveClients(shifted);
+        // Los dos guardados van por separado: si el cliente no se escribió, correr a los demás…
+        // dejaría dos clientes con el mismo orden en la base
+        if (shifted.length && !(await saveClients(shifted))) showNotice(t('panel.clients.shiftOrdersSaveFailed'), true);
       }
       setOrderShift(null);
     }
-    showNotice(t('panel.clients.clientSaved'));
+    if (!saved) showNotice(t('panel.clients.clientSaveFailed'), true);
+    else if (droppedScheduleRows > 0) showNotice(t('panel.clients.scheduleRowsDroppedNotice', { count: droppedScheduleRows }), true);
+    else showNotice(t('panel.clients.clientSaved'));
     dbInsertAudit({ actor_id: user.id, actor_name: user.name, actor_role: user.role, action: isNew ? 'Cliente creado' : 'Cliente editado', entity_type: 'client', entity_label: c.name, entity_id: c.id, details: {} });
     // Si se llegó acá desde otra pantalla (Día de trabajo o Notas), se vuelve exactamente a esa…
     if (returnOrigin) { onReturnToOrigin?.(returnOrigin); setReturnOrigin(null); }
@@ -394,10 +410,13 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
   }
 
   function togglePause(c) {
-    const current = dispatchStatus(c, currentDate, dayInfo);
+    const current = dispatchStatus(c, serverToday, dayInfoToday);
     // Al reactivar hay que limpiar TAMBIÉN pauseDates (no solo pauseStart): si el cliente había…
-    saveClients([{ ...c, status: current === 'Pausado' ? 'Activo' : 'Pausado', pauseStart: current === 'Pausado' ? '' : currentDate, pauseDates: current === 'Pausado' ? [] : (c.pauseDates || []) }]);
-    showNotice(current === 'Pausado' ? t('panel.clients.clientActivated') : t('panel.clients.clientPaused'));
+    saveClients([{ ...c, status: current === 'Pausado' ? 'Activo' : 'Pausado', pauseStart: current === 'Pausado' ? '' : serverToday, pauseDates: current === 'Pausado' ? [] : (c.pauseDates || []) }])
+      .then((saved) => {
+        if (!saved) { showNotice(t('panel.clients.clientSaveFailed'), true); return; }
+        showNotice(current === 'Pausado' ? t('panel.clients.clientActivated') : t('panel.clients.clientPaused'));
+      });
   }
 
   // Abre el modal de renovar/añadir plan; si el formulario de editar cliente estaba abierto…
@@ -465,7 +484,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
     { key: 'specialDietSnacks', label: t('panel.clients.specialDietSnacks'), sortValue: (c) => c.specialDietSnacks || '', render: (c) => c.specialDietSnacks || '—' },
     { key: 'id', label: t('panel.common.actions'), sortable: false, render: (c) => canEdit ? (
       <>
-        <button className={`icon-btn ${dispatchStatus(c, currentDate, dayInfo) === 'Pausado' ? 'success' : 'orange'}`} onClick={() => togglePause(c)}>{dispatchStatus(c, currentDate, dayInfo) === 'Pausado' ? t('panel.clients.activate') : t('panel.clients.pause')}</button>
+        <button className={`icon-btn ${dispatchStatus(c, serverToday, dayInfoToday) === 'Pausado' ? 'success' : 'orange'}`} onClick={() => togglePause(c)}>{dispatchStatus(c, serverToday, dayInfoToday) === 'Pausado' ? t('panel.clients.activate') : t('panel.clients.pause')}</button>
         <button className="icon-btn warning" onClick={() => openRenew(c, 'renew')}>{t('panel.clients.renew')}</button>
         <button className="icon-btn info" onClick={() => openEdit(c)}>{t('panel.common.edit')}</button>
         <button className="icon-btn delete" onClick={() => handleDelete(c)}>{t('panel.clients.remove')}</button>
@@ -528,7 +547,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
               <div className="form-section tone-accent">
                 <div className="form-section-title">📍 {t('panel.clients.addressesSection')}</div>
                 <p className="muted" style={{ margin: '2px 0 8px' }}>{t('panel.clients.addressesHint')}</p>
-                <AddressRows addresses={addresses} setAddresses={setAddresses} activeId={activeAddressId} setActiveId={setActiveAddressId} routes={routes} onOrderChange={askOrderConflict} />
+                <AddressRows addresses={addresses} setAddresses={setAddresses} activeId={activeAddressId} setActiveId={setActiveAddressId} routes={routes} onOrderChange={askOrderConflict} schedule={schedule} />
               </div>
 
               <div className="form-section tone-warning">
@@ -616,7 +635,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
                 ) : (
                   <>
                     <p className="muted" style={{ margin: '2px 0 8px' }}>{t('panel.clients.weeklyScheduleHint')}</p>
-                    <ScheduleRows schedule={schedule} setSchedule={setSchedule} addresses={addresses.filter((a) => a.address.trim())} />
+                    <ScheduleRows schedule={schedule} setSchedule={setSchedule} addresses={addresses.filter(hasAddressData)} />
                   </>
                 )}
               </div>

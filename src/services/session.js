@@ -27,6 +27,7 @@ export function readStaffSession() {
 
 export function writeStaffSession(session) {
   writeJSON(sessionStorage, STORAGE_KEYS.staffSession, session);
+  markLastLogin('staff');
 }
 
 export function readClientSession() {
@@ -47,11 +48,29 @@ export function readClientSession() {
 
 export function writeClientSession(session) {
   writeJSON(clientStorage(), STORAGE_KEYS.clientSession, session);
+  markLastLogin('client');
 }
 
-export function clearSessions() {
+// En sessionStorage porque responde a "qué se abrió últimamente EN ESTA pestaña": si alguien usa…
+// el panel y después el portal en la misma pestaña, el F5 lo devuelve al portal, no al panel.
+export function markLastLogin(origin) {
+  try { sessionStorage.setItem(STORAGE_KEYS.lastLoginOrigin, origin); } catch {/* storage bloqueado */}
+}
+
+export function readLastLoginOrigin() {
+  try { return sessionStorage.getItem(STORAGE_KEYS.lastLoginOrigin); } catch { return null; }
+}
+
+// Los dos cierres van separados: clearSessions() borraba también la sesión del cliente, que en PWA…
+// es la única que persiste, así que el logout de un staff en el mismo teléfono expulsaba al cliente.
+export function clearStaffSession() {
   sessionStorage.removeItem(STORAGE_KEYS.staffSession);
+  sessionStorage.removeItem(STORAGE_KEYS.lastLoginOrigin);
+}
+
+export function clearClientSession() {
   sessionStorage.removeItem(STORAGE_KEYS.clientSession);
   localStorage.removeItem(STORAGE_KEYS.clientSession);
   sessionStorage.removeItem(STORAGE_KEYS.pendingPlanPurchase);
+  sessionStorage.removeItem(STORAGE_KEYS.lastLoginOrigin);
 }

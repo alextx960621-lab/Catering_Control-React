@@ -1,11 +1,32 @@
 // Preferencias PERSONALES de un usuario de staff: tema visual + orden/ ocultas/anchos de…
+import config from './config';
 import { dbSaveOwnPrefs } from './db';
 
-const STORE_KEY = 'catering-user-prefs-v2';
+// La clave lleva el prefijo de la empresa igual que STORAGE_KEYS: localStorage es por origen, así…
+// que dos marcas en dominios distintos no se pisan, pero dos carpetas turnándose el mismo puerto…
+// de desarrollo (localhost:3000) sí compartirían tema y orden de columnas.
+const LEGACY_STORE_KEY = 'catering-user-prefs-v2';
+const STORE_KEY = `${config.storagePrefix}-user-prefs-v2`;
 const SYNC_DEBOUNCE_MS = 900;
 
+let legacyMigrated = false;
+
 function readStore() {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch { return {}; }
+  try {
+    // Una sola vez por carga: si las preferencias ya existían bajo la clave vieja, se pasan a la…
+    // nueva antes de leer (si no, el usuario arranca sin tema y sin orden de columnas guardados).
+    if (!legacyMigrated) {
+      legacyMigrated = true;
+      if (!localStorage.getItem(STORE_KEY)) {
+        const viejo = localStorage.getItem(LEGACY_STORE_KEY);
+        if (viejo) {
+          localStorage.setItem(STORE_KEY, viejo);
+          localStorage.removeItem(LEGACY_STORE_KEY);
+        }
+      }
+    }
+    return JSON.parse(localStorage.getItem(STORE_KEY)) || {};
+  } catch { return {}; }
 }
 function writeStore(store) {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch {/* localStorage lleno/bloqueado */}

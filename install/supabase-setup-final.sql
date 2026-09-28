@@ -1,5 +1,5 @@
 -- Catering Control · instalación completa para una empresa nueva (un solo archivo).
--- version de esquema: 1.25   <-- única marca que edita el humano; debe coincidir con el literal del INSERT de db_app_version (sección 23).
+-- version de esquema: 1.26   <-- única marca que edita el humano; debe coincidir con el literal del INSERT de db_app_version (sección 23).
 -- Pegarlo entero en el SQL Editor de Supabase; se puede volver a correr sin romper nada.
 -- Sirve igual para instalar de cero que para actualizar una base vieja: todo es
 -- create table if not exists / create or replace function / on conflict do nothing. Medido:
@@ -446,6 +446,20 @@ as $$
 $$;
 grant execute on function get_business_date() to anon, authenticated;
 
+-- Cierre del autoservicio: la empresa corta la ventana a las 22:00 de su hora local (era un 22
+-- fijo medido con la hora del teléfono del cliente, que se mueve a gusto; ahora manda el reloj
+-- del servidor). Sin parámetros: la regla es global, no por día, igual que en el portal.
+create or replace function public._autoservicio_cerrado()
+returns boolean
+language sql
+security definer
+stable
+set search_path = public, extensions
+as $$
+  select extract(hour from now() at time zone get_company_timezone())::int >= 22;
+$$;
+revoke all on function public._autoservicio_cerrado() from public;
+
 -- 7. Lecturas públicas: branding, plan y catálogo del portal
 create or replace function get_branding()
 returns jsonb
@@ -523,6 +537,9 @@ begin
   if v_days is not null then v_result := v_result || jsonb_build_object('days', v_days); end if;
   -- La fecha de trabajo ya no es un dato guardado: es el día operativo del servidor (get_business_date)
   v_result := v_result || jsonb_build_object('currentDate', get_business_date());
+  -- Cierre del autoservicio medido con el reloj del servidor: el portal pregunta aquí en vez de
+  -- mirar la hora del teléfono del cliente (esa se mueve a gusto y saltaba el corte de las 22:00).
+  v_result := v_result || jsonb_build_object('autoservicioCerrado', public._autoservicio_cerrado());
   return v_result;
 end;
 $$;
@@ -1303,6 +1320,11 @@ begin
            or (jsonb_typeof(v_val) = 'string' and (v_val #>> '{}') !~ '^(\d{4}-\d{2}-\d{2})?$') then
           raise exception 'Fecha inválida.';
         end if;
+        -- El autoservicio se corta a las 22:00 de la empresa. Antes eso solo se ocultaba en el…
+        -- portal (con la hora del teléfono), así que se saltaba moviendo la relojera del aparato.
+        if jsonb_typeof(v_val) = 'string' and (v_val #>> '{}') <> '' and public._autoservicio_cerrado() then
+          raise exception 'Ya pasó el horario de autoservicio.';
+        end if;
 
       elsif v_key = 'status' then
         if jsonb_typeof(v_val) <> 'string' or not ((v_val #>> '{}') in ('Programado','Pausado','Activo')) then
@@ -1438,7 +1460,6 @@ set search_path = public, extensions
 as $$
 declare
   v_row db_clientes_rows%rowtype;
-  v_now_local timestamptz := now() at time zone get_company_timezone();
   v_addr_exists boolean;
   v_overrides jsonb;
   v_today date := get_server_date()::date;
@@ -1452,8 +1473,8 @@ begin
     raise exception 'Fecha fuera de rango.';
   end if;
 
-  if extract(hour from v_now_local) >= 22 then
-    raise exception 'Ya pasó el horario para cambiar la dirección (22:00 hora local).';
+  if public._autoservicio_cerrado() then
+    raise exception 'Ya pasó el horario de autoservicio.';
   end if;
 
   select * into v_row from db_clientes_rows where id = p_client_id;
@@ -3062,7 +3083,7 @@ grant execute on function public.staff_get_ratings(text) to anon, authenticated;
 -- 'settings' de db_personal la sobreescribe POR COMPLETO el panel en cada guardado
 -- (rama 'personal' del guardado: payload = excluded.payload), así que ahí la marca
 -- desaparecería al primer guardado. Es lo único que escribe este bloque y no toca
--- ninguna fila de datos de la app. El literal '1.25' debe coincidir con el del
+-- ninguna fila de datos de la app. El literal '1.26' debe coincidir con el del
 -- encabezado "-- version de esquema" al inicio del archivo.
 -- ============================================================================
 
@@ -3080,7 +3101,7 @@ create policy "no direct access app_version" on public.db_app_version for all us
 
 -- Dejar sentada la versión de esquema recién instalada; la tabla es el registro, no datos de la app.
 insert into public.db_app_version (id, payload)
-  values ('main', jsonb_build_object('esquema', '1.25', 'setup', 'supabase-setup-final.sql'))
+  values ('main', jsonb_build_object('esquema', '1.26', 'setup', 'supabase-setup-final.sql'))
   on conflict (id) do update set payload = excluded.payload, updated_at = now();
 
 -- Lectura del registro. SECURITY DEFINER porque la tabla está cerrada por RLS; el barrido de
