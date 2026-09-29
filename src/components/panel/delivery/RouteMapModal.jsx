@@ -70,7 +70,7 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
       // todavía no se subió su archivo, CARTO como respaldo (ver services/mapTiles.js).
       // El servidor de teselas crudo de OpenStreetMap (tile.openstreetmap.org) no se usa: su
       // política prohíbe apps en producción y devuelve 403 (mapa gris) con uso continuo.
-      const { layer: baseLayer } = await createBaseLayer(L, mapCity, language);
+      const { layer: baseLayer } = await createBaseLayer(L, mapCity, language, map);
       if (cancelled || !mapRef.current) return; // se cerró mientras cargaba el fondo (teardown ya destruyó el mapa)
       baseLayer.addTo(map);
 
