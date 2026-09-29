@@ -11,7 +11,8 @@
     "test": "node --test tests/",
     "sync-edge": "node scripts/sync-edge-shared.mjs",
     "nueva-empresa": "node scripts/nueva-empresa.mjs",
-    "prebuild": "node scripts/sync-edge-shared.mjs"
+    "prebuild": "node scripts/sync-edge-shared.mjs",
+    "mapa-ciudad": "node scripts/mapa-ciudad.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.115.0",
@@ -19,6 +20,8 @@
     "exceljs": "^4.4.0",
     "i18next": "^26.4.2",
     "leaflet": "^1.9.4",
+    "pmtiles": "^4.5.0",
+    "protomaps-leaflet": "^5.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-i18next": "^17.0.15",

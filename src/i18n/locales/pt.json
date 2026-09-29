@@ -389,6 +389,21 @@
         "deliveryStatus": "despachos",
         "snapshots": "snapshots"
       }
+    },
+    "mapCity": {
+      "title": "Cidade do mapa de Entregas",
+      "intro": "Escolha a cidade onde a empresa atua. O mapa de Entregas é centralizado ali e usa o mapa próprio dessa cidade, sem depender de servidores gratuitos de terceiros. Definido pelo Super Administrador.",
+      "cityLabel": "Cidade",
+      "none": "Não selecionada (mapa de reserva)",
+      "custom": "Outra cidade…",
+      "customName": "Nome da cidade",
+      "customNamePlaceholder": "Ex.: Puerto Montt",
+      "customLat": "Latitude",
+      "customLng": "Longitude",
+      "customRadius": "Raio (km)",
+      "saveCustom": "Salvar cidade",
+      "customInvalid": "Preencha o nome e coordenadas válidas (latitude entre -85 e 85, longitude entre -180 e 180), com um raio de 5 a 200 km.",
+      "fileHint": "Arquivo de mapa esperado no bucket \"maps\": {{file}}. Se ainda não foi enviado, o mapa usa o fundo de reserva."
     }
   },
   "legal": {

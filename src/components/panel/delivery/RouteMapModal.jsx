@@ -4,6 +4,10 @@ import { n } from '../../../services/planHelpers';
 import { effectiveOrder, resolvedAddress, extractLatLngFromMapsField } from '../../../services/dispatchHelpers';
 import { fetchRoadRoute } from '../../../services/roadRoute';
 import { supabase } from '../../../services/supabaseClient';
+import { useOperations } from '../../../context/OperationsContext';
+import { useCompanyPrefs } from '../../../context/CompanyPrefsContext';
+import { createBaseLayer } from '../../../services/mapTiles';
+import { normalizeMapCity, cityBbox } from '../../../data/mapCities';
 
 const LOCATION_CHANNEL_NAME = 'catering-driver-locations';
 const BROADCAST_MIN_INTERVAL_MS = 4000;
@@ -14,9 +18,12 @@ function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 function srcFingerprint(addr) { return `${addr?.maps || ''}|${addr?.address || ''}`; }
 
 // Último recurso para ubicar en el mapa a un cliente sin coordenadas resueltas: manda su…
-async function geocodeAddress(address) {
+async function geocodeAddress(address, city) {
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
+    // Con ciudad elegida en Configuración, Nominatim prioriza resultados de esa zona (viewbox sin
+    // `bounded`: solo ordena, no descarta), así "Av. Arce" no cae en otro país.
+    const viewbox = city ? `&viewbox=${cityBbox(city).join(',')}` : '';
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1${viewbox}&q=${encodeURIComponent(address)}`;
     const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
     if (!res.ok) return null;
     const data = await res.json();
@@ -31,6 +38,9 @@ async function geocodeAddress(address) {
 // Muestra un mapa con las paradas de una ruta (numeradas por orden de entrega), intenta…
 export default function RouteMapModal({ open, onClose, routeId, routeName, clients, date, isDriverBroadcasting, driverDisplayName, saveClients }) {
   const { t } = useTranslation();
+  const { settings } = useOperations();
+  const { language } = useCompanyPrefs();
+  const mapCity = normalizeMapCity(settings?.mapCity); // null = la empresa aún no eligió ciudad
   const dialogRef = useRef(null);
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -56,19 +66,13 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
 
       const map = L.map(containerRef.current, { zoomControl: true });
       mapRef.current = map;
-      // El tile server crudo de OpenStreetMap (tile.openstreetmap.org) es solo para uso
-      // ligero/pruebas: su política prohíbe apps en producción y devuelve 403 (mapa gris)
-      // en cuanto detecta uso continuo, sea con subdominios a/b/c o con el host único.
-      // CARTO ofrece las mismas teselas (basadas en datos de OSM) en un CDN pensado para
-      // producción, sin necesidad de API key para este volumen de uso.
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
-        subdomains: 'abcd',
-        // detectRetina: en pantallas con escala (Windows al 125/150%) sin esto Leaflet pide
-        // teselas normales y las estira -> mapa "pixeleado". CARTO sirve @2x sin API key.
-        detectRetina: true,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
-      }).addTo(map);
+      // Fondo: archivo de mapa propio de la ciudad elegida en Configuración; si no hay ciudad o
+      // todavía no se subió su archivo, CARTO como respaldo (ver services/mapTiles.js).
+      // El servidor de teselas crudo de OpenStreetMap (tile.openstreetmap.org) no se usa: su
+      // política prohíbe apps en producción y devuelve 403 (mapa gris) con uso continuo.
+      const { layer: baseLayer } = await createBaseLayer(L, mapCity, language);
+      if (cancelled || !mapRef.current) return; // se cerró mientras cargaba el fondo (teardown ya destruyó el mapa)
+      baseLayer.addTo(map);
 
       const markersLayer = L.layerGroup().addTo(map);
       layersRef.current.markers = markersLayer;
@@ -106,7 +110,7 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
 
       updateLegendAndStatus();
       if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs).pad(0.2));
-      else map.setView([-16.5, -68.15], 12);
+      else map.setView(mapCity ? [mapCity.lat, mapCity.lng] : [-16.5, -68.15], 12);
 
       setTimeout(() => map.invalidateSize(), 60);
       drawStraightLine();
@@ -123,7 +127,7 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
           let coords = extractLatLngFromMapsField(addr.maps) || extractLatLngFromMapsField(addr.address);
           if (!coords && addr.address) {
             setStatus(t('panel.routeMap.resolvingAddresses', { current: geocodedSoFar + 1, total: stillMissing.length }));
-            coords = await geocodeAddress(addr.address);
+            coords = await geocodeAddress(addr.address, mapCity);
             await sleep(NOMINATIM_DELAY_MS);
           }
           if (!coords || cancelled || !mapRef.current) continue;

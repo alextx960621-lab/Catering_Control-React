@@ -389,6 +389,21 @@
         "deliveryStatus": "despachos",
         "snapshots": "snapshots"
       }
+    },
+    "mapCity": {
+      "title": "Ciudad del mapa de Reparto",
+      "intro": "Elige la ciudad donde trabaja la empresa. El mapa de Reparto se centra ahí y usa el mapa propio de esa ciudad, sin depender de servidores gratuitos de terceros. Lo asigna el Super Administrador.",
+      "cityLabel": "Ciudad",
+      "none": "Sin elegir (mapa de respaldo)",
+      "custom": "Otra ciudad…",
+      "customName": "Nombre de la ciudad",
+      "customNamePlaceholder": "Ej.: Puerto Montt",
+      "customLat": "Latitud",
+      "customLng": "Longitud",
+      "customRadius": "Radio (km)",
+      "saveCustom": "Guardar ciudad",
+      "customInvalid": "Completa el nombre y unas coordenadas válidas (latitud entre -85 y 85, longitud entre -180 y 180), con un radio de 5 a 200 km.",
+      "fileHint": "Archivo de mapa esperado en el bucket \"maps\": {{file}}. Si todavía no está subido, el mapa usa el fondo de respaldo."
     }
   },
   "legal": {

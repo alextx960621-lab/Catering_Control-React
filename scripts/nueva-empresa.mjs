@@ -18,7 +18,7 @@ import { generateKeyPairSync } from 'node:crypto';
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // Hay que actualizarla cuando esta carpeta se reemplace por un ZIP de otra versión.
-const VERSION_CODIGO = 'v72';
+const VERSION_CODIGO = 'v73';
 const GENERICA = new Set(['catering', 'comida', 'gourmet', 'food', 'y', '&', 'de', 'la', 'el', 'los', 'las']);
 const MONEDAS = { BOB: 'es', Bs: 'es', PYG: 'es', Gs: 'es', ARS: 'es', CLP: 'es', COP: 'es', PEN: 'es', MXN: 'es', DOP: 'es', CRC: 'es', GTQ: 'es', UYU: 'es', USD: 'en', EUR: 'en' };
 

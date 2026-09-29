@@ -389,6 +389,21 @@
         "deliveryStatus": "dispatches",
         "snapshots": "snapshots"
       }
+    },
+    "mapCity": {
+      "title": "Delivery map city",
+      "intro": "Choose the city where the company operates. The Delivery map centers there and uses that city's own map, without relying on free third-party servers. Assigned by the Super Administrator.",
+      "cityLabel": "City",
+      "none": "Not selected (fallback map)",
+      "custom": "Other city…",
+      "customName": "City name",
+      "customNamePlaceholder": "E.g.: Puerto Montt",
+      "customLat": "Latitude",
+      "customLng": "Longitude",
+      "customRadius": "Radius (km)",
+      "saveCustom": "Save city",
+      "customInvalid": "Fill in the name and valid coordinates (latitude between -85 and 85, longitude between -180 and 180), with a radius of 5 to 200 km.",
+      "fileHint": "Expected map file in the \"maps\" bucket: {{file}}. If it hasn't been uploaded yet, the map uses the fallback background."
     }
   },
   "legal": {

@@ -11,6 +11,7 @@ import { dbGetAllAuditLog, dbGetAllDeliveryStatus, dbGetAllSnapshots, dbInsertAu
 import { setTheme as saveMyTheme } from '../../../services/userPrefs';
 import { fmtDate } from '../panelUtils';
 import { isPagePremiumLocked } from '../../../services/panelAuth';
+import MapCityCard from './MapCityCard';
 
 // Qué puede bloquear el Super Administrador por empresa. Las que no están acá no tienen…
 // relación con el plan (Día de trabajo, Clientes, Rutas, Configuración...).
@@ -246,6 +247,8 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
             <p className="muted" style={{ marginTop: -6 }}>{t('settings.currencyHint')}</p>
           </div>
         )}
+
+        {isSuperAdmin && <MapCityCard settings={settings} saveSettings={saveSettings} />}
 
         {isSuperAdmin && (
           <div className="card card-pad stack">
