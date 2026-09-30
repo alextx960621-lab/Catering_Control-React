@@ -1,5 +1,5 @@
 -- Catering Control · instalación completa para una empresa nueva (un solo archivo).
--- version de esquema: 1.26   <-- única marca que edita el humano; debe coincidir con el literal del INSERT de db_app_version (sección 23).
+-- version de esquema: 1.27   <-- única marca que edita el humano; debe coincidir con el literal del INSERT de db_app_version (sección 23).
 -- Pegarlo entero en el SQL Editor de Supabase; se puede volver a correr sin romper nada.
 -- Sirve igual para instalar de cero que para actualizar una base vieja: todo es
 -- create table if not exists / create or replace function / on conflict do nothing. Medido:
@@ -167,9 +167,10 @@ security definer
 set search_path = public, extensions
 as $$
 declare
-  v_id text; v_name text; v_role text;
+  v_id text; v_name text; v_role text; v_created timestamptz; v_expires timestamptz;
 begin
-  select s.subject_id, s.subject_name, s.role into v_id, v_name, v_role
+  select s.subject_id, s.subject_name, s.role, s.created_at, s.expires_at
+    into v_id, v_name, v_role, v_created, v_expires
   from db_sessions s
   where s.token = p_token and s.subject_type = 'staff' and s.expires_at > now();
 
@@ -186,23 +187,74 @@ begin
     raise exception 'Sesión inválida o expirada. Vuelve a iniciar sesión.';
   end if;
 
-  update db_sessions set expires_at = now() + interval '7 days' where token = p_token;
+  -- Renovación deslizante CON TOPE: cada uso suma 3 días, pero la sesión nunca sobrevive más de
+  -- 30 días desde que se abrió (una vez al mes hay que volver a poner la contraseña). Antes sumaba
+  -- 7 días en cada llamada y sin tope, así que la sesión del celular de un chofer perdido era
+  -- válida para siempre. Solo se escribe cuando queda menos de un día: el Panel sondea cada
+  -- 12-60 s y re-escribir db_sessions en cada llamada era puro desgaste de la base.
+  if v_expires < now() + interval '1 day' then
+    update db_sessions
+    set expires_at = least(now() + interval '3 days', v_created + interval '30 days')
+    where token = p_token;
+  end if;
   return query select v_id, v_name, v_role;
 end;
 $$;
 revoke all on function public._staff_session(text) from public;
 
-create or replace function public._require_staff(p_token text)
-returns void
+-- _require_staff("es personal, la página que sea") ya no se usa: dejaba leer el roster de
+-- clientes, los snapshots con sueldos y las calificaciones a cualquier rol. Toda lectura pide
+-- ahora su página vía _staff_can_view / _staff_can_view_any.
+drop function if exists public._require_staff(text);
+
+-- ¿Puede este rol VER la página indicada? Espejo servidor de NAV_PERMS (src/services/panelAuth.js),
+-- que hasta ahora solo existía en React: el navegador ocultaba la pantalla, pero cualquier lectura
+-- pedía _require_staff y respondía igual. tests/panel-nav-view-perms.test.js compara
+-- esta lista contra NAV_PERMS para que no se desincronicen.
+--
+-- Vai acá, antes que cualquier función `language sql` que la invoque: Postgres sí valida el cuerpo
+-- de esas funciones al crearlas, y en una base vacía se armaría antes de existir.
+create or replace function public._staff_can_view(p_role text, p_page text)
+returns boolean
 language plpgsql
+stable
 security definer
 set search_path = public, extensions
 as $$
+declare v_ok boolean;
 begin
-  perform public._staff_session(p_token);
+  if p_role in ('admin', 'superadmin') then return true; end if;
+  -- Editor ve todo el panel salvo las dos pantallas del dueño.
+  if p_role = 'editor' then return p_page not in ('audit', 'users'); end if;
+  -- Cocina: sola no ve clientes ni sueldos; el roster lo recibe por 'dispatch' (ve el día de
+  -- trabajo para saber qué cocinar), no por 'clients'.
+  if p_role = 'kitchen' then return p_page in ('dispatch', 'inventory', 'settings'); end if;
+  if p_role = 'driver' then return p_page in ('dispatch', 'delivery', 'clients', 'payroll', 'settings'); end if;
+  select coalesce((r -> 'pages' -> p_page ->> 'view')::boolean, false) into v_ok
+  from jsonb_array_elements(public._custom_roles()) r
+  where r ->> 'id' = p_role
+  limit 1;
+  return coalesce(v_ok, false);
 end;
 $$;
-revoke all on function public._require_staff(text) from public;
+revoke all on function public._staff_can_view(text, text) from public;
+
+-- Igual a la anterior pero para un dato que comparten varias pantallas: alcanza con poder ver
+-- UNA. Se usa con el roster de clientes y el estado de entregas, que el Día de trabajo y Despacho
+-- cargan aunque su pantalla propia sea otra.
+create or replace function public._staff_can_view_any(p_role text, p_pages text[])
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, extensions
+as $$
+  select exists (
+    select 1 from unnest(coalesce(p_pages, '{}'::text[])) as u(p)
+    where public._staff_can_view(p_role, u.p)
+  );
+$$;
+revoke all on function public._staff_can_view_any(text, text[]) from public;
 
 -- ---- Candado del plan Premium (lado servidor) -------------------------------------------
 -- Antes de esto, el plan solo se miraba en React: un cliente en Básico veía la pantalla de…
@@ -291,7 +343,7 @@ $$;
 revoke all on function public.plan_blocks_page(text) from public;
 grant execute on function public.plan_blocks_page(text) to service_role;
 
--- Igual que _require_staff, pero además exige permiso de EDICIÓN sobre p_page (mismo criterio que…
+-- Verifica la sesión de personal y además exige permiso de EDICIÓN sobre p_page (mismo criterio que…
 create or replace function public._require_permission(p_token text, p_page text)
 returns table(subject_id text, subject_name text, role text)
 language plpgsql
@@ -654,21 +706,26 @@ begin
       v_id := 'staff_admin'; v_name := 'Administrador'; v_role := 'admin'; v_routeId := ''; v_driverId := '';
     end if;
   else
-    select u ->> 'id', u ->> 'name', u ->> 'role', u ->> 'routeId', u ->> 'driverId'
+    -- order by ordinality: si por algún motivo quedaran dos cuentas con el mismo correo (filas
+    -- anteriores a la validación de unicidad), la resolución deja de depender del orden físico de
+    -- jsonb_array_elements y siempre cae en la misma, que es la primera cargada.
+    select e.u ->> 'id', e.u ->> 'name', e.u ->> 'role', e.u ->> 'routeId', e.u ->> 'driverId'
       into v_id, v_name, v_role, v_routeId, v_driverId
-    from jsonb_array_elements(v_users) as u
-    where lower(u ->> 'email') = v_email
-      and u ->> 'passwordHash' is not null
-      and u ->> 'passwordHash' <> ''
-      and crypt(p_password, u ->> 'passwordHash') = (u ->> 'passwordHash')
+    from jsonb_array_elements(v_users) with ordinality as e(u, ord)
+    where lower(trim(coalesce(e.u ->> 'email', ''))) = v_email
+      and e.u ->> 'passwordHash' is not null
+      and e.u ->> 'passwordHash' <> ''
+      and crypt(p_password, e.u ->> 'passwordHash') = (e.u ->> 'passwordHash')
+    order by e.ord
     limit 1;
   end if;
 
   if v_id is not null then
     delete from db_login_attempts where email = v_email;
     v_token := encode(gen_random_bytes(32), 'hex');
+    -- 3 días de validez inicial; _staff_session los va estirando hasta el tope de 30.
     insert into db_sessions (token, subject_type, subject_id, subject_name, role, expires_at)
-    values (v_token, 'staff', v_id, v_name, v_role, now() + interval '7 days');
+    values (v_token, 'staff', v_id, v_name, v_role, now() + interval '3 days');
     return query select v_id, v_name, v_role, v_routeId, v_driverId, 0, v_token;
     return;
   end if;
@@ -801,7 +858,8 @@ declare
   v_allowed text[];
   v_old_settings jsonb; v_new_settings jsonb;
   v_old_users jsonb; v_new_users jsonb; v_merged jsonb := '[]'::jsonb;
-  v_u jsonb; v_o jsonb; v_hash text; v_old_hash text;
+  v_u jsonb; v_o jsonb; v_hash text; v_old_hash text; v_old_email text;
+  v_dups int;
   v_changed_ids text[] := '{}';
   v_page text;
   v_pages text[] := public._premium_lockable_pages();
@@ -875,6 +933,18 @@ begin
       select payload into v_old_users from db_personal where id = 'staffUsers';
       if v_old_users is null or jsonb_typeof(v_old_users) <> 'array' then v_old_users := '[]'::jsonb; end if;
 
+      -- Un correo, una cuenta. El navegador ya lo frenaba; la base no, así que una RPC directa
+      -- dejaba dos cuentas con el mismo email y login_staff decidía cuál de las dos era "la"
+      -- cuenta. No hay unique posible (los usuarios son un arreglo JSONB, no filas), se valida acá.
+      select count(*) into v_dups from (
+        select lower(trim(u ->> 'email')) as em
+        from jsonb_array_elements(v_new_users) u
+        where trim(coalesce(u ->> 'email', '')) <> ''
+        group by 1
+        having count(*) > 1
+      ) d;
+      if v_dups > 0 then raise exception 'Dos cuentas de personal no pueden compartir el mismo correo.'; end if;
+
       -- Nadie más que el Super Administrador puede crear/ascender/tocar a un Super Administrador
       if v_role <> 'superadmin' then
         for v_u in select * from jsonb_array_elements(v_new_users) loop
@@ -902,11 +972,16 @@ begin
       for v_u in select * from jsonb_array_elements(v_new_users) loop
         v_u := v_u - 'hasPassword';
         v_hash := coalesce(v_u ->> 'passwordHash', '');
-        select o ->> 'passwordHash' into v_old_hash
+        select o ->> 'passwordHash', o ->> 'email' into v_old_hash, v_old_email
         from jsonb_array_elements(v_old_users) o where o ->> 'id' = v_u ->> 'id' limit 1;
         if v_hash = '' then
           if v_old_hash is not null then v_u := jsonb_set(v_u, '{passwordHash}', to_jsonb(v_old_hash), true); end if;
         elsif v_old_hash is not null and v_hash <> v_old_hash then
+          v_changed_ids := v_changed_ids || (v_u ->> 'id');
+        end if;
+        -- Cambiar de correo también corta la sesión vieja: el login resuelve al usuario por correo.
+        if v_old_email is not null
+           and lower(trim(coalesce(v_old_email, ''))) is distinct from lower(trim(coalesce(v_u ->> 'email', ''))) then
           v_changed_ids := v_changed_ids || (v_u ->> 'id');
         end if;
         v_merged := v_merged || jsonb_build_array(v_u);
@@ -944,31 +1019,68 @@ $$;
 revoke all on function public.staff_set_fields(text, text, jsonb) from public;
 grant execute on function public.staff_set_fields(text, text, jsonb) to anon, authenticated;
 
+-- El roster de clientes lo cargan varias pantallas, así que se exige "poder ver al menos una"
+-- (clients/d/dispatch/delivery) en vez de una sola página. Antes alcanzaba con ser personal.
+create or replace function public._staff_reads_clients(p_role text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, extensions
+as $$
+  select public._staff_can_view_any(p_role, array['clients', 'dispatch', 'delivery']);
+$$;
+revoke all on function public._staff_reads_clients(text) from public;
+
 create or replace function public.staff_get_client_rows(p_token text)
 returns table(id text, payload jsonb)
 language plpgsql security definer set search_path = public, extensions
-as $$ begin perform public._require_staff(p_token); return query select r.id, r.payload from db_clientes_rows r; end; $$;
+as $$
+declare v_role text;
+begin
+  select s.role into v_role from public._staff_session(p_token) s;
+  if not public._staff_reads_clients(v_role) then return; end if;
+  return query select r.id, r.payload from db_clientes_rows r;
+end; $$;
 revoke all on function public.staff_get_client_rows(text) from public;
 grant execute on function public.staff_get_client_rows(text) to anon, authenticated;
 
 create or replace function public.staff_get_client_row_ids(p_token text)
 returns table(id text)
 language plpgsql security definer set search_path = public, extensions
-as $$ begin perform public._require_staff(p_token); return query select r.id from db_clientes_rows r; end; $$;
+as $$
+declare v_role text;
+begin
+  select s.role into v_role from public._staff_session(p_token) s;
+  if not public._staff_reads_clients(v_role) then return; end if;
+  return query select r.id from db_clientes_rows r;
+end; $$;
 revoke all on function public.staff_get_client_row_ids(text) from public;
 grant execute on function public.staff_get_client_row_ids(text) to anon, authenticated;
 
 create or replace function public.staff_get_client_rows_since(p_token text, p_since timestamptz)
 returns table(id text, payload jsonb)
 language plpgsql security definer set search_path = public, extensions
-as $$ begin perform public._require_staff(p_token); return query select r.id, r.payload from db_clientes_rows r where r.updated_at >= p_since; end; $$;
+as $$
+declare v_role text;
+begin
+  select s.role into v_role from public._staff_session(p_token) s;
+  if not public._staff_reads_clients(v_role) then return; end if;
+  return query select r.id, r.payload from db_clientes_rows r where r.updated_at >= p_since;
+end; $$;
 revoke all on function public.staff_get_client_rows_since(text, timestamptz) from public;
 grant execute on function public.staff_get_client_rows_since(text, timestamptz) to anon, authenticated;
 
 create or replace function public.staff_get_client_row(p_token text, p_id text)
 returns table(id text, payload jsonb)
 language plpgsql security definer set search_path = public, extensions
-as $$ begin perform public._require_staff(p_token); return query select r.id, r.payload from db_clientes_rows r where r.id = p_id; end; $$;
+as $$
+declare v_role text;
+begin
+  select s.role into v_role from public._staff_session(p_token) s;
+  if not public._staff_reads_clients(v_role) then return; end if;
+  return query select r.id, r.payload from db_clientes_rows r where r.id = p_id;
+end; $$;
 revoke all on function public.staff_get_client_row(text, text) from public;
 grant execute on function public.staff_get_client_row(text, text) to anon, authenticated;
 
@@ -1123,13 +1235,17 @@ end; $$;
 revoke all on function public.staff_upsert_snapshot(text, date, jsonb) from public;
 grant execute on function public.staff_upsert_snapshot(text, date, jsonb) to anon, authenticated;
 
+-- El snapshot del Día de trabajo trae adentro payrollSnapshot (los sueldos de TODO el personal).
+-- Se quita si el plan no paga payroll o si el rol no tiene abierta la pantalla de Sueldos.
 create or replace function public.staff_get_snapshot(p_token text, p_date date)
 returns table(date date, payload jsonb, created_at timestamptz)
 language plpgsql security definer set search_path = public, extensions
 as $$
-declare v_hide boolean := public._plan_blocks('payroll');
+declare v_role text; v_hide boolean;
 begin
-  perform public._require_staff(p_token);
+  select s.role into v_role from public._staff_session(p_token) s;
+  if not public._staff_can_view(v_role, 'dispatch') then return; end if;
+  v_hide := public._plan_blocks('payroll') or not public._staff_can_view(v_role, 'payroll');
   return query select s.date, case when v_hide then s.payload - 'payrollSnapshot' else s.payload end, s.created_at
     from db_dispatch_snapshots s where s.date = p_date;
 end; $$;
@@ -1139,7 +1255,13 @@ grant execute on function public.staff_get_snapshot(text, date) to anon, authent
 create or replace function public.staff_list_snapshot_dates(p_token text)
 returns table(date date, created_at timestamptz)
 language plpgsql security definer set search_path = public, extensions
-as $$ begin perform public._require_staff(p_token); return query select s.date, s.created_at from db_dispatch_snapshots s order by s.date desc; end; $$;
+as $$
+declare v_role text;
+begin
+  select s.role into v_role from public._staff_session(p_token) s;
+  if not public._staff_can_view(v_role, 'dispatch') then return; end if;
+  return query select s.date, s.created_at from db_dispatch_snapshots s order by s.date desc;
+end; $$;
 revoke all on function public.staff_list_snapshot_dates(text) from public;
 grant execute on function public.staff_list_snapshot_dates(text) to anon, authenticated;
 
@@ -1147,9 +1269,11 @@ create or replace function public.staff_get_all_snapshots(p_token text, p_since 
 returns table(date date, payload jsonb)
 language plpgsql security definer set search_path = public, extensions
 as $$
-declare v_hide boolean := public._plan_blocks('payroll');
+declare v_role text; v_hide boolean;
 begin
-  perform public._require_staff(p_token);
+  select s.role into v_role from public._staff_session(p_token) s;
+  if not public._staff_can_view(v_role, 'dispatch') then return; end if;
+  v_hide := public._plan_blocks('payroll') or not public._staff_can_view(v_role, 'payroll');
   if p_since is null then
     return query select s.date, case when v_hide then s.payload - 'payrollSnapshot' else s.payload end from db_dispatch_snapshots s;
   else
@@ -1183,8 +1307,11 @@ create or replace function public.staff_get_delivery_rows(p_token text, p_date d
 returns table(id text, client_id text, payload jsonb)
 language plpgsql security definer set search_path = public, extensions
 as $$
+declare v_role text;
 begin
-  perform public._require_staff(p_token);
+  select s.role into v_role from public._staff_session(p_token) s;
+  -- Despacho pide la página 'delivery'; el Día de trabajo también lee marcas, por eso entra 'dispatch'.
+  if not (public._staff_can_view(v_role, 'delivery') or public._staff_can_view(v_role, 'dispatch')) then return; end if;
   if public._plan_blocks('delivery') then return; end if;
   return query select r.id, r.client_id, r.payload from db_delivery_status r where r.date = p_date;
 end; $$;
@@ -1261,8 +1388,10 @@ create or replace function public.staff_get_all_delivery_status(p_token text, p_
 returns table(date date, client_id text, payload jsonb)
 language plpgsql security definer set search_path = public, extensions
 as $$
+declare v_role text;
 begin
-  perform public._require_staff(p_token);
+  select s.role into v_role from public._staff_session(p_token) s;
+  if not (public._staff_can_view(v_role, 'delivery') or public._staff_can_view(v_role, 'dispatch')) then return; end if;
   if public._plan_blocks('delivery') then return; end if;
   if p_since is null then
     return query select r.date, r.client_id, r.payload from db_delivery_status r;
@@ -1566,6 +1695,31 @@ grant execute on function public.cliente_get_own_driver(text, text) to anon, aut
 insert into db_clientes (id, payload) values ('main', '{}'::jsonb) on conflict (id) do nothing;
 insert into db_personal (id, payload) values ('main', '{}'::jsonb) on conflict (id) do nothing;
 insert into db_inventario (id, payload) values ('main', '{}'::jsonb) on conflict (id) do nothing;
+
+-- Ciudad del mapa por defecto. El mapa de Reparto usa un archivo .pmtiles propio del bucket
+-- público "maps", nombrado con el id de la ciudad que está en settings.mapCity; sin esa clave el
+-- mapa funcionaba igual (cadena de teselas raster) pero una empresa nueva nunca veía su ciudad sin
+-- pasar antes por Configuración. La Paz es la única ciudad que hoy tiene archivo subido, y es
+-- también el centro con el que ya arrancaba el mapa. Se cambia por cualquier otra del catálogo
+-- (o por coordenadas propias) desde Configuración.
+--
+-- Solo escribe si la clave NO existe: si el dueño la borró a propósito para volver al raster, la
+-- decisión sobrevive a las reinstalaciones del setup.
+do $do$
+declare
+  v_city jsonb := jsonb_build_object(
+    'id', 'la-paz-bo', 'name', 'La Paz / El Alto', 'country', 'BO',
+    'lat', -16.50, 'lng', -68.16, 'r', 0.22
+  );
+begin
+  insert into db_personal (id, payload, updated_at)
+    values ('settings', jsonb_build_object('mapCity', v_city), now())
+  on conflict (id) do update
+    set payload = db_personal.payload || jsonb_build_object('mapCity', v_city),
+        updated_at = now()
+    where not (db_personal.payload ? 'mapCity');
+end
+$do$;
 
 -- 12. Limpieza automática (pg_cron)
 do $do$
@@ -2647,29 +2801,7 @@ as $$
 $$;
 revoke all on function public._sanitize_staff_users(jsonb, text) from public;
 
--- ¿Puede este rol VER la página indicada?
-create or replace function public._staff_can_view(p_role text, p_page text)
-returns boolean
-language plpgsql
-stable
-security definer
-set search_path = public, extensions
-as $$
-declare v_ok boolean;
-begin
-  if p_role in ('admin', 'superadmin') then return true; end if;
-  if p_role = 'editor' then return p_page <> 'audit' and p_page <> 'users'; end if;
-  if p_role in ('kitchen', 'driver') then return false; end if;
-  select coalesce((r -> 'pages' -> p_page ->> 'view')::boolean, false) into v_ok
-  from jsonb_array_elements(public._custom_roles()) r
-  where r ->> 'id' = p_role
-  limit 1;
-  return coalesce(v_ok, false);
-end;
-$$;
-revoke all on function public._staff_can_view(text, text) from public;
-
--- Sesión de staff: dura 7 días (deslizantes) y la sesión "de arranque"
+-- Sesión de staff: 3 días deslizantes con tope absoluto de 30 desde que se abrió (ver _staff_session).
 revoke all on function public._staff_session(text) from public;
 
 -- login_cliente: nunca comparar contra vacío
@@ -3064,8 +3196,11 @@ language plpgsql
 security definer
 set search_path = public, extensions
 as $$
+declare v_role text;
 begin
-  perform public._require_staff(p_token);
+  select s.role into v_role from public._staff_session(p_token) s;
+  if not public._staff_can_view(v_role, 'metrics') then return; end if;
+  if public._plan_blocks('metrics') then return; end if;
   return query
     select r.stars, r.comment, r.updated_at
     from public.db_ratings r
@@ -3083,7 +3218,7 @@ grant execute on function public.staff_get_ratings(text) to anon, authenticated;
 -- 'settings' de db_personal la sobreescribe POR COMPLETO el panel en cada guardado
 -- (rama 'personal' del guardado: payload = excluded.payload), así que ahí la marca
 -- desaparecería al primer guardado. Es lo único que escribe este bloque y no toca
--- ninguna fila de datos de la app. El literal '1.26' debe coincidir con el del
+-- ninguna fila de datos de la app. El literal '1.27' debe coincidir con el del
 -- encabezado "-- version de esquema" al inicio del archivo.
 -- ============================================================================
 
@@ -3101,7 +3236,7 @@ create policy "no direct access app_version" on public.db_app_version for all us
 
 -- Dejar sentada la versión de esquema recién instalada; la tabla es el registro, no datos de la app.
 insert into public.db_app_version (id, payload)
-  values ('main', jsonb_build_object('esquema', '1.26', 'setup', 'supabase-setup-final.sql'))
+  values ('main', jsonb_build_object('esquema', '1.27', 'setup', 'supabase-setup-final.sql'))
   on conflict (id) do update set payload = excluded.payload, updated_at = now();
 
 -- Lectura del registro. SECURITY DEFINER porque la tabla está cerrada por RLS; el barrido de

@@ -372,6 +372,13 @@
 .panel-shell .badge.pending { color: #7551ad; background: #eee5ff; }
 .panel-shell .badge.violet-badge { color: #6a3fc7; background: #eee5ff; }
 
+/* Jornada sin señal: naranja si algo espera sincronía, neutro si solo falta la conexión */
+.panel-shell .offline-banner { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 9px 14px; border-radius: var(--panel-radius); font-size: 13.5px; font-weight: 600; }
+.panel-shell .offline-banner.syncing { color: #8d5a02; background: #fff2d9; }
+.panel-shell .offline-banner.offline { color: #5c6675; background: #eef1f6; }
+[data-theme="night"] .panel-shell .offline-banner.syncing { color: #ffd28a; background: #3a2a10; }
+[data-theme="night"] .panel-shell .offline-banner.offline { color: #b9c3d0; background: #1d2430; }
+
 .panel-shell .notes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
 .panel-shell .note-card { background: var(--panel-surface); border: 1px solid var(--panel-line); border-left: 4px solid var(--panel-primary); border-radius: var(--panel-radius); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
 .panel-shell .note-card.note-overdue { border-left-color: #e5484d; }

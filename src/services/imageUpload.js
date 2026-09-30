@@ -1,4 +1,5 @@
 import { storageUploadImage, storageRemoveImage, storageSignedUrl } from './db';
+import { isOnline, loadLocalPhoto, removeLocalPhoto, saveLocalPhoto } from './offlineDay';
 
 // Redimensiona una imagen en el navegador antes de subirla, así los logos/fotos no pesan…
 export function resizeImageToBlob(file, maxDim = 480, quality = 0.82) {
@@ -48,7 +49,12 @@ function uid(prefix) {
 
 export function removeStoredImage(url) {
   const path = storagePathFromUrl(url);
-  if (path) storageRemoveImage(path);
+  if (!path) return;
+  // La foto hecha sin señal todavía no está en Storage: vive en IndexedDB hasta la sincronía.
+  loadLocalPhoto(path).then((local) => {
+    if (local) { removeLocalPhoto(path); return; }
+    storageRemoveImage(path);
+  });
 }
 
 // Las URLs firmadas duran 15 minutos en el servidor; se cachea un poco menos para no re-firmar cada
@@ -62,8 +68,28 @@ export async function viewUrlForStored(ref) {
   if (/^https?:/i.test(s)) return s;
   const cached = signedCache.get(s);
   if (cached && cached.expiresAt > Date.now()) return cached.url;
+  // Primero la copia del teléfono: una foto tomada sin señal vive ahí hasta que se sincroniza, y su
+  // ruta en Storage todavía está vacía.
+  const local = await localViewUrl(s);
+  if (local) return local;
   const url = await storageSignedUrl(s);
   if (url) signedCache.set(s, { url, expiresAt: Date.now() + 10 * 60 * 1000 });
+  return url;
+}
+
+// Cada path lleva un uid, así que "no está en el teléfono" no cambia con el tiempo: se anota para no
+// volver a consultar IndexedDB en cada render.
+const localChecked = new Set();
+const localUrls = new Map();
+
+async function localViewUrl(path) {
+  if (localUrls.has(path)) return localUrls.get(path);
+  if (localChecked.has(path)) return null;
+  const blob = await loadLocalPhoto(path);
+  localChecked.add(path);
+  if (!blob) return null;
+  const url = URL.createObjectURL(blob);
+  localUrls.set(path, url);
   return url;
 }
 
@@ -92,6 +118,9 @@ export async function uploadImage(file, folder, oldUrl = '', maxDim = 480, quali
   try {
     const blob = await resizeImageToBlob(file, maxDim, quality);
     const path = `${folder}/${pathPrefix}${uid('img')}.jpg`;
+    // Sin señal: se queda en el teléfono con la ruta que tendrá en Storage, así la marca puede
+    // guardarse ya y la foto sube sola al recuperar red (ver offlineDay.js).
+    if (!isOnline()) return (await saveLocalPhoto(path, blob)) ? path : null;
     const url = await storageUploadImage(path, blob, 'image/jpeg');
     if (!url) return null;
     if (oldUrl) removeStoredImage(oldUrl);

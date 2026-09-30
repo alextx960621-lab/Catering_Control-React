@@ -1,6 +1,6 @@
 {
-  "esquemaVersion": "1.26",
-  "actualizado": "2026-09-27",
+  "esquemaVersion": "1.27",
+  "actualizado": "2026-09-29",
   "empresas": [
     {
       "empresa": "Catering Control",
@@ -10,9 +10,9 @@
       "moneda": "BOB",
       "idioma": "es",
       "pruebas": true,
-      "version": "v72",
-      "schemaVersion": "1.26",
-      "sqlHash": "799b3537de7d4f4a14e2175e870cf3729502c4ad03e8a31d70244547238d34ab",
+      "version": "v73",
+      "schemaVersion": "1.27",
+      "sqlHash": "ef2986fa8155ca2eb6764c08f77272bbec68b4bee181692608223bae84e1921f",
       "alta": "2026-09-25",
       "sql": null,
       "migraciones": []
@@ -26,9 +26,9 @@
       "idioma": "es",
       "pruebas": false,
       "url": "https://greenforkcatering.vercel.app",
-      "version": "v72",
-      "schemaVersion": "1.26",
-      "sqlHash": "b6cd704050481a13bab73c1a6fd82860c5f8b00ccb0a89b6e796a099fe18be86",
+      "version": "v73",
+      "schemaVersion": "1.27",
+      "sqlHash": "17e67b1cb552f8149b3110717a5fc200b92d751affa6d2cae944d5de1634d008",
       "alta": "2026-09-26",
       "sql": "supabase-setup-greenfork.sql",
       "migraciones": []
@@ -42,9 +42,9 @@
       "idioma": "es",
       "pruebas": false,
       "url": "https://go.inshapecatering.workers.dev",
-      "version": "v72",
-      "schemaVersion": "1.26",
-      "sqlHash": "0b6f221262fbc86e42c4aa58d6007acdfa3277594176f5a646a0fed4669402fa",
+      "version": "v73",
+      "schemaVersion": "1.27",
+      "sqlHash": "3cf5618632ddc09ccb4dfcc89ff4b67af0489b1e0dad9f102f69248ff28d0a5a",
       "alta": "2026-09-25",
       "sql": "supabase-setup-inshape.sql",
       "migraciones": []

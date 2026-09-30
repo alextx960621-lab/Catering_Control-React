@@ -29,6 +29,205 @@ que ya están en producción** para ponerlas al día.
 
 ---
 
+## esquema 1.27 · v73 · 2026-09-29 — El servidor por fin pregunta qué pantalla sos: permisos de lectura, correo único, tope de sesión y el chofer trabaja sin señal
+
+Tres cosas pedidas por el dueño sobre su propia copia v73 (la del zoom del mapa), todas medidas
+contra la base de pruebas `kkqcaiunetlikfyaldab` antes de escribir esta entrada.
+
+### 1. Permisos de lectura: `NAV_PERMS` existía solo en React
+
+El navegador ocultaba las páginas que el rol no veía, pero **la base no lo sabía**: las 14 RPCs de
+lectura pedían `_require_staff(p_token)` — "¿esto es personal de la empresa?" — y contestaban. Con
+un token de chofer en la mano, un `fetch` directo a `staff_get_client_rows` devolvía el roster
+completo de clientes (teléfonos, direcciones, saldos), `staff_get_all_snapshots` los sueldos, y
+`staff_get_ratings` las calificaciones.
+
+Ahora cada lectura pide su página:
+
+| Helper nuevo | Qué decide |
+|---|---|
+| `_staff_can_view(rol, página)` | Espejo servidor de `NAV_PERMS` (`src/services/panelAuth.js`): admin/superadmin ven todo; editor ve todo menos `audit` y `users`; cocina y chofer declaran su lista; rol custom lee `pages.<página>.view` |
+| `_staff_can_view_any(rol, páginas[])` | Para un dato que comparten varias pantallas (roster, entregas): alcanza con ver **una** |
+| `_staff_reads_clients(rol)` | Caso frecuente: `clients`, `dispatch` o `delivery` |
+
+Gateadas (14): `staff_get_client_rows`, `staff_get_client_row_ids`, `staff_get_client_rows_since`,
+`staff_get_client_row`, `staff_get_note_rows`, `staff_get_audit_log`, `staff_get_all_audit_log`,
+`staff_get_snapshot`, `staff_list_snapshot_dates`, `staff_get_all_snapshots`,
+`staff_get_delivery_rows`, `staff_get_all_delivery_status`, `staff_listar_comprobantes`,
+`staff_get_ratings`. `_require_staff(text)` se **borra** del esquema (`drop function if exists`), no
+solo queda sin uso: `tests/panel-nav-view-perms.test.js` compara la lista del SQL contra `NAV_PERMS`
+y falla si revive.
+
+**Orden dentro del archivo:** `_staff_can_view` / `_staff_can_view_any` van appena después del drop de
+`_require_staff`, antes que cualquier función `language sql` que las invoque. Postgres **sí valida el
+cuerpo** de las `language sql` al crearlas (las `plpgsql` no), así que con el orden viejo una base
+vacía fallaba con `function public._staff_can_view_any(text, text[]) does not exist`. Era un bug de
+instalación nueva, no solo de migración.
+
+### 2. Dos correcciones de sesión y de roster
+
+- **Correo único**: `staff_set_fields` rechaza guardar dos cuentas de personal con el mismo email
+  (`Dos cuentas de personal no pueden compartir el mismo correo.`). El navegador ya lo frenaba; la
+  base no, y `login_staff` resolvía por `limit 1` sobre `jsonb_array_elements`, o sea al azar. Ahora
+  además resuelve `with ordinality` (si quedaron duplicados de antes, siempre cae en la misma fila) y
+  cambiar el correo de una cuenta corta sus sesiones viejas, porque el login resuelve por correo.
+- **Tope de sesión**: antes `_staff_session` sumaba **7 días en cada uso, sin límite**. El Panel
+  sondea cada 12–60 s, así que la sesión nunca expiraba: el celular de un chofer perdido era acceso
+  indefinido. Ahora suma 3 días y nunca pasa de **30 días desde que se abrió** (`least(now() + '3 days',
+  v_created + '30 days')`), y solo escribe cuando queda menos de un día para no Castigar la base con
+  un UPDATE por sondeo. Las sesiones nuevas arrancan en 3 días (antes 7).
+
+### 3. `mapCity` ya no depende de que el admin elija ciudad
+
+Sección 11 del setup: si `settings` no tiene la clave `mapCity`, se sembrada
+`la-paz-bo` (lat -16.50, lng -68.16, r 0.22) con `on conflict do update … where not (payload ?
+'mapCity')`. Una empresa nueva sale con el mapa centrado sin pasar por Configuración, y si el dueño
+borró la clave a propósito para volver al raster, **su decisión sobrevive** a reinstalaciones del
+setup.
+
+### 4. Modo offline de la jornada del chofer (ítem 4)
+
+Un chofer sin señal no podía marcar ninguna entrega: el botón fallaba y la marca se perdía. Ahora la
+jornada funciona igual sin internet y se sincroniza sola.
+
+| Pieza | Qué hace |
+|---|---|
+| `src/services/offlineDay.js` (nuevo) | IndexedDB puro (sin dependencias), DB `<prefix>-offline-v1`, 3 stores: `snapshots` (copia del día: clientes + marcas), `marks` (marcas en cola, clave `usuario\|fecha\|cliente` para que la última de un cliente pise a la anterior), `photos` (el Blob con la ruta final de Storage). Poda a 30 días. Ninguna función lanza: devuelve `null`/`false` |
+| `DeliveryPage.jsx` | Guarda la copia del día en cuanto está online y completa; si el servidor no responde al cargar, levanta la copia local; con `navigator.onLine` en `false` la marca se encola y la fila muestra el badge *sin sincronizar*; al recuperar señal sube la foto, escribe la fila, vacía la cola y avisa |
+| `imageUpload.js` | Sin señal la foto se queda en IndexedDB **con la ruta que tendrá en Storage**, así la marca se guarda ya y la foto sube después con `uploadToSignedUrl`. `viewUrlForStored` mira primero el teléfono; `removeStoredImage` borra la copia local si aún no subió |
+| `PanelPage.css` | `.offline-banner` (naranja mientras sincroniza, neutra sin señal) + variante noche |
+| locales | 9 claves nuevas `panel.delivery.offline*` en es/en/pt |
+
+`navigator.onLine` miente en redes cautivas, así que el camino es al revés: se intenta el servidor y
+**solo si falla** se encola. La subida nunca se bloquea por "estoy offline" declarado.
+
+### 5. Mapa: el zoom profundo ya no depende de un tercero (código, sin SQL)
+
+El `.pmtiles` de una ciudad llega a z14 y por encima protomaps-leaflet dejaba el lienzo vacío; la
+versión vieja tapaba eso pidiendo teselas raster a CARTO/OSMap. Ahora `createBaseLayer` pasa
+`maxDataZoom` con el valor real del archivo, de modo que Leaflet **amplía el último nivel con datos**
+en vez de sacar tiles ajenos. La cadena raster queda solo como respaldo total cuando la empresa no
+tiene archivo propio. No hay overlay mixto: o es mapa propio, o es respaldo.
+
+### Estado por base
+
+| Base | SQL | Edge Functions |
+|---|---|---|
+| `kkqcaiunetlikfyaldab` (pruebas) | ✅ 1.27 (`ef2986fa`), aplicado y verificado 2026-09-29 en la base con datos | ✅ nada que redesplegar: no cambia firma ni comportamiento llamado desde las funciones; `image-storage` sigue con `upload-url`/`sign-url`/`remove` |
+| `spvqcxomhkukwzijhvlm` (In Shape) | ✅ 1.27 (`3cf56186`), aplicado y verificado 2026-09-29 | ✅ ninguna |
+| `inirizkgxkpvqnityvud` (Green Fork) | ✅ 1.27 (`17e67b1c`), aplicado y verificado 2026-09-29 | ✅ ninguna |
+
+Código difundido del maestro a las dos carpetas con `difundir.mjs` (dry-run + `--aplicar`): **7
+archivos por empresa** (6 cambiados: `DeliveryPage.jsx`, `PanelPage.css`, `imageUpload.js` y los 3
+locales; 1 nuevo: `offlineDay.js`), `public/config.js`, `public/manifest.json`, `public/icons/` y el
+SQL propio intactos. Dry-run de control después de aplicar: `0 cambiaría / 0 nuevos / 0 conflictos /
+137 sin cambios` en las dos.
+
+Antes de aplicar, los tres locales salieron como **CONFLICTO** ("editado a mano en la empresa"): el
+ledger tenía el sha viejo y las copias de las dos empresas estaban idénticas entre sí y eran un
+ancestro exacto del maestro (0 líneas propias, +9 del maestro = las claves offline). Medido con
+`cmp`, no a ojo: se borraron esas 6 claves de `.sincronizado.json` (la instrucción que da el propio
+difusor) y la aplicación quedó limpia. Ninguna edición de cliente se perdió.
+
+**Guía de instalación actualizada** (`install/Guia-Nueva-Empresa-React.docx`, 33 717 → 35 450 bytes,
+difundida a las dos carpetas con `difundir.mjs`: 1 archivo escrito por empresa, 0 conflictos, 0
+eliminados). Sección nueva **8.10 — Mapa propio de la ciudad (Reparto)**: bucket público `maps`,
+`npm run mapa-ciudad`, el `pmtiles extract` y la tarjeta de Configuración (solo la ve el rol Super
+Administrador). 7.2 ahora nombra los dos buckets (`app-images` público / `app-docs` privado con link
+firmado); 8.4 sumó la viñeta del chofer sin señal con los textos exactos de la app; Paso 9 aclara
+volver a correr `npm install` cuando cambia `package.json` y qué hace el 1.27 con las sesiones y
+`mapCity`; la fila del mapa gris en "Problemas frecuentes" ya no promete que CARTO es gratis e
+ilimitado, y tiene al lado una fila nueva para las marcas encoladas; el Checklist sumó la comprobación
+de `db_app_version` (1.27) y el paso del mapa. Las dos apariciones de "Despacho" que quedaban pasaron
+a "Reparto" (etiqueta real de `nav.delivery`) y el TOC cacheado recibió su entrada `_Toc00549` para
+8.10 (`updateFields` sigue activo, así que Word completa los números de página al abrir).
+
+> **Aplicado en las dos bases de cliente el 2026-09-29**, cada una con conteos antes/después y sonda
+> de permisos. El SQL es una transacción implícita sola: si algo falla, la base queda como estaba
+> (así se aplicó, sin un solo error).
+>
+> Medido en producción, idéntico en las dos: `db_app_version` **1.26 → 1.27**, funciones
+> **82 → 83**, `_require_staff` **1 → 0**, los tres gates presentes (**1 → 3**), y **no se movió ni
+> un dato**: clientes 0, entregas 0, ratings 0, bloques de `db_personal` (5 en In Shape
+> `main,routes,settings,staffUsers,userPrefs`; 4 en Green Fork, sin `routes`), auditoría 8 y 6,
+> sesiones staff 12 y 2, 2 objetos de Storage en cada una.
+>
+> Sonda de permisos corrida en las dos: la matriz completa de 5 roles × 15 páginas = **75 celdas**
+> contra `NAV_PERMS`, tanto en `_staff_can_view` como en `_staff_can_view_any` → **0 discrepancias**.
+> De 13 lecturas muestreadas, **todas** llevan gate (las de roster usan `_staff_reads_clients`, que
+> da `true` para los cinco roles porque cocina ve Despacho: es el espejo exacto de `NAV_PERMS`, no un
+> ensanche). `_staff_can_view` de 1.26 era **más estricta**; la 1.27 no abre acceso nuevo.
+>
+> `mapCity` quedó sembrado en `settings` con `la-paz-bo` en las dos, y les calza: ambas son +591 y
+> su `whatsappNumber` es de La Paz. Sigue editable desde Configuración.
+>
+> **Aviso para el equipo:** cada uso de la sesión la renueva 3 días, con tope duro de 30 días desde
+> que se creó (`_staff_session`, línea 197 del setup). Las 12 sesiones de In Shape y las 2 de Green
+> Fork no se cortan de golpe, pero en las próximas semanas cada uno va a tener que volver a entrar.
+
+### Verificado (base de pruebas, con datos)
+
+- `login_staff` con rol `kitchen` y `driver`: `staff_get_client_rows` / `staff_get_all_snapshots` /
+  `staff_get_ratings` / `staff_get_note_rows` devuelven **vacío**; con `admin` siguen trayendo datos.
+- `delivery` y `clients` las lee el chofer **por diseño** (así lo declara `NAV_PERMS`); `payroll`
+  también, y por eso el snapshot le oculta los sueldos salvo plan Premium (`v_hide` en
+  `staff_get_snapshot`).
+- Guardar dos cuentas con el mismo correo → rechaza; correos distintos → guarda normal.
+- `mapCity` sembrado en `settings` y respeta el borrado manual.
+- Modo offline de punta a punta en el navegador (dev server sobre la base de pruebas, chofer
+  temporal): sin señal la marca quedó encola en `marks`, la foto en `photos` como JPEG de 56 KB bajo su
+  ruta final de Storage, la fila mostró *sin sincronizar* y el banner salió con el texto exacto. Al
+  recuperar `online`: la foto subió al bucket privado `app-docs`, la fila se escribió en
+  `db_delivery_status` con su `image`, la cola quedó en 0 y el snapshot local se actualizó con la marca
+  del servidor. La base de pruebas y sus fixtures de prueba quedaron limpias (0 filas del día de prueba,
+  0 sesiones, 0 objetos en `app-docs`).
+- `npm run build` sin errores (con el mapa híbrido del maestro + el offline merged), suite de pruebas
+  87 casos / 85 pasan / 0 fallan (2 `todo` preexistentes), `oxlint` 0 errores (1 aviso viejo de
+  `fast-refresh` en `CompanyPrefsContext.jsx`), `versiones.mjs` dice "coincide / al día" en las 3 empresas.
+
+---
+
+## esquema 1.26 · v73 · 2026-09-29 — Mapa propio por ciudad: el fondo gris de Reparto deja de depender de servidores gratuitos
+
+Reporte del dueño: el mapa de Reparto salía con el fondo gris. El servidor de teselas crudo de
+OpenStreetMap ya estaba descartado (política de uso: prohíbe apps en producción); el respaldo
+actual (CARTO) también es de uso gratuito limitado. Solución: cada empresa usa un **archivo de mapa
+propio de su ciudad** (formato PMTiles, datos de OpenStreetMap vía Protomaps) guardado en su
+Supabase. Las rutas de OSRM y los pines se siguen dibujando encima, igual que antes.
+
+**Sin cambios de SQL ni de Edge Functions.** La ciudad se guarda en `settings.mapCity` (el JSON de
+ajustes que ya existe; `normalizeSettings` lo deja pasar tal cual).
+
+| Qué | Dónde |
+|---|---|
+| Catálogo de ciudades (Canadá → Argentina, ~110) | `src/data/mapCities.js` (solo datos; también lo lee Node) |
+| Selector de ciudad, solo Super Admin (+ "Otra ciudad…" con lat/lng/radio) | `src/components/panel/settings/MapCityCard.jsx`, enganchado en `SettingsPage.jsx` |
+| Fondo del mapa: archivo propio, con CARTO de respaldo | `src/services/mapTiles.js`, usado por `RouteMapModal.jsx` |
+| Centro del mapa vacío y geocoding de Nominatim sesgado a la ciudad | `RouteMapModal.jsx` |
+| Comando para generar el archivo de una ciudad | `npm run mapa-ciudad -- <id>` (`scripts/mapa-ciudad.mjs`) |
+| Textos es/en/pt | `settings.mapCity.*` |
+| Pruebas | `tests/map-cities.test.js` |
+
+**Si la empresa no eligió ciudad, o todavía no se subió el archivo, el mapa se ve exactamente como
+antes (CARTO).** No hay regresión mientras no se suba nada.
+
+### Qué hay que hacer por cada empresa (no lo hace el código)
+
+1. Generar el archivo: `npm run mapa-ciudad -- la-paz-bo` imprime el comando `pmtiles extract` con
+   la zona ya calculada. Hace falta el CLI `pmtiles` de Protomaps y la URL de su compilación más reciente.
+2. En Supabase → Storage crear el bucket **público** `maps` y subir `<id>.pmtiles` (para La Paz: `la-paz-bo.pmtiles`).
+   Un mapa no tiene datos sensibles; no afecta al bucket privado de comprobantes/fotos.
+3. Con el usuario Super Admin: Configuración → "Ciudad del mapa de Reparto" → elegir la ciudad.
+
+Ciudades nuevas: si no están en el catálogo se usa "Otra ciudad…" (nombre, latitud, longitud, radio en km) y
+`npm run mapa-ciudad -- --id <nombre> --lat <n> --lng <n> --km <n>`. Para sumarla al catálogo de forma fija, una fila en `mapCities.js`.
+
+Verificado: `npm run build` sin errores, `npm test` 82 pasan / 0 fallan (2 `todo` preexistentes), oxlint 0 errores.
+**No se pudo probar contra un archivo real ni contra los servidores de mapas** (el entorno de desarrollo no tiene
+salida a esos hosts): la primera prueba real es subir `la-paz-bo.pmtiles` y abrir un mapa de Reparto.
+
+---
+
 ## esquema 1.25 · v72 · 2026-09-27 — La hora de cierre sobrevivía a todo, y dos lecturas Premium sin candado
 
 Reporte del dueño: "cambio la hora de cierre en Configuración, salgo y entro, vuelve a aparecer
