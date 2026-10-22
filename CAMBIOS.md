@@ -29,6 +29,68 @@ que ya están en producción** para ponerlas al día.
 
 ---
 
+## esquema 1.27 · v77 · 2026-10-22 — Un solo `panel-catering.bat` con difundir, versiones, empresa nueva y git
+
+**Sin cambios de SQL ni de Edge Functions, y no cambia nada de la app.** Es herramienta del dueño.
+
+1. **Un solo `.bat`:** `install/panel-catering.bat`. Reemplaza al que estaba en la raíz y a los tres
+   `git-*.bat` por carpeta que se probaron y se borraron (nunca entraron al repo). El `.bat` es finito:
+   valida que exista `scripts\panel.mjs` y que `node` esté instalado, hace `cd /d "%~dp0.."` y corre
+   `node scripts\panel.mjs`. Todo el menú vive en `scripts/panel.mjs`, así que cambiar el menú no
+   implica tocar un `.bat`.
+2. **Menú** (`scripts/panel.mjs`): 1 difundir UNA empresa, 2 difundir TODAS, 3 inventario de versiones,
+   4 crear empresa nueva, 5 git de UNA carpeta, 6 git de TODAS (maestro + empresas), 0 salir. La lista
+   de empresas y de carpetas se arma leyendo `install/empresas.json` en cada corrida: una empresa creada
+   con la opción 4 aparece sola en 1, 2, 5 y 6, sin generar ni editar ningún `.bat`.
+3. **Git** (opciones 5 y 6): por carpeta muestra rama, `origin` y `git status --short` **antes** de
+   preguntar; con S corre `pull origin <rama> --no-edit` → `add .` → `diff --cached --name-status` →
+   `commit -m "Descripción de los cambios"` → `push origin <rama>`. Si el pull o el commit fallan se
+   **detiene antes de pushear**; si no hay nada para commitear igual intenta el push (puede haber
+   commits locales del maestro sin subir). `--no-edit` a propósito: sin eso, un pull que necesita merge
+   abre un editor y la ventana queda trabada. Saltea una carpeta que no es repo o que no tiene `origin`.
+4. **Difundir** (1 y 2) delega en `scripts/difundir.mjs`: primero simulación, y recién con S aplica.
+   Un exit code distinto de 0 (conflictos) no ofrece aplicar.
+5. `scripts/difundir.mjs`: `.bat` entra a `PROTEGIDOS_EXTENSIONES` (`.rar`, `.zip`, `.bat`) y
+   `scripts/panel.mjs` a `PROTEGIDOS_EXACTOS`. Son herramientas de la PC del dueño: la copia del cliente
+   no las recibe (y `panel.mjs` no funcionaría allá igual, porque `install/empresas.json` solo vive en
+   el maestro). Se borró `PROTEGIDOS_NOMBRE`, que protegía `panel-catering.bat` solo por nombre y quedó
+   cubierto por la extensión.
+
+### Estado por base
+
+| Base | SQL | Edge Functions |
+|---|---|---|
+| `kkqcaiunetlikfyaldab` (pruebas) | ✅ sin cambios (1.27) | ✅ sin cambios |
+| `spvqcxomhkukwzijhvlm` (In Shape) | ✅ sin cambios (1.27) | ✅ sin cambios |
+| `inirizkgxkpvqnityvud` (Green Fork) | ✅ sin cambios (1.27) | ✅ sin cambios |
+
+### Verificación
+
+- **Git probado contra remotos falsos, nunca contra los reales.** Se armó un árbol espejo en
+  `%TEMP%\paneltest` (tres repos bare clonados localmente + el `panel.mjs` copiado + un
+  `empresas.json` de prueba) y la opción 6 hizo pull → add → commit → push en las tres carpetas con
+  éxito, incluyendo una carpeta nueva con acentos en el nombre de archivo. El mensaje quedó en UTF-8
+  real: `git log --format=%s | xxd` da `c3 b3` en "Descripción".
+- **CRLF, no LF**: con salto LF cmd parseaba mal el `.bat` (`"cal" no se reconoce`, `"65001" no se
+  reconoce`). El `install/panel-catering.bat` actual es CRLF y ASCII puro (0 bytes fuera de
+  0x00-0x7F): todos los acentos los emite Node, y `chcp 65001 >nul` es lo que hace que la consola
+  no los muestre como mojibake.
+- Las opciones 1 y 3 se corrieron contra el maestro real (cancelando con `0`, sin aplicar nada):
+  la 1 lista `Green Fork (catering-app-greenfork)` y `In Shape Catering (catering-app-inshape)`
+  sacados del registro, y la 3 imprime el inventario de las tres carpetas (esquema 1.27, snapshot
+  coincide).
+- Los hijos (`difundir.mjs`, `versiones.mjs`, `nueva-empresa.mjs`, `git`) corren con `stdio` de
+  entrada `'ignore'`: heredando el stdin del menú se comían las respuestas que todavía no se habían
+  leído (medido: sin eso el primer S/N se perdía).
+
+### Difundido a las dos empresas (2026-10-22)
+
+- Con las reglas nuevas, cada empresa recibió **1 archivo** (`scripts/difundir.mjs`, el de la
+  protección `.bat` + `scripts/panel.mjs`) y quedaron **137/137 sin cambios, 0 conflictos**.
+- Verificado por `cmp` fuera del difusor: `scripts/difundir.mjs` y `scripts/nueva-empresa.mjs` byte a
+  byte idénticos al maestro en las dos carpetas, y **0 archivos `.bat` ni `panel.mjs`** en las copias
+  de In Shape y Green Fork.
+
 ## esquema 1.27 · v76 · 2026-10-22 — Mapa gris por la caché del service worker y auditoría de pausas
 
 **Sin cambios de SQL ni de Edge Functions.** Solo código del frontend.
@@ -48,6 +110,23 @@ que ya están en producción** para ponerlas al día.
 
 > Después de desplegar: cada dispositivo tiene que tocar "Actualizar ahora" para recibir el service
 > worker nuevo; si el mapa sigue gris en alguno, borrar "Datos del sitio" una vez.
+
+### Difundido a las dos empresas (2026-10-22)
+
+- `difundir.mjs` escribió **9 archivos en cada empresa** (0 nuevos, 0 eliminados, 0 protegidos tocados)
+  y la verificación independiente dio **137/137 archivos replicables byte a byte idénticos** al maestro.
+  Protegidos por empresa siguen intactos: `public/config.js`, `public/manifest.json`, `public/icons/`,
+  `install/*.sql`, `*.local.json`.
+- Green Fork marcó un **falso conflicto** en `src/services/mapTiles.js`: su copia local era exactamente
+  el maestro del commit `aaf1e96` (2026-09-29 18:29), o sea una copia **anterior**, no una edición del
+  cliente. El registro `.sincronizado.json` se había quedado con el baseline de las 16:44 (`ce5ffbc2`).
+  Remedio de siempre: borrar esa clave del registro y volver a aplicar. Backup del registro previo:
+  `%TEMP%\sincronizado-antes-v76.json`.
+- Queda pendiente del dueño: **commitear y pushear en las dos**. El commit de cada una trae v74 + v75 +
+  v76 juntos, porque su último commit es del 2026-09-29: **20 archivos** (19 modificados +
+  `src/services/offlineDay.js`, que estaba sin trackear y es necesario para el build) = +810 / −108.
+  Por eso el add tiene que ser `git add -A`, nunca selectivo.
+- Escaneo de secretos sobre el diff pendiente de las dos: **0 líneas** con tokens, keys ni `service_role`.
 
 ## esquema 1.27 · v75 · 2026-10-22 — Calendario hacia el futuro, ruta extra del driver que se puede quitar y "Exportar dietas" con estructura de cocina
 
