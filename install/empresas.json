@@ -1,6 +1,6 @@
 {
   "esquemaVersion": "1.27",
-  "actualizado": "2026-09-29",
+  "actualizado": "2026-10-07",
   "empresas": [
     {
       "empresa": "Catering Control",
@@ -10,7 +10,7 @@
       "moneda": "BOB",
       "idioma": "es",
       "pruebas": true,
-      "version": "v73",
+      "version": "v74",
       "schemaVersion": "1.27",
       "sqlHash": "ef2986fa8155ca2eb6764c08f77272bbec68b4bee181692608223bae84e1921f",
       "alta": "2026-09-25",
@@ -26,7 +26,7 @@
       "idioma": "es",
       "pruebas": false,
       "url": "https://greenforkcatering.vercel.app",
-      "version": "v73",
+      "version": "v74",
       "schemaVersion": "1.27",
       "sqlHash": "17e67b1cb552f8149b3110717a5fc200b92d751affa6d2cae944d5de1634d008",
       "alta": "2026-09-26",
@@ -42,7 +42,7 @@
       "idioma": "es",
       "pruebas": false,
       "url": "https://go.inshapecatering.workers.dev",
-      "version": "v73",
+      "version": "v74",
       "schemaVersion": "1.27",
       "sqlHash": "3cf5618632ddc09ccb4dfcc89ff4b67af0489b1e0dad9f102f69248ff28d0a5a",
       "alta": "2026-09-25",

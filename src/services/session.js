@@ -1,7 +1,8 @@
 import { STORAGE_KEYS } from './storageKeys';
 import { isStandalonePwa } from './pwa';
 
-// Staff: siempre sessionStorage (sobrevive a un F5 pero no a cerrar la pestaña) -- el panel…
+// El portal cliente solo persiste instalado como PWA.
+// En una pestaña normal la sesión vive lo que la pestaña.
 function clientStorage() {
   return isStandalonePwa() ? localStorage : sessionStorage;
 }
@@ -21,12 +22,25 @@ function writeJSON(storage, key, value) {
   } catch {/* si el storage no está disponible (modo privado estricto), la sesión sigue funcionando en… */}
 }
 
+// Staff: localStorage siempre, con o sin PWA. El equipo abre el panel
+// muchas veces al día y sessionStorage moría al cerrar la pestaña, así
+// que volvían a escribir la contraseña todo el tiempo.
+// La base acota el riesgo: cada uso renueva 3 días, tope de 30 (1.27).
 export function readStaffSession() {
-  return readJSON(sessionStorage, STORAGE_KEYS.staffSession);
+  const own = readJSON(localStorage, STORAGE_KEYS.staffSession);
+  if (own) return own;
+  // Sesión abierta antes de este cambio: la subimos de sessionStorage para no expulsar a nadie
+  const legacy = readJSON(sessionStorage, STORAGE_KEYS.staffSession);
+  if (legacy) {
+    writeJSON(localStorage, STORAGE_KEYS.staffSession, legacy);
+    sessionStorage.removeItem(STORAGE_KEYS.staffSession);
+    return legacy;
+  }
+  return null;
 }
 
 export function writeStaffSession(session) {
-  writeJSON(sessionStorage, STORAGE_KEYS.staffSession, session);
+  writeJSON(localStorage, STORAGE_KEYS.staffSession, session);
   markLastLogin('staff');
 }
 
@@ -51,20 +65,30 @@ export function writeClientSession(session) {
   markLastLogin('client');
 }
 
-// En sessionStorage porque responde a "qué se abrió últimamente EN ESTA pestaña": si alguien usa…
-// el panel y después el portal en la misma pestaña, el F5 lo devuelve al portal, no al panel.
+// sessionStorage manda: responde a "qué se abrió últimamente EN ESTA pestaña",
+// así que un F5 a medias entre panel y portal vuelve al portal.
+// localStorage es el respaldo del celular: la PWA arranca en una pestaña
+// nueva y sin marca mostraría el formulario aunque usen solo el panel.
 export function markLastLogin(origin) {
-  try { sessionStorage.setItem(STORAGE_KEYS.lastLoginOrigin, origin); } catch {/* storage bloqueado */}
+  try {
+    sessionStorage.setItem(STORAGE_KEYS.lastLoginOrigin, origin);
+    localStorage.setItem(STORAGE_KEYS.lastLoginOrigin, origin);
+  } catch {/* storage bloqueado */}
 }
 
 export function readLastLoginOrigin() {
-  try { return sessionStorage.getItem(STORAGE_KEYS.lastLoginOrigin); } catch { return null; }
+  try {
+    return sessionStorage.getItem(STORAGE_KEYS.lastLoginOrigin)
+      ?? localStorage.getItem(STORAGE_KEYS.lastLoginOrigin);
+  } catch { return null; }
 }
 
 // Los dos cierres van separados: clearSessions() borraba también la sesión del cliente, que en PWA…
 // es la única que persiste, así que el logout de un staff en el mismo teléfono expulsaba al cliente.
 export function clearStaffSession() {
+  localStorage.removeItem(STORAGE_KEYS.staffSession);
   sessionStorage.removeItem(STORAGE_KEYS.staffSession);
+  localStorage.removeItem(STORAGE_KEYS.lastLoginOrigin);
   sessionStorage.removeItem(STORAGE_KEYS.lastLoginOrigin);
 }
 
@@ -73,4 +97,5 @@ export function clearClientSession() {
   localStorage.removeItem(STORAGE_KEYS.clientSession);
   sessionStorage.removeItem(STORAGE_KEYS.pendingPlanPurchase);
   sessionStorage.removeItem(STORAGE_KEYS.lastLoginOrigin);
+  localStorage.removeItem(STORAGE_KEYS.lastLoginOrigin);
 }

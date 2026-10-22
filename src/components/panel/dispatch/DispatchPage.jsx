@@ -21,9 +21,11 @@ import './DispatchPage.css';
 
 // Referencia fija para los días sin registro: si fuera un objeto nuevo en cada render, los…
 const DEFAULT_DAY_INFO = { laborable: true };
+// Cuántos días hacia adelante se puede mirar/preparar en el calendario (procesar un día futuro sigue bloqueado)
+const MAX_FUTURE_DAYS = 365;
 
 export default function DispatchPage({ user, onGoToClient }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { loading, clients, routes, drivers, plans, days, currentDate, settings, serverToday, pendingDays, setCurrentDate, saveDays, saveClients, showNotice, inventory, saveInventory } = useOperations();
 
   const [search, setSearch] = useState('');
@@ -147,6 +149,10 @@ export default function DispatchPage({ user, onGoToClient }) {
       }
     });
 
+    if (field === 'returnDate' && updated && (client.returnDate || '') !== value) {
+      auditClient(value ? 'Fecha de retorno asignada' : 'Fecha de retorno quitada', client, { fecha: value || undefined, desde: date });
+    }
+
     // Si el link de Maps que se acaba de pegar ACÁ (no desde el formulario completo de…
     if (field === 'maps' && updated && isShortMapsLink(value)) {
       resolveShortMapsLinkIfNeeded({ maps: value }).then((resolved) => {
@@ -178,12 +184,17 @@ export default function DispatchPage({ user, onGoToClient }) {
     setOrderConflict(null);
   }
 
+  function auditClient(action, client, details = {}) {
+    dbInsertAudit({ actor_id: user.id, actor_name: user.name, actor_role: user.role, action, entity_type: 'client', entity_label: client.name, entity_id: client.id, details });
+  }
+
   function toggleDayPause(client) {
     if (!canEdit) return;
     const pausedToday = client.pauseDates?.includes(date);
-    updateClient(client.id, (c) => {
+    const updated = updateClient(client.id, (c) => {
       c.pauseDates = pausedToday ? (c.pauseDates || []).filter((d) => d !== date) : [...(c.pauseDates || []), date];
     });
+    if (updated) auditClient(pausedToday ? 'Pausa del día quitada' : 'Cliente pausado (día)', client, { fecha: date });
   }
 
   function handleWorkDateChange(newDate) {
@@ -194,7 +205,7 @@ export default function DispatchPage({ user, onGoToClient }) {
       return;
     }
     if (!canEdit || !newDate) return;
-    const maxAllowed = addDays(serverToday, 1);
+    const maxAllowed = addDays(serverToday, MAX_FUTURE_DAYS);
     if (newDate > maxAllowed) {
       showNotice(t('panel.dispatch.maxFutureDate', { date: fmtDate(maxAllowed) }), true);
       return;
@@ -371,7 +382,103 @@ export default function DispatchPage({ user, onGoToClient }) {
     const { Workbook } = await import('exceljs');
     const wb = new Workbook();
     wb.creator = settings.companyName;
-    const ws = wb.addWorksheet(t('panel.dispatch.sheetSpecialDiets'), { views: [{ state: 'frozen', ySplit: 1 }] });
+    // ===== Hoja 1: estructura de cocina (resumen TOTAL a la izquierda + 4 bloques a la derecha) =====
+    const BORDER = { top: THIN, left: THIN, bottom: THIN, right: THIN };
+    const fill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+    const retText = (iso) => {
+      const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString(i18n.language, { weekday: 'short', day: '2-digit', month: 'short' }).replace(/[.,]/g, '').toUpperCase();
+    };
+    const planName = (c) => planOf(c.planId)?.name || t('panel.dispatch.dietsNoPlan');
+    const noteOf = (c) => effectiveNotes(c, date);
+    const byName = (a, b) => a.text.localeCompare(b.text, i18n.language);
+
+    const main = wb.addWorksheet(t('panel.dispatch.sheetSpecialDiets'), { views: [{ showGridLines: false }] });
+    main.columns = [{ width: 24 }, { width: 10 }, { width: 3 }, { width: 36 }, { width: 36 }, { width: 36 }];
+    main.mergeCells('A1:F1');
+    const titleCell = main.getCell('A1');
+    titleCell.value = `${settings.companyName || ''} — ${t('panel.dispatch.exportDietsBtn')} — ${fmtDate(date)}`;
+    titleCell.font = { bold: true, size: 14 };
+    titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
+    main.getRow(1).height = 26;
+    main.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+
+    // Izquierda: totales por artículo del menú (suma de lo que lleva cada cliente activo)
+    let r = 3;
+    const putHead = (text, argb) => {
+      main.mergeCells(r, 1, r, 2);
+      const c = main.getCell(r, 1);
+      c.value = text; c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; c.fill = fill(argb);
+      c.alignment = { horizontal: 'center' }; c.border = BORDER; main.getCell(r, 2).border = BORDER;
+      r++;
+    };
+    const putStat = (label, value, argb) => {
+      const a = main.getCell(r, 1); const b = main.getCell(r, 2);
+      a.value = String(label).toUpperCase(); b.value = value;
+      a.font = { bold: true, color: { argb: 'FF000000' } }; b.font = { bold: true, color: { argb: 'FF000000' } }; b.alignment = { horizontal: 'center' };
+      [a, b].forEach((x) => { x.fill = fill(argb); x.border = BORDER; });
+      r++;
+    };
+    const EXTRA_COLORS = { shots: 'FFF4B183', proteins: 'FFFFFF00', juices: 'FFFF00FF' };
+    const MEAL_COLORS = { breakfast: 'FFE6A5A0', snack1: 'FFF4B6B6', snack2: 'FFF8CBAD', lunch: 'FFFFD966', dinner: 'FFBDD7EE' };
+    const mealOrder = ['breakfast', 'snack1', 'snack2', 'lunch', 'dinner'];
+    const rank = (k) => { const i = mealOrder.indexOf(k); return i < 0 ? 99 : i; };
+    const allItems = menuItemsList();
+    const totalOf = (key) => activeClients.reduce((sum, c) => sum + itemValue(c, key), 0);
+    putHead(t('panel.dispatch.dietsTotalTitle'), 'FF000000');
+    putStat(t('panel.dispatch.dietsTotalClients'), activeClients.length, 'FFD9D9D9');
+    allItems.filter(([k]) => !(k in EXTRA_COLORS)).sort((a, b) => rank(a[0]) - rank(b[0]))
+      .forEach(([k, label]) => putStat(label, totalOf(k), MEAL_COLORS[k] || 'FFE7E6E6'));
+    const extraItems = allItems.filter(([k]) => k in EXTRA_COLORS);
+    if (extraItems.length) { r++; extraItems.forEach(([k, label]) => putStat(label, totalOf(k), EXTRA_COLORS[k])); }
+
+    // Derecha: 4 bloques de 3 columnas con lo que cocina tiene que cuidar
+    let rr = 3;
+    const section = (title, argb, entries) => {
+      main.mergeCells(rr, 4, rr, 6);
+      const h = main.getCell(rr, 4);
+      h.value = title; h.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } }; h.fill = fill(argb);
+      h.alignment = { horizontal: 'center', vertical: 'middle' };
+      [4, 5, 6].forEach((col) => { main.getCell(rr, col).border = BORDER; });
+      main.getRow(rr).height = 22;
+      rr++;
+      const rows = Math.max(5, Math.ceil(entries.length / 3));
+      for (let i = 0; i < rows; i++) {
+        let maxLen = 0;
+        for (let col = 0; col < 3; col++) {
+          const cell = main.getCell(rr, 4 + col);
+          cell.border = BORDER;
+          cell.alignment = { wrapText: true, vertical: 'middle', horizontal: 'center' };
+          const blue = { size: 10, bold: true, color: { argb: 'FF1F3FBF' } };
+          cell.font = blue;
+          const e = entries[i * 3 + col];
+          if (!e) continue;
+          const retPart = e.ret ? ` ${t('panel.dispatch.dietsRet')} ${e.ret}` : '';
+          cell.value = e.ret
+            ? { richText: [{ text: e.text, font: blue }, { text: retPart, font: { size: 10, bold: true, color: { argb: 'FFFF0000' } } }] }
+            : e.text;
+          maxLen = Math.max(maxLen, e.text.length + retPart.length);
+        }
+        main.getRow(rr).height = Math.max(20, Math.ceil(maxLen / 36) * 14);
+        rr++;
+      }
+      rr++;
+    };
+    const snacksEntries = activeClients.filter((c) => c.specialDietSnacks).map((c) => ({ text: `${c.name} - ${c.specialDietSnacks}` })).sort(byName);
+    const macroRe = /macro|premium|calor|kcal/i;
+    const macroEntries = activeClients.filter((c) => macroRe.test(planName(c)))
+      .map((c) => ({ text: [planName(c), c.name, noteOf(c) && `- ${noteOf(c)}`].filter(Boolean).join(' ') })).sort(byName);
+    const lunchDinnerEntries = activeClients.filter((c) => c.specialDiet || noteOf(c))
+      .map((c) => ({ text: `${c.name} - ${[c.specialDiet, noteOf(c)].filter(Boolean).join(' - ')}` })).sort(byName);
+    const frozenEntries = clients.filter((c) => dispatchStatus(c, date, dayInfo) === 'Pausado')
+      .map((c) => ({ text: `${planName(c)} ${c.name}`, ret: c.returnDate ? retText(c.returnDate) : 'PEND' })).sort(byName);
+    section(t('panel.dispatch.dietsSecSnacks'), 'FF1F3864', snacksEntries);
+    section(t('panel.dispatch.dietsSecMacros'), 'FF1F3864', macroEntries);
+    section(t('panel.dispatch.dietsSecLunchDinner'), 'FF1F3864', lunchDinnerEntries);
+    section(t('panel.dispatch.dietsSecFrozen'), 'FF7B0000', frozenEntries);
+
+    // ===== Hoja 2: el detalle por ruta de siempre =====
+    const ws = wb.addWorksheet(t('panel.dispatch.dietsSheetDetail'), { views: [{ state: 'frozen', ySplit: 1 }] });
     ws.columns = [
       { header: t('panel.common.route'), key: 'ruta', width: 16 }, { header: t('panel.common.client'), key: 'cliente', width: 26 },
       { header: t('panel.common.plan'), key: 'plan', width: 18 }, { header: t('panel.dispatch.colIncludedItems'), key: 'items', width: 46 },

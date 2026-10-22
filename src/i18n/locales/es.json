@@ -69,6 +69,7 @@
     "showPassword": "Mostrar contraseña",
     "hidePassword": "Ocultar contraseña",
     "wrongCredentials": "Correo o contraseña incorrectos.",
+    "sessionExpired": "Tu sesión venció (dura como máximo 30 días). Inicia sesión de nuevo.",
     "enterPanel": "Entrar al panel",
     "ourPlans": "Nuestros planes",
     "serviceDays": "{{count}} días de servicio",
@@ -789,14 +790,14 @@
       "addressForm": "Dirección de domicilio",
       "assignedRoute": "Ruta asignada",
       "extraRoutes": "Rutas adicionales (solo para cubrir un reemplazo temporal)",
-      "extraRoutesHint": "Ctrl/Cmd + clic para elegir varias. Una ruta no puede estar a la vez en dos drivers."
+      "extraRoutesHint": "Marca o desmarca las rutas que cubre. Una ruta no puede estar a la vez en dos drivers."
     },
     "dispatch": {
       "noRoute": "Sin ruta",
       "unassigned": "Sin asignar",
       "noPlan": "Sin plan",
       "noCarnet": "Sin carnet",
-      "maxFutureDate": "Solo se puede mirar hasta mañana ({{date}}).",
+      "maxFutureDate": "Solo se puede mirar hasta {{date}}.",
       "rangeFromTo": "del {{from}} al {{to}}",
       "daysCount_one": "{{count}} día",
       "daysCount_other": "{{count}} días",
@@ -885,7 +886,16 @@
       "closeAllNoActivity": "Cerrar todos sin actividad",
       "savedAtTime": "Guardado el {{datetime}}.",
       "noClientsThatDay": "Sin clientes registrados ese día.",
-      "historyTotals": "Totales ({{total}} clientes)"
+      "historyTotals": "Totales ({{total}} clientes)",
+      "dietsTotalTitle": "TOTAL",
+      "dietsTotalClients": "CLIENTES ACTIVOS",
+      "dietsSecSnacks": "ESP. DESAYUNOS Y MERIENDAS",
+      "dietsSecMacros": "MACROS / PREMIUM ALMUERZOS ADICIONALES",
+      "dietsSecLunchDinner": "ESPECIFICACIONES ALM. CENAS",
+      "dietsSecFrozen": "CONGELADOS",
+      "dietsRet": "RET",
+      "dietsSheetDetail": "Detalle por ruta",
+      "dietsNoPlan": "sin plan"
     },
     "menu": {
       "saveFailed": "No se pudo guardar el menú. Revisa tu internet e intenta de nuevo.",

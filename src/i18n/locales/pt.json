@@ -69,6 +69,7 @@
     "showPassword": "Mostrar senha",
     "hidePassword": "Ocultar senha",
     "wrongCredentials": "E-mail ou senha incorretos.",
+    "sessionExpired": "Sua sessão expirou (no máximo 30 dias). Entre novamente.",
     "enterPanel": "Entrar no painel",
     "ourPlans": "Nossos planos",
     "serviceDays": "{{count}} dias de serviço",
@@ -789,14 +790,14 @@
       "addressForm": "Endereço residencial",
       "assignedRoute": "Rota atribuída",
       "extraRoutes": "Rotas adicionais (apenas para cobrir uma substituição temporária)",
-      "extraRoutesHint": "Ctrl/Cmd + clique para escolher várias. Uma rota não pode estar ao mesmo tempo em dois drivers."
+      "extraRoutesHint": "Marque ou desmarque as rotas cobertas. Uma rota não pode estar ao mesmo tempo em dois drivers."
     },
     "dispatch": {
       "noRoute": "Sem rota",
       "unassigned": "Sem atribuição",
       "noPlan": "Sem plano",
       "noCarnet": "Sem cartão",
-      "maxFutureDate": "Só é possível consultar até amanhã ({{date}}).",
+      "maxFutureDate": "Só é possível consultar até {{date}}.",
       "rangeFromTo": "de {{from}} a {{to}}",
       "daysCount_one": "{{count}} dia",
       "daysCount_other": "{{count}} dias",
@@ -885,7 +886,16 @@
       "closeAllNoActivity": "Fechar todos sem atividade",
       "savedAtTime": "Salvo em {{datetime}}.",
       "noClientsThatDay": "Sem clientes registrados nesse dia.",
-      "historyTotals": "Totais ({{total}} clientes)"
+      "historyTotals": "Totais ({{total}} clientes)",
+      "dietsTotalTitle": "TOTAL",
+      "dietsTotalClients": "CLIENTES ATIVOS",
+      "dietsSecSnacks": "ESP. CAFÉS DA MANHÃ E LANCHES",
+      "dietsSecMacros": "MACROS / PREMIUM ALMOÇOS ADICIONAIS",
+      "dietsSecLunchDinner": "ESPECIFICAÇÕES ALM. JANTARES",
+      "dietsSecFrozen": "CONGELADOS",
+      "dietsRet": "RET",
+      "dietsSheetDetail": "Detalhe por rota",
+      "dietsNoPlan": "sem plano"
     },
     "menu": {
       "saveFailed": "Não foi possível salvar o cardápio. Verifique sua internet e tente novamente.",

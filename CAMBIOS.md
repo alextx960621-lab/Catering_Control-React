@@ -29,6 +29,147 @@ que ya están en producción** para ponerlas al día.
 
 ---
 
+## esquema 1.27 · v76 · 2026-10-22 — Mapa gris por la caché del service worker y auditoría de pausas
+
+**Sin cambios de SQL ni de Edge Functions.** Solo código del frontend.
+
+1. **Mapa gris (Reparto).** La regla de caché "de terceros" de `vite.config.js` (StaleWhileRevalidate)
+   atrapaba también las teselas del mapa (CARTO/Esri/OSM): al ser imágenes de otro origen llegan como
+   respuestas opacas y se guardaban aunque hubieran fallado (403/caída), así que el mapa seguía gris
+   aun cuando el proveedor ya funcionaba. El `sw.js` de la versión HTML vieja solo guardaba respuestas
+   200, por eso allá no pasaba. Ahora esa regla solo aplica a Google Fonts; las teselas van directo a
+   la red. Además `mapTiles.js` suma una red de seguridad: si el archivo `.pmtiles` propio carga su
+   encabezado pero no pinta ninguna tesela, se quita y entra la cadena raster (antes quedaba gris sin
+   respaldo).
+2. **Auditoría.** No se registraban: pausar/reanudar un cliente **por día** desde Día de trabajo
+   (`Cliente pausado (día)` / `Pausa del día quitada`), poner/quitar su **fecha de retorno** desde esa
+   tabla, ni pausar/reactivar a un cliente desde la tabla de Clientes (`Cliente pausado` /
+   `Cliente reactivado`). Ahora los tres quedan en Auditoría con quién, cuándo y la fecha.
+
+> Después de desplegar: cada dispositivo tiene que tocar "Actualizar ahora" para recibir el service
+> worker nuevo; si el mapa sigue gris en alguno, borrar "Datos del sitio" una vez.
+
+## esquema 1.27 · v75 · 2026-10-22 — Calendario hacia el futuro, ruta extra del driver que se puede quitar y "Exportar dietas" con estructura de cocina
+
+### Qué se reportó y la causa real (medida)
+
+| Reporte | Causa | Arreglo |
+|---|---|---|
+| "La web marca el 21 si estamos a 22" | **No es un bug**: en In Shape la hora de cierre está en 23, y `get_business_date()` = hora local de la empresa − hora de cierre. Hasta las 23:00 de La Paz el "hoy" operativo sigue siendo el día anterior. Green Fork (cierre 4) mostraba el 22 bien. El fix SQL de `get_day_cutoff_hour()` ya estaba aplicado en las dos bases (`least(23, …)`). | Dato de configuración, no se tocó la base. Para que cambie el día antes, bajar la hora de cierre en Configuración → Empresa. |
+| "No deja ver más allá del 22" | `DispatchPage.handleWorkDateChange` topaba en `serverToday + 1`. | Tope subido a `MAX_FUTURE_DAYS = 365`. **Procesar un día futuro sigue bloqueado** (`futureDayCannotProcess`). |
+| "Si le asigno una ruta extra a un driver no se la puedo quitar" | El campo era un `<select multiple>` nativo: para desmarcar hay que hacer Ctrl/Cmd+clic, y en celular ni existe. | `DriversPage.jsx`: casillas (checkbox) por ruta, con estado propio `extraSel`. Marcar y desmarcar con un toque. |
+
+### Exportar dietas (Día de trabajo)
+
+Hoja 1 "Dietas especiales" (nueva, estructura de la planilla de cocina): bloque **TOTAL** a la izquierda
+(clientes activos + total por cada artículo del menú, con colores) y 4 bloques de 3 columnas a la derecha:
+**ESP. DESAYUNOS Y MERIENDAS** (`specialDietSnacks`), **MACROS / PREMIUM ALMUERZOS ADICIONALES** (clientes cuyo
+plan se llama macro/premium/calorías/kcal), **ESPECIFICACIONES ALM. CENAS** (`specialDiet` + observaciones del día)
+y **CONGELADOS** (clientes pausados, con `RET <fecha>` en rojo; `RET PEND` si no tienen fecha de retorno).
+Hoja 2 "Detalle por ruta": la tabla anterior, sin cambios.
+
+### Estado por base
+
+| Base | SQL | Edge Functions |
+|---|---|---|
+| `kkqcaiunetlikfyaldab` (pruebas) | ✅ sin cambios (1.27) | ✅ sin cambios |
+| `spvqcxomhkukwzijhvlm` (In Shape) | ✅ sin cambios (1.27) | ✅ sin cambios |
+| `inirizkgxkpvqnityvud` (Green Fork) | ✅ sin cambios (1.27) | ✅ sin cambios |
+
+### Verificación
+
+`npm run build` OK, `oxlint` sin errores, `npm test` 87/87 (2 todo preexistentes), paridad de claves es/en/pt.
+
+---
+
+## esquema 1.27 · v74 · 2026-10-07 — El panel se queda abierto en el teléfono: el equipo deja de escribir la contraseña cada vez que cierra la app
+
+### Primero: verificar la pregunta del dueño (medido, no de memoria)
+
+Dijo que el cliente entra una vez y se queda adentro, y preguntó si el equipo podía hacer lo mismo.
+`src/services/session.js` respondió por qué no:
+
+| Quién | Dónde vivía su sesión | Qué pasaba al cerrar la pestaña / la app |
+|---|---|---|
+| Cliente | `localStorage`, pero solo si está instalado como PWA (`isStandalonePwa()`) | Se queda adentro (su token renueva 30 días en cada uso, sin tope: `_cliente_session`, línea 407 del setup) |
+| Staff (chofer, cocina, editor, admin) | **`sessionStorage` a palo seco** (líneas 25 y 29, el helper `clientStorage()` no se usaba con ellos) | Adentro de `sessionStorage` no sobrevive: al cerrar la app del celular hay que volver a escribir el correo y la contraseña |
+
+O sea: la molestia que reportaba era real y tenía una causa de 4 líneas.
+
+### Qué cambió (frontend puro, cero SQL)
+
+- `writeStaffSession` / `readStaffSession` pasan a `localStorage` **siempre**, con o sin PWA. Un
+  chofer usa el panel desde el navegador del celular sin instalarla, y ahí también quería entrar sin
+  más trámite.
+- `readStaffSession` sigue mirando `sessionStorage` como respaldo y, si encuentra la sesión ahí, la
+  sube a `localStorage`. Nadie queda expulsado por actualizar la app con el panel ya abierto.
+- `markLastLogin` escribe también en `localStorage` y `readLastLoginOrigin` lee primero el de la
+  pestaña y después el del aparato. Sin esto el arreglo quedaba a medias: la PWA arranca en una
+  pestaña nueva, el desempate entre panel y portal no tenía marca y mostraba el formulario igual.
+- `clearStaffSession` y `clearClientSession` borran de los dos stores (antes `clearStaffSession` solo
+  limpiaba `sessionStorage` y dejaba la sesión viva en el teléfono después de "Cerrar sesión").
+- **El caso nuevo que este cambio crea**: una sesión guardada en el teléfono puede estar **muerta**
+  cuando se abre la app (30 días cumplidos, o un guardado del roster que cerró las sesiones de los
+  demás). Antes eso era imposible porque la sesión moría con la pestaña. Ahora
+  `reportSessionRejected()` mira el rechazo real de la base y `PanelPage` saca al usuario al login
+  con el motivo, en vez de dejar un panel vacío con el cartel de "sincronización incompleta".
+- `install/Guia-Nueva-Empresa-React.docx`: la "Nota de seguridad" decía que el token se perdía al
+  cerrar la pestaña — con v74 eso es falso para el panel. Se corrigió ese párrafo y el aviso del
+  Paso 9, y quedó escrita la regla de oro: entra solo, la contraseña una vez por mes, y cómo expulsar
+  a un teléfono perdido.
+
+### El candado del servidor sigue igual (esto no es un login eterno)
+
+`_staff_session` (línea 197) renueva **3 días por uso** con **techo de 30 días desde `created_at`**.
+Con la sesión guardada el efecto es: entran solos casi siempre y **una vez al mes** toca la
+contraseña. La asimetría con el cliente (30 días por uso, sin tope) queda anotada; no se tocó.
+
+Si se pierde el teléfono de un chofer hay dos salidas, y ninguna es nueva: ese usuario cierra sesión
+desde otro aparato, o cualquier admin guarda el roster en **Usuarios** — `staff_set_fields` hace
+`delete from db_sessions … and token <> p_token` (línea 1005), o sea corta las sesiones de todos los
+demás. Y a las 30 días se corta sola de todos modos.
+
+### Verificado (base de pruebas `kkqcaiunetlikfyaldab`, dev server + navegador real)
+
+- Login de chofer (`zz.offline@test.local`): queda `/panel`, la sesión está en `localStorage` y
+  **no** en `sessionStorage`; marca de última entrada `staff` en los dos stores.
+- Arranque frío (se vació `sessionStorage` y se recargó desde `/`): entra directo al panel con los
+  5 pedidos del día, sin mostrar el formulario. Este es el caso "cerré la app del celular".
+- Token vencido a propósito (`update db_sessions set expires_at = now() - interval '1 minute'`):
+  la app vuelve a `/`, la sesión desaparece de `localStorage` y el login muestra
+  *"Tu sesión venció (dura como máximo 30 días). Inicia sesión de nuevo."* con la pestaña
+  **Soy del equipo** activa (`aria-pressed=true`, campos `staff-email` / `staff-pass`).
+- Rechazo medido contra la base con un token falso: `HTTP 400`, `code P0001`, mensaje
+  `Sesión inválida o expirada. Vuelve a iniciar sesión.` — ese texto es el que detecta el filtro,
+  y `tests/sessions-portal-cache.test.js` falla si el SQL lo cambia sin avisar.
+- "Cerrar sesión": `catering-app-staff-session-v1` y `…-last-login-origin-v1` quedan en `null`.
+- El portal del cliente no cambió de comportamiento (mismas claves, mismo `clientStorage()`).
+- `npm test`: 89 pruebas, **87 pasan, 0 fallan**, 2 TODO (las dos conocidas de
+  `dispatch-vs-portal-status`). Dos pruebas nuevas: "la sesión del panel queda guardada en el
+  dispositivo" y "un token rechazado por la base expulsa al staff con aviso".
+- `npm run build` OK y `oxlint` 0 advertencias sobre los 4 archivos de código tocados.
+
+### Estado por base
+
+| Base | SQL | Edge Functions |
+|---|---|---|
+| `kkqcaiunetlikfyaldab` (pruebas) | ✅ sin cambios (sigue 1.27, `ef2986fa`) | ✅ sin cambios |
+| `spvqcxomhkukwzijhvlm` (In Shape) | ✅ sin cambios (1.27) | ✅ sin cambios |
+| `inirizkgxkpvqnityvud` (Green Fork) | ✅ sin cambios (1.27) | ✅ sin cambios |
+
+### Qué le falta al dueño
+
+1. **Desplegar el frontend en las tres carpetas** (Vercel: Catering Control y pruebas; Cloudflare
+   Workers: In Shape y Green Fork). Mientras no se despliegue, el equipo sigue con el viejo
+   `sessionStorage` y va a tener que volver a entrar igual.
+2. `git add` + commit + push de las tres carpetas (en el maestro: 4 de código, 3 locales, 1 test,
+   `CAMBIOS.md`, `install/empresas.json`, `scripts/nueva-empresa.mjs` y la guía DOCX; en In Shape y
+   Green Fork ya está copiado el código con `scripts/difundir.mjs`, 8 archivos + la guía, difusión
+   verificada en `0 cambiaría / 0 nuevos / 0 conflictos`).
+3. Correr el setup **no** hace falta: no cambió ni una función.
+
+---
+
 ## esquema 1.27 · v73 · 2026-09-29 — El servidor por fin pregunta qué pantalla sos: permisos de lectura, correo único, tope de sesión y el chofer trabaja sin señal
 
 Tres cosas pedidas por el dueño sobre su propia copia v73 (la del zoom del mapa), todas medidas

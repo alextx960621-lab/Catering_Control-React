@@ -110,7 +110,10 @@ export async function createBaseLayer(L, city, language = 'es', map) {
         // entero a ese zoom y no se podría acercar. Por encima de dataMaxZoom entra el overlay raster.
         maxZoom: 19,
       });
-      if (map) attachDeepZoomOverlay(L, map, dataMaxZoom);
+      if (map) {
+        attachDeepZoomOverlay(L, map, dataMaxZoom);
+        attachPmtilesFailsafe(L, map, layer);
+      }
       return { layer, source: 'pmtiles', maxNativeZoom: dataMaxZoom };
     } catch (err) {
       console.info(`[mapa] Sin archivo de mapa propio para "${city.id}" (${err?.message || err}); se usa la cadena raster.`);
@@ -136,4 +139,23 @@ function attachDeepZoomOverlay(L, map, dataMaxZoom) {
   };
   map.on('zoomend', sync);
   sync();
+}
+
+// Red de seguridad del archivo propio: si el encabezado cargó pero las teselas no se pintan (archivo
+// dañado, Range/CORS bloqueado, versión incompatible), el lienzo quedaba gris sin respaldo porque
+// `createBaseLayer` ya había elegido 'pmtiles'. Tras varios fallos SIN ninguna tesela buena, se
+// quita la capa propia y entra la cadena raster.
+function attachPmtilesFailsafe(L, map, layer) {
+  let errors = 0;
+  let loaded = 0;
+  layer.on('tileload', () => { loaded += 1; });
+  layer.on('tileerror', () => {
+    errors += 1;
+    if (loaded === 0 && errors >= ERRORS_TO_SWITCH) {
+      layer.off('tileerror');
+      map.removeLayer(layer);
+      map.addLayer(rasterLayer(L));
+      console.info('[mapa] El archivo propio no pintó teselas; se usa la cadena raster.');
+    }
+  });
 }

@@ -17,6 +17,29 @@ export function getSessionToken() {
   return currentToken;
 }
 
+// La sesión del panel ahora queda en el teléfono, así que algún día la app
+// va a abrirse con un token que la base ya rechazó (tope de 30 días, o un
+// "Salir" desde otra pantalla). Sin este aviso el Panel quedaría vacío con
+// "sincronización incompleta" y nadie sabría que tiene que volver a entrar.
+// El handler se suelta tras disparar: un arranque, un solo cierre de sesión.
+const SESSION_REJECTED_TEXT = 'Sesión inválida o expirada';
+let sessionRejectedHandler = null;
+
+export function onStaffSessionExpired(handler) {
+  sessionRejectedHandler = typeof handler === 'function' ? handler : null;
+}
+
+function reportSessionRejected(message) {
+  if (currentTokenType !== 'staff') return;
+  if (typeof message !== 'string' || !message.includes(SESSION_REJECTED_TEXT)) return;
+  const handler = sessionRejectedHandler;
+  sessionRejectedHandler = null;
+  if (handler) {
+    setSessionToken(null, null);
+    handler();
+  }
+}
+
 export async function revokeSession() {
   if (!currentToken) return true;
   try {
@@ -33,6 +56,7 @@ export async function rpc(fnName, params) {
   try {
     const { data, error } = await supabase.rpc(fnName, params);
     if (error) {
+      reportSessionRejected(error.message);
       console.error(`[supabase] Error llamando a ${fnName}:`, error.message);
       return null;
     }
@@ -156,6 +180,7 @@ export async function dbSaveStaffPushSubscription(subscription) {
       p_auth: subscription.keys.auth,
     });
     if (error) {
+      reportSessionRejected(error.message);
       console.error('[supabase] Error guardando la suscripción push (staff):', error.message);
       return false;
     }
@@ -196,7 +221,10 @@ export async function dbInsertAudit(entry) {
       return !error;
     }
     const { error } = await supabase.rpc('staff_insert_audit', { p_token: currentToken, p_entry: entry });
-    if (error) console.error('[supabase] Error guardando en el historial:', error.message);
+    if (error) {
+      reportSessionRejected(error.message);
+      console.error('[supabase] Error guardando en el historial:', error.message);
+    }
     return !error;
   } catch (err) {
     console.error('[supabase] Fallo de red guardando en el historial:', err);

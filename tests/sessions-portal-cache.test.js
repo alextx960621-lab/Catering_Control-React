@@ -6,6 +6,7 @@ import { repoFile } from './_helpers.js';
 // Sesiones, cache del portal y el corte del autoservicio viven en varios archivos y en el SQL.
 // Como en el resto de la suite, se vigila el texto: nada de esto se puede instanciar sin DOM ni red.
 const session = repoFile('src/services/session.js');
+const client = repoFile('src/services/supabaseClient.js');
 const login = repoFile('src/pages/LoginPage.jsx');
 const panelPage = repoFile('src/pages/PanelPage.jsx');
 const clientePage = repoFile('src/pages/ClientePage.jsx');
@@ -44,6 +45,7 @@ test('el logout de staff no toca la sesión del cliente y viceversa', () => {
   }
   const staffClear = fn(session, 'clearStaffSession');
   assert.match(staffClear, /sessionStorage\.removeItem\(STORAGE_KEYS\.staffSession\);/, 'clearStaffSession debe borrar la sesión de staff');
+  assert.match(staffClear, /localStorage\.removeItem\(STORAGE_KEYS\.staffSession\);/, 'clearStaffSession debe borrar también la sesión guardada en el teléfono');
   assert.doesNotMatch(staffClear, /STORAGE_KEYS\.clientSession/, 'clearStaffSession no puede tocar la sesión de cliente');
   const clientClear = fn(session, 'clearClientSession');
   assert.match(clientClear, /sessionStorage\.removeItem\(STORAGE_KEYS\.clientSession\);/, 'clearClientSession debe limpiar sessionStorage');
@@ -65,6 +67,42 @@ test('LoginPage desempata con la última entrada de la pestaña y no redirige si
   assert.match(login, /if \(existingStaff && existingClient\) \{/, 'LoginPage tiene que tener la rama de sesiones cruzadas');
   assert.match(login, /if \(!origin\) return;/, 'sin marca no se puede adivinar: se muestra el formulario');
   assert.match(login, /navigate\(origin === 'client' \? '\/cliente' : '\/panel'\);/);
+});
+
+// El equipo abre el panel desde el celular muchas veces al día: con sessionStorage cada
+// pestaña cerrada era un login nuevo. La sesión de staff vive en localStorage, y la base
+// la acota (renueva 3 días por uso, tope de 30 desde que se abrió).
+test('la sesión del panel queda guardada en el dispositivo', () => {
+  const staffRead = fn(session, 'readStaffSession');
+  const staffWrite = fn(session, 'writeStaffSession');
+  assert.match(staffWrite, /writeJSON\(localStorage, STORAGE_KEYS\.staffSession, session\);/,
+    'writeStaffSession debe guardar en localStorage');
+  assert.doesNotMatch(staffWrite, /writeJSON\(sessionStorage/, 'writeStaffSession no puede volver a sessionStorage');
+  assert.match(staffRead, /readJSON\(localStorage, STORAGE_KEYS\.staffSession\)/,
+    'readStaffSession debe leer de localStorage');
+  // una sesión ya abierta antes del cambio no puede expulsar a nadie
+  assert.match(staffRead, /readJSON\(sessionStorage, STORAGE_KEYS\.staffSession\)/,
+    'readStaffSession debe rescatar la sesión vieja de sessionStorage');
+  assert.match(fn(session, 'markLastLogin'), /localStorage\.setItem\(STORAGE_KEYS\.lastLoginOrigin, origin\);/,
+    'la marca de última entrada necesita respaldo de dispositivo para la PWA');
+  assert.match(fn(session, 'readLastLoginOrigin'), /sessionStorage\.getItem\(STORAGE_KEYS\.lastLoginOrigin\)\s*\?\?\s*localStorage\.getItem/,
+    'la pestaña manda; el dispositivo es el respaldo');
+});
+
+// Sesión guardada + token rechazado = salir al login con aviso, no un panel vacío a medias.
+test('un token rechazado por la base expulsa al staff con aviso', () => {
+  assert.match(sqlCode, /raise exception 'Sesión inválida o expirada/,
+    '_staff_session cambió el mensaje y el detector quedó ciego');
+  assert.match(client, /export function onStaffSessionExpired\(handler\)/, 'hay que poder registrar el aviso');
+  assert.match(client, /reportSessionRejected\(error\.message\)/, 'rpc() tiene que revisar el error de cada llamada');
+  assert.match(client, /if \(currentTokenType !== 'staff'\) return;/, 'el aviso es solo del panel, nunca del portal');
+  assert.match(client, /sessionRejectedHandler = null;/, 'un arranque, un solo cierre de sesión');
+  assert.match(panelPage, /onStaffSessionExpired\(\(\) => \{[\s\S]*?clearStaffSession\(\);/,
+    'PanelPage limpia la sesión guardada cuando la base la rechaza');
+  assert.match(login, /state\?\.sessionExpired/, 'LoginPage muestra el motivo de la salida');
+  for (const loc of ['es', 'en', 'pt']) {
+    assert.match(repoFile(`src/i18n/locales/${loc}.json`), /"sessionExpired"/, `${loc}.json necesita la clave sessionExpired`);
+  }
 });
 
 // Falla 3: writeClientRow se escribía antes de la confirmación; la ruta rápida del portal pintaba…

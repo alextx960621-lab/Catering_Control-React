@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import './LoginPage.css';
 import { useTheme } from '../hooks/useTheme';
@@ -17,12 +17,16 @@ import PlansTeaser from '../components/login/PlansTeaser';
 
 export default function LoginPage() {
   const { t } = useTranslation();
+  const location = useLocation();
+  // El panel avisó que la base rechazó la sesión guardada: se entra con el formulario del
+  // equipo abierto y el motivo a la vista, no con el de cliente.
+  const sessionExpired = Boolean(location.state?.sessionExpired);
   const [theme, setTheme] = useTheme();
   usePageBodyClass('page-login');
   const { name: brandName, logo: brandLogo, whatsappNumber } = useBranding();
-  const [accessType, setAccessType] = useState('client');
+  const [accessType, setAccessType] = useState(sessionExpired ? 'staff' : 'client');
   const [clientMode, setClientMode] = useState('login'); // 'login' | 'signup', solo aplica a accessType 'client'
-  const [errorMsg, setErrorMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState(sessionExpired ? t('login.sessionExpired') : '');
   const navigate = useNavigate();
   const redirected = useRef(false);
 

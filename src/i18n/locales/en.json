@@ -69,6 +69,7 @@
     "showPassword": "Show password",
     "hidePassword": "Hide password",
     "wrongCredentials": "Incorrect email or password.",
+    "sessionExpired": "Your saved session expired (it lasts 30 days at most). Sign in again.",
     "enterPanel": "Enter the panel",
     "ourPlans": "Our plans",
     "serviceDays": "{{count}} service days",
@@ -789,14 +790,14 @@
       "addressForm": "Home address",
       "assignedRoute": "Assigned route",
       "extraRoutes": "Additional routes (only to cover a temporary replacement)",
-      "extraRoutesHint": "Ctrl/Cmd + click to choose several. A route cannot belong to two drivers at the same time."
+      "extraRoutesHint": "Tick or untick the routes covered. A route cannot belong to two drivers at the same time."
     },
     "dispatch": {
       "noRoute": "No route",
       "unassigned": "Unassigned",
       "noPlan": "No plan",
       "noCarnet": "No ID card",
-      "maxFutureDate": "You can only look up to tomorrow ({{date}}).",
+      "maxFutureDate": "You can only look up to {{date}}.",
       "rangeFromTo": "from {{from}} to {{to}}",
       "daysCount_one": "{{count}} day",
       "daysCount_other": "{{count}} days",
@@ -885,7 +886,16 @@
       "closeAllNoActivity": "Close all without activity",
       "savedAtTime": "Saved on {{datetime}}.",
       "noClientsThatDay": "No clients recorded that day.",
-      "historyTotals": "Totals ({{total}} clients)"
+      "historyTotals": "Totals ({{total}} clients)",
+      "dietsTotalTitle": "TOTAL",
+      "dietsTotalClients": "ACTIVE CLIENTS",
+      "dietsSecSnacks": "SPECIAL BREAKFASTS & SNACKS",
+      "dietsSecMacros": "EXTRA LUNCH MACROS / PREMIUM",
+      "dietsSecLunchDinner": "LUNCH & DINNER SPECIFICATIONS",
+      "dietsSecFrozen": "FROZEN",
+      "dietsRet": "RET",
+      "dietsSheetDetail": "Detail by route",
+      "dietsNoPlan": "no plan"
     },
     "menu": {
       "saveFailed": "Could not save the menu. Check your internet and try again.",

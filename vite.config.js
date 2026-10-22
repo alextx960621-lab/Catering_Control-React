@@ -79,10 +79,13 @@ export default defineConfig({
             },
           },
           {
-            // De terceros (Google Fonts): siempre revalida contra la red para no quedar
-            // pegado a una copia vieja de la caché del service worker.
+            // De terceros: SOLO Google Fonts. Las teselas del mapa (CARTO/Esri/OSM) NO pasan por acá:
+            // al ser imágenes de otro origen llegan como respuestas opacas, y StaleWhileRevalidate
+            // guardaba también las que fallaron (403/caída), con lo que el mapa se quedaba gris aunque
+            // el proveedor ya hubiera vuelto. Sin regla, van directo a la red (y a la caché del navegador).
             urlPattern: ({ request, url }) =>
-              ['style', 'script', 'image', 'font'].includes(request.destination) && url.origin !== self.location.origin,
+              ['style', 'script', 'image', 'font'].includes(request.destination) &&
+              ['fonts.googleapis.com', 'fonts.gstatic.com'].includes(url.hostname),
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'terceros',

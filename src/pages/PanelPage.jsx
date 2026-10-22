@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import './PanelPage.css';
 import config from '../services/config';
 import { readStaffSession, clearStaffSession } from '../services/session';
-import { setSessionToken, revokeSession, joinPresence, leavePresence } from '../services/supabaseClient';
+import { setSessionToken, revokeSession, joinPresence, leavePresence, onStaffSessionExpired } from '../services/supabaseClient';
 import { fetchBrandingRemote } from '../services/clienteData';
 import { OperationsProvider, useOperations } from '../context/OperationsContext';
 import { getTheme as getMyCachedTheme } from '../services/userPrefs';
@@ -139,6 +139,20 @@ export default function PanelPage() {
   const [activePage, setActivePage] = useState('dispatch');
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
+  const expiredRef = useRef(false);
+
+  // La sesión quedó guardada en el teléfono. Si la base ya la rechazó (tope de 30 días, o
+  // un "Salir" desde otra pantalla) hay que salir al login, no mostrar un panel vacío.
+  useEffect(() => {
+    onStaffSessionExpired(() => {
+      if (expiredRef.current) return;
+      expiredRef.current = true;
+      leavePresence();
+      clearStaffSession();
+      navigate('/', { replace: true, state: { sessionExpired: true } });
+    });
+    return () => onStaffSessionExpired(null);
+  }, [navigate]);
 
   useEffect(() => {
     (async () => {

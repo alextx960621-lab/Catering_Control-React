@@ -416,6 +416,7 @@ export default function ClientsPage({ user, pendingClientAction, onConsumePendin
       .then((saved) => {
         if (!saved) { showNotice(t('panel.clients.clientSaveFailed'), true); return; }
         showNotice(current === 'Pausado' ? t('panel.clients.clientActivated') : t('panel.clients.clientPaused'));
+        dbInsertAudit({ actor_id: user.id, actor_name: user.name, actor_role: user.role, action: current === 'Pausado' ? 'Cliente reactivado' : 'Cliente pausado', entity_type: 'client', entity_label: c.name, entity_id: c.id, details: {} });
       });
   }
 

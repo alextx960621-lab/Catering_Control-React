@@ -16,6 +16,7 @@ export default function DriversPage({ user }) {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
   const [photoUrl, setPhotoUrl] = useState('');
+  const [extraSel, setExtraSel] = useState([]);
   // El toast global queda tapado por el <dialog> abierto: los rechazos del formulario se avisan adentro
   const [formError, setFormError] = useState('');
   const canEdit = canManage(user?.role, settings.customRoles, 'drivers');
@@ -23,6 +24,7 @@ export default function DriversPage({ user }) {
   function openEdit(d) {
     setEditing(d || {});
     setPhotoUrl(d?.photoUrl || '');
+    setExtraSel(d?.extraRouteIds || []);
     setFormError('');
   }
 
@@ -41,8 +43,8 @@ export default function DriversPage({ user }) {
 
   function handleSubmit(form) {
     const data = Object.fromEntries(new FormData(form));
-    const extraRouteIds = [...form.elements.extraRouteIds.selectedOptions].map((o) => o.value).filter(Boolean);
-    delete data.extraRouteIds;
+    // Casillas (no <select multiple>): con el select, quitar una ruta exigía Ctrl+clic y no se podía desmarcar
+    const extraRouteIds = extraSel.filter((id) => routes.some((r) => r.id === id && !r.open));
 
     if (extraRouteIds.includes(data.routeId)) {
       setFormError(t('panel.drivers.mainRouteDuplicate'));
@@ -146,13 +148,20 @@ export default function DriversPage({ user }) {
               {routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </label>
-          <label className="wide">{t('panel.drivers.extraRoutes')}
-            <select name="extraRouteIds" multiple size={4} defaultValue={editing?.extraRouteIds || []}>
-              {/* "Ruta abierta" no se puede tomar como extra: es justamente no tener ruta de trabajo */}
-              {routes.filter((r) => !r.open).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
+          <div className="wide" role="group" aria-label={t('panel.drivers.extraRoutes')}>
+            <span>{t('panel.drivers.extraRoutes')}</span>
+            {/* "Ruta abierta" no se puede tomar como extra: es justamente no tener ruta de trabajo */}
+            <div style={{ display: 'grid', gap: 6, margin: '6px 0' }}>
+              {routes.filter((r) => !r.open).map((r) => (
+                <label key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={extraSel.includes(r.id)} style={{ width: 'auto', minHeight: 'auto' }}
+                    onChange={() => setExtraSel((cur) => (cur.includes(r.id) ? cur.filter((x) => x !== r.id) : [...cur, r.id]))} />
+                  {r.name}
+                </label>
+              ))}
+            </div>
             <small>{t('panel.drivers.extraRoutesHint')}</small>
-          </label>
+          </div>
         </div>
       </Modal>
     </section>
