@@ -159,17 +159,22 @@ export default function DriversPage({ user }) {
             </select>
           </label>
           <div className="wide" role="group" aria-label={t('panel.drivers.extraRoutes')}>
-            <span>{t('panel.drivers.extraRoutes')}</span>
+            <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600 }}>{t('panel.drivers.extraRoutes')}</span>
             {/* "Ruta abierta" no se puede tomar como extra: es justamente no tener ruta de trabajo */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 18px', margin: '6px 0' }}>
+            {/* Lista compacta: casilla a la izquierda y nombre al lado, una ruta por renglón
+                (.form-grid label es una columna: se fuerza la fila acá). */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, margin: '6px 0' }}>
               {routes.filter((r) => !r.open).map((r) => {
                 const owner = drivers.find((d) => d.id !== editing?.id && d.routeId === r.id);
                 return (
-                  <label key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    <input type="checkbox" checked={extraSel.includes(r.id)} style={{ width: 'auto', minHeight: 'auto' }}
+                  <label key={r.id} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '4px 0', fontSize: 14, fontWeight: 500 }}>
+                    <input type="checkbox" checked={extraSel.includes(r.id)}
+                      style={{ width: 18, height: 18, minHeight: 0, margin: 0, padding: 0, flex: '0 0 auto' }}
                       onChange={() => setExtraSel((cur) => (cur.includes(r.id) ? cur.filter((x) => x !== r.id) : [...cur, r.id]))} />
-                    {r.name}
-                    {owner && <small className="muted">({t('panel.drivers.coversFrom', { name: owner.firstName })})</small>}
+                    <span>
+                      {r.name}
+                      {owner && <small className="muted" style={{ marginLeft: 6 }}>({t('panel.drivers.coversFrom', { name: owner.firstName })})</small>}
+                    </span>
                   </label>
                 );
               })}

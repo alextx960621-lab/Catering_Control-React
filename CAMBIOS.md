@@ -29,6 +29,22 @@ que ya están en producción** para ponerlas al día.
 
 ---
 
+## esquema 1.27 · v81 · 2026-10-23 — Rutas adicionales del driver: casilla a la izquierda, una ruta por renglón
+
+**Sin cambios de SQL ni de Edge Functions.** Solo frontend (`DriversPage.jsx`): en "Editar driver", las rutas
+adicionales ya no apilan la casilla arriba del nombre (`.form-grid label` es una columna); ahora cada ruta es
+un renglón con la casilla a la izquierda, el nombre al lado y "(de X)" en la misma línea.
+
+### Estado por base
+
+| Base | SQL | Edge Functions |
+|---|---|---|
+| `kkqcaiunetlikfyaldab` (pruebas) | ✅ sin cambios (1.27) | ✅ sin cambios |
+| `spvqcxomhkukwzijhvlm` (In Shape) | ✅ sin cambios (1.27) | ✅ sin cambios |
+| `inirizkgxkpvqnityvud` (Green Fork) | ✅ sin cambios (1.27) | ✅ sin cambios |
+
+---
+
 ## esquema 1.27 · v80 · 2026-10-23 — La difusión deja las empresas iguales al maestro sin conflictos que la frenen
 
 **Sin cambios de SQL ni de Edge Functions.** Solo herramientas del dueño (`scripts/panel.mjs`, `scripts/difundir.mjs`).
