@@ -29,6 +29,126 @@ que ya están en producción** para ponerlas al día.
 
 ---
 
+---
+
+## esquema 1.27 · v79 · 2026-10-22 — Mapa sin marquesinas, zoom suave y pastillas de rutas extra
+
+**Sin cambios de SQL ni de Edge Functions.** Sí cambia el código de la app: hay que **redeployar el
+frontend** de las tres (Vercel en el maestro/pruebas, Cloudflare Workers en In Shape y Green Fork) y
+tocar **Actualizar ahora** en cada celular.
+
+### 1. Por qué el mapa salía gris con recuadros "API KEY REQUIRED"
+
+Medido el 2026-10-22 con `curl` y con el navegador, tesela por tesela:
+
+| Proveedor | Respuesta real | Veredicto |
+|---|---|---|
+| `basemaps.cartocdn.com` (voyager, @2x y light_all) | **HTTP 200** con la MISMA imagen de 2049 bytes en z13–z18 | ahora exige API key; pinta la marquesina encima de todo |
+| `tile.openstreetmap.org` (crudo) | **HTTP 200** con PNG idéntico de 6987 bytes y cabecera `x-blocked: Access denied` | su política prohíbe apps en producción; bloquea por user-agent |
+| `server.arcgisonline.com` World_Street_Map | 200, JPEG ~43 KB, teselas vecinas **distintas** | mapa real |
+| `server.arcgisonline.com` World_Topo_Map | 200, JPEG ~32 KB, distintas | mapa real |
+| `tile.opentopomap.org` | 200, PNG ~50 KB, distintas | mapa real |
+
+Los dos primeros eran un hoyo imposible de ver con código: devuelven **200**, así que `tileerror`
+nunca saltaba y la cascada de respaldo jamás se activaba. Se sacaron los dos de la cadena
+(`src/services/mapTiles.js`) y la cadena quedó **Esri Street → OpenTopoMap → Esri Topo** (los tres
+con `Access-Control-Allow-Origin: *`, ninguno necesita clave, y `img-src … https:` de la CSP ya los
+autoriza a todos).
+
+Además la cadena ahora se **autochequea**: `proveedorVivo()` pide dos teselas vecinas y, si dan la
+misma firma de píxeles, descarta ese proveedor aunque haya contestado 200. Verificado en el
+navegador: CARTO → descartado; Esri, OpenTopoMap y OSM crudo → se quedan. Se hace con `<img>` +
+canvas y **no con `fetch`**, porque `connect-src` de la CSP solo autoriza Supabase/OSRM/Nominatim y
+un fetch a estos CDN sería bloqueado en producción.
+
+### 2. "Aparece, pero muy lejos"
+
+`fitBounds` no tenía tope de zoom. Con **una sola parada** el bounding box mide cero y Leaflet se iba
+al `maxZoom` del mapa (z19): justo por encima del z14 real del `.pmtiles`, así que el archivo propio
+no pintaba nada y el respaldo raster cubría toda la pantalla. Ahora el encuadre se topea en el
+`maxNativeZoom` que devuelve el archivo (medido: 1 parada en Obrajes → **z14 con el mapa propio
+pintando**, antes z19).
+
+### 3. La rueda del zoom
+
+`L.map(…)` de fábrica salta de a 1 nivel entero y con `wheelPxPerZoomLevel: 60` un clic de rueda
+(120 px) movía **2 niveles**: de un barrio a una ciudad entera. Se pusieron
+`zoomSnap: 0.25`, `zoomDelta: 0.5`, `wheelPxPerZoomLevel: 160`. Medido con un `WheelEvent` real:
+120 px de rueda = **0.5 nivel** (antes 2), y los botones ±/− también acercan de a poco.
+
+### 4. "Rutas adicionales" se veía feo y largo
+
+`DriversPage.jsx`: era una casilla por fila (con 8 rutas, el formulario se hacía interminable). Ahora
+son **pastillas horizontales que envuelven** (píldora, radio 999, alto 30), con la casilla adentro y
+la seleccionada resaltada en el color de la marca. En la tabla de Choferes, cada ruta extra sale como
+su propia `badge warn` en vez de un solo texto largo unido con comas que cortaba la columna.
+
+### Estado por base
+
+| Base | SQL | Edge Functions |
+|---|---|---|
+| `kkqcaiunetlikfyaldab` (pruebas) | ✅ sin cambios (1.27) | ✅ sin cambios |
+| `spvqcxomhkukwzijhvlm` (In Shape) | ✅ sin cambios (1.27) | ✅ sin cambios |
+| `inirizkgxkpvqnityvud` (Green Fork) | ✅ sin cambios (1.27) | ✅ sin cambios |
+
+### Verificación
+
+- `npm run build` pasa (PWA, 35 entradas).
+- Página de prueba temporal contra el servidor de desarrollo (ya borrada), con los módulos reales:
+  `source: pmtiles`, `maxNativeZoom: 14`, zoom tras `fitBounds` de 1 parada = **14**; en z16.5 el
+  overlay raster = 12/12 teselas de `server.arcgisonline.com` cargadas y visibles; sin ciudad
+  elegida, el fondo raster también es Esri.
+- Sondas de teselas y de rueda, en la tabla de arriba.
+
+## esquema 1.27 · v78 · 2026-10-22 — El panel arma el repositorio git de una empresa nueva
+
+**Sin cambios de SQL ni de Edge Functions, y no cambia nada de la app.** Es herramienta del dueño.
+
+1. `scripts/panel.mjs` suma `crearRepo(dir, nombre)`: cuando una carpeta del registro **todavía no es
+   un repo git**, el menú la detecta (opciones 5 y 6) y ofrece armarlo preguntando lo que necesita, en
+   este orden: copia el `.gitignore` del maestro si la carpeta no tiene → lista el nivel principal →
+   pide `S/N` → `git init -b main` → `git add .` → muestra cuántos archivos entran → `commit` → pide la
+   **URL del remoto** (con Enter lo deja local e imprime los dos comandos para agregarlo después) →
+   `git remote add origin` → `git push -u origin main`.
+2. **Freno de seguridad antes del commit:** si el `add` incluye algo que matche
+   `node_modules/`, `dist/`, `*.local.json` o `claves.txt`, el panel **no commitea ni pushea** y dice
+   que revises el `.gitignore`. Es la única barrera entre la clave privada VAPID de
+   `install/secretos-*.local.json` y un repo público de GitHub.
+3. La opción 4 (crear empresa) ahora encadena: `nueva-empresa.mjs` → si salió bien, ofrece **difundir el
+   código del maestro** a la carpeta nueva (usa el `storagePrefix` que el script escribió en el registro)
+   y después ofrece el git. **Una sola barrera S/N** (la de `crearRepo`): si el script de creación falla,
+   no se ofrece nada y el menú vuelve a su turno.
+4. `scripts/nueva-empresa.mjs`: `init` escribe el `.gitignore` del maestro en la carpeta nueva (si no
+   existe) **además** de lo que ya escribía. Así una carpeta creada a mano desde la terminal ya nace
+   segura, sin depender del panel. `VERSION_CODIGO` pasa a `v78`.
+
+### Estado por base
+
+| Base | SQL | Edge Functions |
+|---|---|---|
+| `kkqcaiunetlikfyaldab` (pruebas) | ✅ sin cambios (1.27) | ✅ sin cambios |
+| `spvqcxomhkukwzijhvlm` (In Shape) | ✅ sin cambios (1.27) | ✅ sin cambios |
+| `inirizkgxkpvqnityvud` (Green Fork) | ✅ sin cambios (1.27) | ✅ sin cambios |
+
+### Verificación
+
+- **Prueba de la opción 4 de punta a punta** en un maestro falso de `%TEMP%\opcion5` (copia de
+  `panel.mjs`, `nueva-empresa.mjs`, `difundir.mjs`, `versiones.mjs`, `config.js`, `manifest.json`,
+  `.gitignore`, `supabase-setup-final.sql` + dos archivos de app) contra un **remoto bare local**, sin
+  tocar `G:\` real: crear "Lumen" → difundir (7 archivos nuevos, `public/config.js` y `manifest.json`
+  protegidos) → `crearRepo` con una S → commit de **11 archivos** → `push -u origin main`.
+  Resultado medido: `rev-parse --is-inside-work-tree` OK, `origin` apunta al remoto de prueba, rama
+  `main`, **working tree limpio**, `HEAD` local == `main` del remoto, y `git ls-tree -r --name-only main`
+  trae el SQL de la empresa (`install/supabase-setup-lumen.sql`) y **no** trae `node_modules`, `dist`,
+  `*.local.json` ni `claves.txt`. La clave privada VAPID quedó en la PC.
+- **Prueba del camino por las opciones 5/6** en `%TEMP%\gitnew3`: carpeta registrada que todavía no era
+  repo, con `node_modules/`, `dist/` e `install/secretos-*.local.json` plantados a propósito. El panel
+  copió el `.gitignore`, commiteó solo los 4 archivos legítimos y el remoto quedó con esos 4.
+- Con URL vacía (Enter) deja el commit local e imprime `git remote add origin <URL>` +
+  `git push -u origin main`. Con URL inválida el push falla y avisa que el commit no se perdió.
+- `nueva-empresa.mjs init` escribe el `.gitignore` del maestro (medido: idéntico byte a byte, cubre
+  `node_modules/`, `dist/` y `*.local.json`) y **no pisa** uno editado a mano en una segunda corrida.
+
 ## esquema 1.27 · v77 · 2026-10-22 — Un solo `panel-catering.bat` con difundir, versiones, empresa nueva y git
 
 **Sin cambios de SQL ni de Edge Functions, y no cambia nada de la app.** Es herramienta del dueño.

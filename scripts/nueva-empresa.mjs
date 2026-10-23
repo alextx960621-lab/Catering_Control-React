@@ -18,7 +18,7 @@ import { generateKeyPairSync } from 'node:crypto';
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // Hay que actualizarla cuando esta carpeta se reemplace por un ZIP de otra versión.
-const VERSION_CODIGO = 'v77';
+const VERSION_CODIGO = 'v79';
 const GENERICA = new Set(['catering', 'comida', 'gourmet', 'food', 'y', '&', 'de', 'la', 'el', 'los', 'las']);
 const MONEDAS = { BOB: 'es', Bs: 'es', PYG: 'es', Gs: 'es', ARS: 'es', CLP: 'es', COP: 'es', PEN: 'es', MXN: 'es', DOP: 'es', CRC: 'es', GTQ: 'es', UYU: 'es', USD: 'en', EUR: 'en' };
 
@@ -126,6 +126,15 @@ function init(opts) {
   if (opts.out) mkdirSync(join(salida, 'public'), { recursive: true });
   const destSqlDir = join(salida, 'install');
   mkdirSync(destSqlDir, { recursive: true });
+
+  // La carpeta nueva nace con .gitignore del maestro. Sin ese archivo, un `git init` + `git add .`
+  // hecho cualquier día sube node_modules/, dist/ y los secretos install/secretos-*.local.json
+  // (clave privada VAPID) al remoto de GitHub del cliente.
+  if (opts.out) {
+    const gitignore = join(salida, '.gitignore');
+    const delMaestro = join(RAIZ, '.gitignore');
+    if (!existsSync(gitignore) && existsSync(delMaestro)) writeFileSync(gitignore, readFileSync(delMaestro));
+  }
 
   const prefix = opts['storage-prefix'] || prefijo(nombre);
   const registro = leerRegistro(join(RAIZ, 'install', REGISTRO_NOMBRE));

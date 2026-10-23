@@ -64,15 +64,26 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
       await import('leaflet/dist/leaflet.css');
       if (cancelled || !containerRef.current) return;
 
-      const map = L.map(containerRef.current, { zoomControl: true });
+      // zoomSnap/zoomDelta: Leaflet de fábrica salta de 1 en 1 y con la rueda se pasa de un barrio a
+      // una ciudad entera. Con pasos de 1/4 el acercamiento se siente continuo. wheelPxPerZoomLevel
+      // (60 de fábrica) subido a 160: hace falta más giro para cambiar un nivel entero.
+      const map = L.map(containerRef.current, {
+        zoomControl: true,
+        zoomSnap: 0.25,
+        zoomDelta: 0.5,
+        wheelPxPerZoomLevel: 160,
+        maxZoom: 19,
+      });
       mapRef.current = map;
       // Fondo: archivo de mapa propio de la ciudad elegida en Configuración; si no hay ciudad o
-      // todavía no se subió su archivo, CARTO como respaldo (ver services/mapTiles.js).
-      // El servidor de teselas crudo de OpenStreetMap (tile.openstreetmap.org) no se usa: su
-      // política prohíbe apps en producción y devuelve 403 (mapa gris) con uso continuo.
-      const { layer: baseLayer } = await createBaseLayer(L, mapCity, language, map);
+      // todavía no se subió su archivo, entra la cadena raster (Esri → OpenStreetMap). Ver services/mapTiles.js.
+      const { layer: baseLayer, maxNativeZoom } = await createBaseLayer(L, mapCity, language, map);
       if (cancelled || !mapRef.current) return; // se cerró mientras cargaba el fondo (teardown ya destruyó el mapa)
       baseLayer.addTo(map);
+      // fitBounds se topea en el zoom real del archivo propio (z14 hoy). Sin tope, una ruta con 1 sola
+      // parada es un bounding box de tamaño 0 y Leaflet se iba al z19 del mapa: ahí el archivo ya no
+      // pinta y mandaba el respaldo raster a pantalla completa — "el mapa sale gris/lejos".
+      const fitMaxZoom = Number(maxNativeZoom) || 16;
 
       const markersLayer = L.layerGroup().addTo(map);
       layersRef.current.markers = markersLayer;
@@ -109,7 +120,7 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
       };
 
       updateLegendAndStatus();
-      if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs).pad(0.2));
+      if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs).pad(0.2), { maxZoom: fitMaxZoom });
       else map.setView(mapCity ? [mapCity.lat, mapCity.lng] : [-16.5, -68.15], 12);
 
       setTimeout(() => map.invalidateSize(), 60);
@@ -139,7 +150,7 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
         layersRef.current.stops = stopLatlngs;
         if (!cancelled && mapRef.current) {
           updateLegendAndStatus();
-          if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs).pad(0.2));
+          if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs).pad(0.2), { maxZoom: fitMaxZoom });
           drawStraightLine();
           loadRealRoute(false);
         }

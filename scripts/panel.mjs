@@ -12,8 +12,10 @@
 //   reglas de protegidos y de conflictos.
 // - Git destructivo: solo corre pull --no-edit / add . / commit / push, y se detiene
 //   antes de pushear si algún paso previo falló.
+// - Crear repositorios sin permiso: el git de una carpeta nueva pasa por un S/N, copia el
+//   .gitignore del maestro antes del add, y aborta si el add traería node_modules o secretos.
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -89,11 +91,76 @@ function carpetasGit() {
   return out;
 }
 
+// arma el repositorio de una carpeta que todavía no lo tiene (empresa nueva).
+// Pregunta una por una las cuatro cosas que necesita y para antes de tocar la red.
+async function crearRepo(dir, nombre) {
+  console.log(`\n== Git de ${nombre} ==`);
+  if (git(['rev-parse', '--is-inside-work-tree'], dir).ok) {
+    console.log('   La carpeta ya es un repositorio git: usá la opción 5 o 6 para commitear.');
+    return false;
+  }
+
+  // Sin .gitignore, "git add ." se llevaría node_modules/ y los secretos *.local.json al remoto.
+  const destino = join(dir, '.gitignore');
+  if (!existsSync(destino)) {
+    const delMaestro = join(RAIZ, '.gitignore');
+    if (!existsSync(delMaestro)) {
+      console.log('   NO hay .gitignore en esta carpeta ni en el maestro: sin ese archivo el add');
+      console.log('   subiría node_modules y los secretos. Cancelado.');
+      return false;
+    }
+    writeFileSync(destino, readFileSync(delMaestro));
+    console.log('   .gitignore copiado del maestro (node_modules, dist, *.local.json, .vercel).');
+  }
+
+  const inicial = readdirSync(dir).slice(0, 12).join('  ');
+  console.log('   lo que hay en la carpeta ahora (nivel principal):');
+  console.log('   ' + (inicial || '(vacía)'));
+  if ((await pregunta(' ¿Iniciar el repo, commitear y pushear? (S/N): ', 'N')).toUpperCase() !== 'S') {
+    console.log('   Cancelado: la carpeta queda sin git, se puede intentar de nuevo desde la opción 5 o 6.');
+    return false;
+  }
+
+  const init = git(['init', '-b', 'main'], dir);
+  if (!init.ok) { console.log('   git init falló: ' + init.salida); return false; }
+  if (!git(['add', '.'], dir).ok) { console.log('   git add falló.'); return false; }
+  const staged = git(['diff', '--cached', '--name-only'], dir).salida.split('\n').filter(Boolean);
+  const peligroso = staged.filter((f) => /(^|\/)node_modules\/|(^|\/)dist\/|\.local\.json$|^claves\.txt$/.test(f));
+  if (peligroso.length) {
+    console.log(`   STOP: el add incluye ${peligroso.length} archivo(s) que no van al remoto (${peligroso[0]}...).`);
+    console.log('   No commiteé nada. Revisá el .gitignore de la carpeta.');
+    return false;
+  }
+  console.log(`   ${staged.length} archivo(s) para el commit.`);
+  const commit = git(['commit', '-m', MSG_COMMIT], dir);
+  if (!commit.ok) { console.log('   git commit falló: ' + commit.salida.split('\n').slice(0, 4).join(' | ')); return false; }
+  console.log('   commit listo.');
+
+  const url = await pregunta(' URL del repo vacío en GitHub (ej https://github.com/usuario/empresa.git — Enter para dejarlo solo local): ');
+  if (!url) {
+    console.log(`   Quedó local. Cuando lo creas en GitHub, desde ${dir}:`);
+    console.log('     git remote add origin <URL>');
+    console.log('     git push -u origin main');
+    return true;
+  }
+  if (!git(['remote', 'add', 'origin', url], dir).ok) { console.log('   No se pudo agregar el remoto.'); return false; }
+  const push = git(['push', '-u', 'origin', 'main'], dir);
+  console.log('   ' + (push.salida || '(sin salida)').split('\n').slice(-3).join('\n   '));
+  if (!push.ok) {
+    console.log('   El push NO salió (¿el repo existe en GitHub, o faltan las credenciales?).');
+    console.log('   El commit queda local: cuando lo arregles, la opción 5 o 6 termina de subirlo.');
+    return false;
+  }
+  console.log('   Listo: la empresa ya se sube igual que las demas, desde la opción 5 o 6.');
+  return true;
+}
+
 async function gitUna(t) {
   console.log(`\n================ ${t.nombre} ================`);
   console.log(`   carpeta: ${t.dir}`);
   if (!git(['rev-parse', '--is-inside-work-tree'], t.dir).ok) {
-    console.log('   NO es un repositorio git: se saltea.');
+    console.log('   NO es (todavía) un repositorio git.');
+    await crearRepo(t.dir, t.nombre);
     return false;
   }
   const rama = git(['rev-parse', '--abbrev-ref', 'HEAD'], t.dir).salida || '?';
@@ -176,9 +243,22 @@ async function nuevaEmpresa() {
   const idioma = await pregunta(' Idioma por defecto (es / en / pt, Enter para es): ');
   if (idioma) args.push('--idioma', idioma);
   console.log(`\n   se crea en ..\\${nombre} (al lado del maestro)\n`);
-  nodoNode(args);
-  console.log('\n Si se creó bien, ya aparece en las opciones 1, 2, 5 y 6 de este menú,');
-  console.log(' sin generar ni editar ningún .bat.');
+  const creado = nodoNode(args) === 0;
+  if (!creado) {
+    console.log('\n El script de creación terminó con error: no se ofrece el git.');
+    return pausa('Revisá el mensaje de arriba y volvé a intentar.');
+  }
+
+  const e = leerEmpresas().find((x) => dirDe(x) === join(dirname(RAIZ), nombre));
+  if (!e) return pausa('\n La empresa no quedó en install/empresas.json: revisá el mensaje del script.');
+
+  console.log('\n Ya aparece en las opciones 1, 2, 5 y 6 de este menú, sin generar ni editar ningún .bat.');
+  if ((await pregunta(` ¿Difundir ahora el código del maestro a ${e.empresa}? (S/N): `, 'N')).toUpperCase() === 'S') {
+    nodoNode(['scripts/difundir.mjs', '--empresa', e.storagePrefix, '--aplicar']);
+  }
+  // Una sola barrera: crearRepo pregunta S/N antes de commitear, así que acá no se pregunta dos veces.
+  console.log('\n Si la carpeta todavía no es un repo git, se ofrece armarlo (init, commit, push).');
+  await crearRepo(dirDe(e), e.empresa);
   await pausa('Fin de la creación.');
 }
 

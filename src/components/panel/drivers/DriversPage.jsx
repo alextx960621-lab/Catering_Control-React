@@ -10,6 +10,17 @@ import ImageField from '../ImageField';
 import { removeStoredImage } from '../../../services/imageUpload';
 import { uid } from '../panelUtils';
 
+// Pastilla (píldora horizontal) de ruta extra en el formulario: el alto fijo y el radio 999 hacen
+// que se lean como etiquetas, no como una lista de casillas.
+const RUTA_PASTILLA = {
+  display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+  minHeight: 30, padding: '0 12px', borderRadius: 999, border: '1px solid var(--panel-line)',
+  fontSize: 13, lineHeight: '30px', color: 'var(--panel-text)',
+};
+const RUTA_PASTILLA_ON = {
+  borderColor: 'var(--brand)', background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)', fontWeight: 650,
+};
+
 export default function DriversPage({ user }) {
   const { t } = useTranslation();
   const { drivers, routes, clients, settings, saveDrivers, saveClients, showNotice, loading } = useOperations();
@@ -107,7 +118,13 @@ export default function DriversPage({ user }) {
     { key: 'phone', label: t('panel.common.phone'), render: (d) => d.phone || '—' },
     { key: 'address', label: t('panel.drivers.homeAddress'), render: (d) => d.address || '—' },
     { key: 'route', label: t('panel.common.route'), render: (d) => (
-      <>{routeName(d.routeId)}{(d.extraRouteIds || []).length > 0 && <span className="badge warn" title={t('panel.drivers.backupRoutes')}> + {d.extraRouteIds.map(routeName).join(', ')}</span>}</>
+      // Una pastilla por ruta extra: el texto unido con comas ocupaba toda la columna y se cortaba feo
+      <>
+        {routeName(d.routeId)}
+        {(d.extraRouteIds || []).map((id) => (
+          <span key={id} className="badge warn" style={{ margin: '0 0 0 4px' }} title={t('panel.drivers.backupRoutes')}>{routeName(id)}</span>
+        ))}
+      </>
     ) },
     { key: 'id', label: t('panel.common.actions'), render: (d) => canEdit ? (
       <><button className="icon-btn info" onClick={() => openEdit(d)}>{t('panel.common.edit')}</button><button className="icon-btn delete" onClick={() => handleDelete(d)}>{t('panel.drivers.remove')}</button></>
@@ -150,15 +167,23 @@ export default function DriversPage({ user }) {
           </label>
           <div className="wide" role="group" aria-label={t('panel.drivers.extraRoutes')}>
             <span>{t('panel.drivers.extraRoutes')}</span>
-            {/* "Ruta abierta" no se puede tomar como extra: es justamente no tener ruta de trabajo */}
-            <div style={{ display: 'grid', gap: 6, margin: '6px 0' }}>
-              {routes.filter((r) => !r.open).map((r) => (
-                <label key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={extraSel.includes(r.id)} style={{ width: 'auto', minHeight: 'auto' }}
-                    onChange={() => setExtraSel((cur) => (cur.includes(r.id) ? cur.filter((x) => x !== r.id) : [...cur, r.id]))} />
-                  {r.name}
-                </label>
-              ))}
+            {/* "Ruta abierta" no se puede tomar como extra: es justamente no tener ruta de trabajo.
+                Una fila por ruta hacía el formulario enorme; son pastillas horizontales que envuelven. */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
+              {routes.filter((r) => !r.open).map((r) => {
+                const on = extraSel.includes(r.id);
+                return (
+                  <label key={r.id} style={{ ...RUTA_PASTILLA, ...(on ? RUTA_PASTILLA_ON : null) }}>
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      style={{ width: 'auto', minHeight: 'auto', margin: 0 }}
+                      onChange={() => setExtraSel((cur) => (cur.includes(r.id) ? cur.filter((x) => x !== r.id) : [...cur, r.id]))}
+                    />
+                    {r.name}
+                  </label>
+                );
+              })}
             </div>
             <small>{t('panel.drivers.extraRoutesHint')}</small>
           </div>
