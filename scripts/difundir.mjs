@@ -310,6 +310,25 @@ function main(opts) {
   estado[empresa.storagePrefix] = { ...(estado[empresa.storagePrefix] ?? {}), archivos };
   writeFileSync(ESTADO_RUTA, JSON.stringify(estado, null, 2));
   console.log(`\nAplicado en ${dir}: ${escritos} archivo(s) escritos, ${borrados} eliminados, 0 conflictivos tocados.`);
+  // El registro lleva la versión de código de cada empresa (y del maestro): al difundir sin
+  // conflictos pendientes ni --solo, queda al día con VERSION_CODIGO de nueva-empresa.mjs.
+  if (!solo && !conflictos.length) {
+    try {
+      const vm = readFileSync(join(RAIZ, 'scripts', 'nueva-empresa.mjs'), 'utf8').match(/VERSION_CODIGO\s*=\s*'(v\d+)'/);
+      const reg = JSON.parse(readFileSync(REGISTRO, 'utf8'));
+      let tocado = false;
+      for (const e of reg.empresas ?? []) {
+        const esEsta = e.storagePrefix === empresa.storagePrefix;
+        const esMaestro = resolve(dirname(RAIZ), e.carpeta ?? e.empresa) === RAIZ;
+        if (vm && (esEsta || esMaestro) && e.version !== vm[1]) { e.version = vm[1]; tocado = true; }
+      }
+      if (tocado) {
+        reg.actualizado = ahora;
+        writeFileSync(REGISTRO, JSON.stringify(reg, null, 2) + '\n');
+        console.log(`Registro actualizado: ${empresa.empresa} y el maestro quedan en ${vm[1]}.`);
+      }
+    } catch (err) { console.log(`   (no se pudo actualizar la versión en el registro: ${err.message})`); }
+  }
   if (respaldados) console.log(`${respaldados} archivo(s) editados en la empresa se pisaron; la versión anterior quedó en ${respaldoDir}`);
   console.log(`Estado actualizado en ${ESTADO_RUTA} (clave ${empresa.storagePrefix}).`);
   if (conflictos.length) { console.log('\x07Quedan conflictos sin resolver: esta difusión NO fue limpia.'); process.exitCode = SALIDA_CONFLICTO; }

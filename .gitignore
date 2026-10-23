@@ -6,4 +6,5 @@ dist/
 *.zip
 .vercel
 supabase/.temp/
+
 .respaldos-difusion/

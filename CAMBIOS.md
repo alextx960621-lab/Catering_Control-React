@@ -29,6 +29,32 @@ que ya están en producción** para ponerlas al día.
 
 ---
 
+## esquema 1.27 · v80 · 2026-10-23 — La difusión deja las empresas iguales al maestro sin conflictos que la frenen
+
+**Sin cambios de SQL ni de Edge Functions.** Solo herramientas del dueño (`scripts/panel.mjs`, `scripts/difundir.mjs`).
+
+1. **Causa del error de difusión.** Dos archivos editados en las empresas (`RouteMapModal.jsx`, `SettingsPage.jsx`)
+   figuraban como CONFLICTO; `difundir.mjs` salía con código 1 y `panel.mjs` lo trataba como error, así que se
+   saltaba la empresa entera y los 14 archivos seguros no se aplicaban.
+2. **El maestro manda.** El panel difunde con `--forzar`: lo que la empresa tenga distinto se reemplaza, pero antes
+   se guarda la versión anterior en `.respaldos-difusion/<empresa>/<fecha-hora>/` (en el maestro; nunca viaja a
+   una empresa ni a git: se agrega solo al `.gitignore`). Los archivos propios de cada empresa siguen protegidos.
+3. **Una sola pregunta.** Opciones 1 y 2: simulación de cada empresa y un único S/N para aplicar en todas.
+4. **Versiones al día solas.** Al difundir sin conflictos pendientes, `install/empresas.json` anota la versión de código
+   (`VERSION_CODIGO` de `nueva-empresa.mjs`) en esa empresa y en el maestro; el inventario (opción 3) deja de mostrar
+   versiones viejas. En este zip las tres entradas ya están en v80.
+5. `difundir.mjs` sin `--forzar` sigue funcionando como antes (conflictos reportados, código de salida 2).
+
+### Estado por base
+
+| Base | SQL | Edge Functions |
+|---|---|---|
+| `kkqcaiunetlikfyaldab` (pruebas) | ✅ sin cambios (1.27) | ✅ sin cambios |
+| `spvqcxomhkukwzijhvlm` (In Shape) | ✅ sin cambios (1.27) | ✅ sin cambios |
+| `inirizkgxkpvqnityvud` (Green Fork) | ✅ sin cambios (1.27) | ✅ sin cambios |
+
+---
+
 ## esquema 1.27 · v79 · 2026-10-22 — Mapa que sí pinta al abrir y con zoom suave, rutas adicionales como reemplazo y auditoría completa
 
 **Sin cambios de SQL.** Código del frontend + **redesplegar `cerrar-dia-automatico`** en cada base (comparte
