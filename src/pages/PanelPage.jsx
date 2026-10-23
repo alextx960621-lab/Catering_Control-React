@@ -109,7 +109,7 @@ function PanelShell({ user, branding, theme, onThemeChange, activePage, onNaviga
         {activePage === 'routes' && <RoutesPage user={user} />}
         {activePage === 'plans' && <PlansPage user={user} />}
         {activePage === 'menu' && <MenuPage user={user} />}
-        {activePage === 'publicidad' && <PublicidadPage />}
+        {activePage === 'publicidad' && <PublicidadPage user={user} />}
         <div style={{ display: activePage === 'clients' ? '' : 'none' }}>
           <ClientsPage user={user} pendingClientAction={pendingClientAction} onConsumePendingClientAction={() => setPendingClientAction(null)} onRenewalCompleted={recordRenewal} onReturnToOrigin={(origin) => onNavigate(origin || 'notes')} />
         </div>

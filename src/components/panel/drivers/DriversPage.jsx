@@ -3,23 +3,12 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useOperations } from '../../../context/OperationsContext';
 import { dbInsertAudit } from '../../../services/supabaseClient';
-import { driverRouteIds } from '../../../services/dispatchHelpers';
+import { driverRouteIds, coveringDriver } from '../../../services/dispatchHelpers';
 import Modal from '../Modal';
 import DataTable from '../DataTable';
 import ImageField from '../ImageField';
 import { removeStoredImage } from '../../../services/imageUpload';
 import { uid } from '../panelUtils';
-
-// Pastilla (píldora horizontal) de ruta extra en el formulario: el alto fijo y el radio 999 hacen
-// que se lean como etiquetas, no como una lista de casillas.
-const RUTA_PASTILLA = {
-  display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-  minHeight: 30, padding: '0 12px', borderRadius: 999, border: '1px solid var(--panel-line)',
-  fontSize: 13, lineHeight: '30px', color: 'var(--panel-text)',
-};
-const RUTA_PASTILLA_ON = {
-  borderColor: 'var(--brand)', background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)', fontWeight: 650,
-};
 
 export default function DriversPage({ user }) {
   const { t } = useTranslation();
@@ -43,10 +32,15 @@ export default function DriversPage({ user }) {
     return routes.find((r) => r.id === id)?.name || t('panel.drivers.noRoute');
   }
 
-  // Evita que una misma ruta quede asignada a dos drivers a la vez
-  function driverRouteConflict(routeId, excludeDriverId) {
+  // Una ruta puede ser PRINCIPAL de un solo driver y ADICIONAL de un solo driver (el que la cubre). Que
+  // otro la tenga como adicional no impide marcarla acá si es la principal de alguien: ese es el reemplazo.
+  function mainConflict(routeId, excludeDriverId) {
     if (!routeId) return null;
-    return drivers.find((d) => d.id !== excludeDriverId && driverRouteIds(d).includes(routeId));
+    return drivers.find((d) => d.id !== excludeDriverId && d.routeId === routeId);
+  }
+  function coverConflict(routeId, excludeDriverId) {
+    if (!routeId) return null;
+    return drivers.find((d) => d.id !== excludeDriverId && (d.extraRouteIds || []).includes(routeId));
   }
 
   const q = search.toLowerCase();
@@ -61,10 +55,15 @@ export default function DriversPage({ user }) {
       setFormError(t('panel.drivers.mainRouteDuplicate'));
       return false;
     }
+    const mainOwner = mainConflict(data.routeId, editing?.id);
+    if (mainOwner) {
+      setFormError(t('panel.drivers.routeConflict', { route: routeName(data.routeId), name: `${mainOwner.firstName} ${mainOwner.lastName}` }));
+      return false;
+    }
     for (const rid of [data.routeId, ...extraRouteIds]) {
-      const conflict = driverRouteConflict(rid, editing?.id);
-      if (conflict) {
-        setFormError(t('panel.drivers.routeConflict', { route: routeName(rid), name: `${conflict.firstName} ${conflict.lastName}` }));
+      const cover = coverConflict(rid, editing?.id);
+      if (cover) {
+        setFormError(t('panel.drivers.alreadyCovered', { route: routeName(rid), name: `${cover.firstName} ${cover.lastName}` }));
         return false;
       }
     }
@@ -118,13 +117,7 @@ export default function DriversPage({ user }) {
     { key: 'phone', label: t('panel.common.phone'), render: (d) => d.phone || '—' },
     { key: 'address', label: t('panel.drivers.homeAddress'), render: (d) => d.address || '—' },
     { key: 'route', label: t('panel.common.route'), render: (d) => (
-      // Una pastilla por ruta extra: el texto unido con comas ocupaba toda la columna y se cortaba feo
-      <>
-        {routeName(d.routeId)}
-        {(d.extraRouteIds || []).map((id) => (
-          <span key={id} className="badge warn" style={{ margin: '0 0 0 4px' }} title={t('panel.drivers.backupRoutes')}>{routeName(id)}</span>
-        ))}
-      </>
+      <>{routeName(d.routeId)}{coveringDriver(drivers, d) && <span className="badge info" title={t('panel.drivers.coveredBy', { name: coveringDriver(drivers, d).firstName })}> ↪ {coveringDriver(drivers, d).firstName}</span>}{(d.extraRouteIds || []).length > 0 && <span className="badge warn" title={t('panel.drivers.backupRoutes')}> + {d.extraRouteIds.map(routeName).join(', ')}</span>}</>
     ) },
     { key: 'id', label: t('panel.common.actions'), render: (d) => canEdit ? (
       <><button className="icon-btn info" onClick={() => openEdit(d)}>{t('panel.common.edit')}</button><button className="icon-btn delete" onClick={() => handleDelete(d)}>{t('panel.drivers.remove')}</button></>
@@ -167,20 +160,16 @@ export default function DriversPage({ user }) {
           </label>
           <div className="wide" role="group" aria-label={t('panel.drivers.extraRoutes')}>
             <span>{t('panel.drivers.extraRoutes')}</span>
-            {/* "Ruta abierta" no se puede tomar como extra: es justamente no tener ruta de trabajo.
-                Una fila por ruta hacía el formulario enorme; son pastillas horizontales que envuelven. */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
+            {/* "Ruta abierta" no se puede tomar como extra: es justamente no tener ruta de trabajo */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 18px', margin: '6px 0' }}>
               {routes.filter((r) => !r.open).map((r) => {
-                const on = extraSel.includes(r.id);
+                const owner = drivers.find((d) => d.id !== editing?.id && d.routeId === r.id);
                 return (
-                  <label key={r.id} style={{ ...RUTA_PASTILLA, ...(on ? RUTA_PASTILLA_ON : null) }}>
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      style={{ width: 'auto', minHeight: 'auto', margin: 0 }}
-                      onChange={() => setExtraSel((cur) => (cur.includes(r.id) ? cur.filter((x) => x !== r.id) : [...cur, r.id]))}
-                    />
+                  <label key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    <input type="checkbox" checked={extraSel.includes(r.id)} style={{ width: 'auto', minHeight: 'auto' }}
+                      onChange={() => setExtraSel((cur) => (cur.includes(r.id) ? cur.filter((x) => x !== r.id) : [...cur, r.id]))} />
                     {r.name}
+                    {owner && <small className="muted">({t('panel.drivers.coversFrom', { name: owner.firstName })})</small>}
                   </label>
                 );
               })}

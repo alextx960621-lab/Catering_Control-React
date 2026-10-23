@@ -21,6 +21,9 @@ import './DispatchPage.css';
 
 // Referencia fija para los días sin registro: si fuera un objeto nuevo en cada render, los…
 const DEFAULT_DAY_INFO = { laborable: true };
+
+// Campos de la tabla que se registran en Auditoría al cambiar (nombre legible)
+const FIELD_LABELS = { order: 'Orden de entrega', notes: 'Observaciones', maps: 'Link de Maps', phone1: 'Teléfono 1', phone2: 'Teléfono 2' };
 // Cuántos días hacia adelante se puede mirar/preparar en el calendario (procesar un día futuro sigue bloqueado)
 const MAX_FUTURE_DAYS = 365;
 
@@ -112,6 +115,15 @@ export default function DispatchPage({ user, onGoToClient }) {
   function handleFieldBlur(client, field, value, inputEl) {
     if (!canEditDispatchField(client, field, date, { role: user?.role, isDriver, myRoutes, realToday: serverToday, canEditDispatch: canEdit })) return;
 
+    // Para auditar solo cuando el valor cambió de verdad (un input que pierde el foco sin tocarlo no registra nada)
+    const prevValue = field === 'order' ? String(effectiveOrder(client, date) ?? '')
+      : (field === 'notes' || field === 'maps') ? String(resolvedAddress(client, date)?.[field] ?? client[field] ?? '')
+      : String(client[field] ?? '');
+    const auditEdit = () => {
+      const nextValue = field === 'order' ? value.trim() : value;
+      if (FIELD_LABELS[field] && prevValue !== String(nextValue)) auditClient('Cliente editado (Día de trabajo)', client, { campo: FIELD_LABELS[field], de: prevValue, a: nextValue, fecha: date });
+    };
+
     if (field === 'order') {
       const trimmed = value.trim();
       if (trimmed !== '') {
@@ -123,6 +135,7 @@ export default function DispatchPage({ user, onGoToClient }) {
         }
       }
       updateClient(client.id, (c) => writeOrderValue(c, date, trimmed));
+      auditEdit();
       return;
     }
 
@@ -149,6 +162,7 @@ export default function DispatchPage({ user, onGoToClient }) {
       }
     });
 
+    if (updated) auditEdit();
     if (field === 'returnDate' && updated && (client.returnDate || '') !== value) {
       auditClient(value ? 'Fecha de retorno asignada' : 'Fecha de retorno quitada', client, { fecha: value || undefined, desde: date });
     }
@@ -181,6 +195,7 @@ export default function DispatchPage({ user, onGoToClient }) {
     const toSave = [client2];
     if (choice === 'shift') toSave.push(...shiftOrdersFrom(clients, routeId, date, Number(value), client.id, dayInfo));
     saveClients(toSave);
+    auditClient('Cliente editado (Día de trabajo)', client, { campo: FIELD_LABELS.order, de: prevValue, a: value, fecha: date, ...(choice === 'shift' ? { clientesCorridos: toSave.length - 1 } : { mismoNumeroQueOtro: true }) });
     setOrderConflict(null);
   }
 

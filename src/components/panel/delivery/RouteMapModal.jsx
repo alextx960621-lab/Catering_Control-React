@@ -15,6 +15,24 @@ const NOMINATIM_DELAY_MS = 1100; // respeta el límite de ~1 solicitud/seg de No
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
+// El <dialog> recién abierto puede no tener medidas todavía. Un mapa creado con 0×0 no pide teselas
+// (gris) y calcula mal el zoom (fitBounds cae al mínimo: "muy lejos"), así que se espera a que el
+// contenedor mida algo antes de crearlo.
+function waitForSize(el, timeoutMs = 2000) {
+  return new Promise((resolve) => {
+    if (el.clientWidth > 0 && el.clientHeight > 0) { resolve(); return; }
+    const done = () => { ro.disconnect(); clearTimeout(timer); resolve(); };
+    const ro = new ResizeObserver(() => { if (el.clientWidth > 0 && el.clientHeight > 0) done(); });
+    const timer = setTimeout(done, timeoutMs);
+    ro.observe(el);
+  });
+}
+
+// Zoom por pasos chicos: con el paso entero de Leaflet cada giro de rueda saltaba 1-2 niveles
+// (de calle a barrio, o de barrio a ciudad) y no se podía ajustar con calma.
+const MAP_OPTIONS = { zoomControl: true, zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 200, wheelDebounceTime: 60 };
+const FIT_OPTIONS = { maxZoom: 17 }; // una sola parada ya no acerca el mapa al máximo
+
 function srcFingerprint(addr) { return `${addr?.maps || ''}|${addr?.address || ''}`; }
 
 // Último recurso para ubicar en el mapa a un cliente sin coordenadas resueltas: manda su…
@@ -46,6 +64,7 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
   const mapRef = useRef(null);
   const layersRef = useRef({});
   const watchIdRef = useRef(null);
+  const resizeObsRef = useRef(null);
   const channelRef = useRef(null);
   const lastBroadcastAtRef = useRef(0);
   const [status, setStatus] = useState('');
@@ -64,26 +83,19 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
       await import('leaflet/dist/leaflet.css');
       if (cancelled || !containerRef.current) return;
 
-      // zoomSnap/zoomDelta: Leaflet de fábrica salta de 1 en 1 y con la rueda se pasa de un barrio a
-      // una ciudad entera. Con pasos de 1/4 el acercamiento se siente continuo. wheelPxPerZoomLevel
-      // (60 de fábrica) subido a 160: hace falta más giro para cambiar un nivel entero.
-      const map = L.map(containerRef.current, {
-        zoomControl: true,
-        zoomSnap: 0.25,
-        zoomDelta: 0.5,
-        wheelPxPerZoomLevel: 160,
-        maxZoom: 19,
-      });
+      await waitForSize(containerRef.current);
+      if (cancelled || !containerRef.current) return;
+
+      const map = L.map(containerRef.current, MAP_OPTIONS);
       mapRef.current = map;
-      // Fondo: archivo de mapa propio de la ciudad elegida en Configuración; si no hay ciudad o
-      // todavía no se subió su archivo, entra la cadena raster (Esri → OpenStreetMap). Ver services/mapTiles.js.
-      const { layer: baseLayer, maxNativeZoom } = await createBaseLayer(L, mapCity, language, map);
+      // Si el cuadro cambia de tamaño después (girar el teléfono, redimensionar la ventana) el mapa se reajusta solo
+      resizeObsRef.current = new ResizeObserver(() => map.invalidateSize());
+      resizeObsRef.current.observe(containerRef.current);
+      // Fondo: archivo de mapa propio de la ciudad elegida en Configuración; si no hay ciudad o el
+      // archivo no sirve, cadena de proveedores raster con respaldo (ver services/mapTiles.js).
+      const { layer: baseLayer } = await createBaseLayer(L, mapCity, language);
       if (cancelled || !mapRef.current) return; // se cerró mientras cargaba el fondo (teardown ya destruyó el mapa)
       baseLayer.addTo(map);
-      // fitBounds se topea en el zoom real del archivo propio (z14 hoy). Sin tope, una ruta con 1 sola
-      // parada es un bounding box de tamaño 0 y Leaflet se iba al z19 del mapa: ahí el archivo ya no
-      // pinta y mandaba el respaldo raster a pantalla completa — "el mapa sale gris/lejos".
-      const fitMaxZoom = Number(maxNativeZoom) || 16;
 
       const markersLayer = L.layerGroup().addTo(map);
       layersRef.current.markers = markersLayer;
@@ -120,7 +132,7 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
       };
 
       updateLegendAndStatus();
-      if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs).pad(0.2), { maxZoom: fitMaxZoom });
+      if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs).pad(0.2), FIT_OPTIONS);
       else map.setView(mapCity ? [mapCity.lat, mapCity.lng] : [-16.5, -68.15], 12);
 
       setTimeout(() => map.invalidateSize(), 60);
@@ -150,7 +162,7 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
         layersRef.current.stops = stopLatlngs;
         if (!cancelled && mapRef.current) {
           updateLegendAndStatus();
-          if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs).pad(0.2), { maxZoom: fitMaxZoom });
+          if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs).pad(0.2), FIT_OPTIONS);
           drawStraightLine();
           loadRealRoute(false);
         }
@@ -234,6 +246,7 @@ export default function RouteMapModal({ open, onClose, routeId, routeName, clien
     if (watchIdRef.current != null && navigator.geolocation) navigator.geolocation.clearWatch(watchIdRef.current);
     watchIdRef.current = null;
     if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null; }
+    if (resizeObsRef.current) { resizeObsRef.current.disconnect(); resizeObsRef.current = null; }
     if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
     layersRef.current = {};
   }

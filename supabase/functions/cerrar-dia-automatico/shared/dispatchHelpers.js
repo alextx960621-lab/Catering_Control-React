@@ -111,12 +111,25 @@ export function shiftOrdersFrom(clients, routeId, date, fromValue, excludeId, da
   return updated;
 }
 
-export function driverRouteIds(driver) {
-  return driver ? [driver.routeId, ...(driver.extraRouteIds || [])].filter(Boolean) : [];
+// Rutas de un driver. Reemplazo temporal: si OTRO driver tiene una ruta marcada como adicional, esa ruta
+// deja de ser de su dueño mientras siga marcada (pasando `drivers` se descuenta); al desmarcarla vuelve
+// sola, porque nada se guarda en el driver original.
+export function driverRouteIds(driver, drivers) {
+  if (!driver) return [];
+  const taken = drivers ? new Set(drivers.filter((d) => d.id !== driver.id).flatMap((d) => d.extraRouteIds || [])) : null;
+  const main = driver.routeId && !taken?.has(driver.routeId) ? [driver.routeId] : [];
+  return [...main, ...(driver.extraRouteIds || [])];
 }
 
+// Quien cubre HOY una ruta: primero el que la tiene como adicional (reemplazo), si no su dueño.
 export function driverForRoute(drivers, routeId) {
-  return drivers.find((d) => d.routeId === routeId || (d.extraRouteIds || []).includes(routeId));
+  return drivers.find((d) => (d.extraRouteIds || []).includes(routeId)) || drivers.find((d) => d.routeId === routeId);
+}
+
+// El driver que está cubriendo la ruta principal de `driver` (null si nadie).
+export function coveringDriver(drivers, driver) {
+  if (!driver?.routeId) return null;
+  return drivers.find((d) => d.id !== driver.id && (d.extraRouteIds || []).includes(driver.routeId)) || null;
 }
 
 export function effectiveDriverId(client, date, drivers) {
@@ -147,8 +160,11 @@ export function statusBadgeClass(s) {
 // Un driver puede tener asignada más de una ruta (ej. cubriendo un reemplazo)
 export function myRouteIds(user, drivers) {
   if (user?.role !== 'driver') return [];
-  const found = driverRouteIds(drivers.find((d) => d.id === user.driverId));
-  return found.length ? found : [user.routeId].filter(Boolean);
+  const driver = drivers.find((d) => d.id === user.driverId);
+  const found = driverRouteIds(driver, drivers);
+  // Un driver cuya única ruta la cubre otro hoy queda sin ruta (no se le devuelve la de su usuario)
+  if (found.length || driverRouteIds(driver).length) return found;
+  return [user.routeId].filter(Boolean);
 }
 
 // La fecha más reciente que ya quedó "cerrada" (procesada)

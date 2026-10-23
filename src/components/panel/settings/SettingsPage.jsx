@@ -9,7 +9,7 @@ import { usePresence, ROLE_ICONS } from '../../../hooks/usePresence';
 import { useStaffPushSubscription } from '../../../hooks/useStaffPushSubscription';
 import { dbGetAllAuditLog, dbGetAllDeliveryStatus, dbGetAllSnapshots, dbInsertAuditBulk, dbUpsertDeliveryRows, dbUpsertSnapshotsBulk } from '../../../services/db';
 import { setTheme as saveMyTheme } from '../../../services/userPrefs';
-import { fmtDate } from '../panelUtils';
+import { fmtDate, auditConfig, auditSettingsChange } from '../panelUtils';
 import { isPagePremiumLocked } from '../../../services/panelAuth';
 import MapCityCard from './MapCityCard';
 
@@ -42,6 +42,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
     saveClients, saveNotes, saveDays, saveInventory,
     saveDrivers: saveDrivers2, saveRoutes: saveRoutes2, savePlans: savePlans2, saveStaffUsers: saveStaffUsers2,
   } = useOperations();
+  const saveAudited = (next) => { auditSettingsChange(user, settings, next); return saveSettings(next); };
   const isSuperAdmin = user?.role === 'superadmin';
   const isAdmin = ['admin', 'superadmin'].includes(user?.role);
   const canGetNoteAlerts = ['admin', 'editor', 'superadmin'].includes(user?.role);
@@ -64,20 +65,20 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
   }
 
   function changeLanguage(code) {
-    saveSettings({ ...settings, language: code });
+    saveAudited({ ...settings, language: code });
     setCompanyPrefs(code, currency);
   }
   function changeCurrency(code) {
-    saveSettings({ ...settings, currency: code });
+    saveAudited({ ...settings, currency: code });
     setCompanyPrefs(language, code);
   }
 
   function activatePremium(untilDate) {
-    saveSettings({ ...settings, plan: 'premium', premiumUntil: untilDate || '' });
+    saveAudited({ ...settings, plan: 'premium', premiumUntil: untilDate || '' });
   }
   function activateBasic() {
     if (!confirm(t('settings.plan.confirmBasic'))) return;
-    saveSettings({ ...settings, plan: 'basico', premiumUntil: '' });
+    saveAudited({ ...settings, plan: 'basico', premiumUntil: '' });
   }
   function activatePremiumDays() {
     const days = n(premiumDays);
@@ -87,7 +88,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
     activatePremium(until.toISOString().slice(0, 10));
   }
   function togglePremiumPage(key, checked) {
-    saveSettings({ ...settings, premiumLockedPages: { ...settings.premiumLockedPages, [key]: checked } });
+    saveAudited({ ...settings, premiumLockedPages: { ...settings.premiumLockedPages, [key]: checked } });
   }
 
   const isPremium = settings.plan === 'premium';
@@ -109,6 +110,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
         inventario: { data: { inventory }, label: 'inventario' },
       };
       const chosen = scopes[exportScope];
+      auditConfig(user, 'Respaldo descargado', 'Respaldo', { alcance: exportScope });
       downloadJson(chosen.data, `catering-${chosen.label}-${serverToday}.json`);
       return;
     }
@@ -124,6 +126,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
     ]);
     const trimmedDays = Object.fromEntries(Object.entries(days || {}).filter(([d]) => d >= cutoffDate));
     const data = { clients, plans, days: trimmedDays, currentDate, drivers, routes, settings, staffUsers, notes, inventory, auditLog: auditLog || [], deliveryStatus: deliveryStatus || [], snapshots: snapshots || [] };
+    auditConfig(user, 'Respaldo descargado', 'Respaldo', { alcance: 'completo' });
     downloadJson(data, `catering-respaldo-completo-${serverToday}.json`);
     showNotice(t('settings.backup.downloadedFull'));
     setWorking(false);
@@ -150,6 +153,7 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
       const resumenKeys = [...foundKeys, ...(hasStaffUsers ? ['staffUsers'] : []), ...(hasAuditLog ? ['auditLog'] : []), ...(hasDeliveryStatus ? ['deliveryStatus'] : []), ...(hasSnapshots ? ['snapshots'] : [])];
       const resumen = resumenKeys.map((k) => t('settings.backup.k.' + k)).join(', ');
       if (!confirm(t('settings.backup.confirmRestore', { summary: resumen }))) return;
+      auditConfig(user, 'Respaldo restaurado', 'Respaldo', { contenido: resumenKeys });
 
       setWorking(true);
       if (Array.isArray(parsed.clients) && parsed.clients.length) saveClients(parsed.clients);
@@ -216,13 +220,13 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
           <div className="card card-pad stack">
             <h3>{t('settings.company.title')}</h3>
             <label>{t('settings.company.timezone')}
-              <select value={settings.timezone || 'America/La_Paz'} onChange={(e) => saveSettings({ ...settings, timezone: e.target.value }).then(() => syncToday())}>
+              <select value={settings.timezone || 'America/La_Paz'} onChange={(e) => saveAudited({ ...settings, timezone: e.target.value }).then(() => syncToday())}>
                 {timezoneOptions.map((tz) => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>)}
               </select>
             </label>
             <p className="muted" style={{ marginTop: -6 }}>{t('settings.company.timezoneHint')}</p>
             <label>{t('settings.company.cutoff')}
-              <select value={settings.dayCutoffHour ?? 4} onChange={(e) => saveSettings({ ...settings, dayCutoffHour: Number(e.target.value) }).then(() => syncToday())}>
+              <select value={settings.dayCutoffHour ?? 4} onChange={(e) => saveAudited({ ...settings, dayCutoffHour: Number(e.target.value) }).then(() => syncToday())}>
                 {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00{h === 0 ? t('settings.company.midnight') : ''}</option>)}
               </select>
             </label>
@@ -248,14 +252,14 @@ export default function SettingsPage({ user, theme, onThemeChange }) {
           </div>
         )}
 
-        {isSuperAdmin && <MapCityCard settings={settings} saveSettings={saveSettings} />}
+        {isSuperAdmin && <MapCityCard settings={settings} saveSettings={saveAudited} />}
 
         {isSuperAdmin && (
           <div className="card card-pad stack">
             <h3>{t('settings.plan.title')}</h3>
             <p className="muted">{t('settings.plan.intro')}</p>
             <label>{t('settings.plan.whatsappLabel')}
-              <input key={`premiumWhatsapp-${settings.premiumWhatsapp ?? ''}`} defaultValue={settings.premiumWhatsapp} placeholder={t('settings.plan.whatsappPlaceholder')} onBlur={(e) => saveSettings({ ...settings, premiumWhatsapp: e.target.value.replace(/\D/g, '') })} />
+              <input key={`premiumWhatsapp-${settings.premiumWhatsapp ?? ''}`} defaultValue={settings.premiumWhatsapp} placeholder={t('settings.plan.whatsappPlaceholder')} onBlur={(e) => saveAudited({ ...settings, premiumWhatsapp: e.target.value.replace(/\D/g, '') })} />
             </label>
             <div className="plan-options">
               <button

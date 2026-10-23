@@ -7,6 +7,7 @@ import { dbSendManualPush } from '../../../services/supabaseClient';
 import ImageField from '../ImageField';
 import PremiumPageLock from '../PremiumPageLock';
 import ReminderCard from './ReminderCard';
+import { auditConfig, auditSettingsChange } from '../panelUtils';
 
 const FILTERS = [
   ['all', 'filterAll'],
@@ -15,7 +16,7 @@ const FILTERS = [
   ['subscribedAll', 'filterSubscribedAll'],
 ];
 
-export default function PublicidadPage() {
+export default function PublicidadPage({ user }) {
   const { t } = useTranslation();
   const { settings, saveSettings, clients, showNotice } = useOperations();
   const [filter, setFilter] = useState('all');
@@ -24,6 +25,8 @@ export default function PublicidadPage() {
   const [title, setTitle] = useState(() => t('panel.publicidad.defaultTitle'));
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
+
+  const saveAudited = (next) => { auditSettingsChange(user, settings, next); return saveSettings(next); };
 
   const activeClients = useMemo(() => (clients || []).filter((c) => c.status !== 'Retorno pendiente'), [clients]);
   const isAllSubscribed = filter === 'subscribedAll';
@@ -70,6 +73,7 @@ export default function PublicidadPage() {
       showNotice(result?.error || t('panel.publicidad.sendFailed'), true);
       return;
     }
+    auditConfig(user, 'Aviso manual enviado', title.trim(), { destinatarios: isAllSubscribed ? 'todos los suscritos' : targetClients.length, enviados: result.sent, fallidos: result.failed });
     showNotice(t('panel.publicidad.sentSummary', { sent: result.sent, failed: result.failed, subscriptionsFound: result.subscriptionsFound }));
   }
 
@@ -85,7 +89,7 @@ export default function PublicidadPage() {
             label={t('panel.publicidad.logoLabel')}
             name="_logo"
             value={settings.logoUrl}
-            onChange={(url) => saveSettings({ ...settings, logoUrl: url })}
+            onChange={(url) => saveAudited({ ...settings, logoUrl: url })}
             folder="branding"
             maxDim={300}
             hint={t('panel.publicidad.logoHint')}
@@ -94,15 +98,15 @@ export default function PublicidadPage() {
               la key React conserva el `defaultValue` con el que se montaron y, si `settings` llega
               después (o lo cambia un refresco), la pantalla muestra un valor viejo — y el blur lo
               re-escribe sobre el real. Con la key, al cambiar el dato el input se resiembra. */}
-          <label>{t('panel.publicidad.companyName')}<input key={`companyName-${settings.companyName ?? ''}`} defaultValue={settings.companyName} onBlur={(e) => saveSettings({ ...settings, companyName: e.target.value })} /></label>
-          <label>{t('panel.publicidad.whatsappNumber')}<input key={`whatsappNumber-${settings.whatsappNumber ?? ''}`} defaultValue={settings.whatsappNumber} placeholder={t('panel.publicidad.whatsappPlaceholder')} onBlur={(e) => saveSettings({ ...settings, whatsappNumber: e.target.value.replace(/\D/g, '') })} /></label>
-          <label>{t('panel.publicidad.instagramLink')}<input key={`instagramUrl-${settings.instagramUrl ?? ''}`} defaultValue={settings.instagramUrl} placeholder={t('panel.publicidad.instagramPlaceholder')} onBlur={(e) => saveSettings({ ...settings, instagramUrl: e.target.value.trim() })} /></label>
-          <label>{t('panel.publicidad.instagramHandle')}<input key={`instagramHandle-${settings.instagramHandle ?? ''}`} defaultValue={settings.instagramHandle} placeholder={t('panel.publicidad.instagramHandlePlaceholder')} onBlur={(e) => saveSettings({ ...settings, instagramHandle: e.target.value.trim() })} /></label>
+          <label>{t('panel.publicidad.companyName')}<input key={`companyName-${settings.companyName ?? ''}`} defaultValue={settings.companyName} onBlur={(e) => saveAudited({ ...settings, companyName: e.target.value })} /></label>
+          <label>{t('panel.publicidad.whatsappNumber')}<input key={`whatsappNumber-${settings.whatsappNumber ?? ''}`} defaultValue={settings.whatsappNumber} placeholder={t('panel.publicidad.whatsappPlaceholder')} onBlur={(e) => saveAudited({ ...settings, whatsappNumber: e.target.value.replace(/\D/g, '') })} /></label>
+          <label>{t('panel.publicidad.instagramLink')}<input key={`instagramUrl-${settings.instagramUrl ?? ''}`} defaultValue={settings.instagramUrl} placeholder={t('panel.publicidad.instagramPlaceholder')} onBlur={(e) => saveAudited({ ...settings, instagramUrl: e.target.value.trim() })} /></label>
+          <label>{t('panel.publicidad.instagramHandle')}<input key={`instagramHandle-${settings.instagramHandle ?? ''}`} defaultValue={settings.instagramHandle} placeholder={t('panel.publicidad.instagramHandlePlaceholder')} onBlur={(e) => saveAudited({ ...settings, instagramHandle: e.target.value.trim() })} /></label>
           <ImageField
             label={t('panel.publicidad.adImageLabel')}
             name="_ad"
             value={settings.adImageUrl}
-            onChange={(url) => saveSettings({ ...settings, adImageUrl: url })}
+            onChange={(url) => saveAudited({ ...settings, adImageUrl: url })}
             folder="branding"
             maxDim={800}
             aspect="3-2"
@@ -112,7 +116,7 @@ export default function PublicidadPage() {
             label={t('panel.publicidad.qrLabel')}
             name="_qr"
             value={settings.paymentQrUrl}
-            onChange={(url) => saveSettings({ ...settings, paymentQrUrl: url })}
+            onChange={(url) => saveAudited({ ...settings, paymentQrUrl: url })}
             folder="branding"
             maxDim={500}
             hint={t('panel.publicidad.qrHint')}
@@ -120,7 +124,7 @@ export default function PublicidadPage() {
           <label>{t('panel.publicidad.renewalWarningDays')}
             {/* También re-sembrado con `key`: el guardado es en el blur, así que sin esto un cambio
                 externo (refresco, otra pestaña) queda tapado por el valor viejo del input. */}
-            <input type="number" min="0" max="30" key={`renewalWarningDays-${settings.renewalWarningDays ?? ''}`} defaultValue={n(settings.renewalWarningDays)} onBlur={(e) => saveSettings({ ...settings, renewalWarningDays: Math.max(0, n(e.target.value)) })} />
+            <input type="number" min="0" max="30" key={`renewalWarningDays-${settings.renewalWarningDays ?? ''}`} defaultValue={n(settings.renewalWarningDays)} onBlur={(e) => saveAudited({ ...settings, renewalWarningDays: Math.max(0, n(e.target.value)) })} />
           </label>
         </div>
 

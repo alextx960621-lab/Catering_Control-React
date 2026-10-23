@@ -58,7 +58,7 @@ export default function RoutesPage({ user }) {
     { key: 'type', label: t('panel.routes.type'), render: (r) => { const cl = ROUTE_TYPES[r.type] || ROUTE_TYPES.short; const label = t(ROUTE_TYPE_LABELS[r.type] || ROUTE_TYPE_LABELS.short); return <span className={`badge ${cl}`}>{label}</span>; } },
     { key: 'description', label: t('panel.routes.description'), render: (r) => r.description || '—' },
     { key: 'clients', label: t('panel.routes.clients'), render: (r) => clients.filter((c) => effectiveRouteId(c, currentDate) === r.id).length },
-    { key: 'drivers', label: t('panel.routes.drivers'), render: (r) => drivers.filter((d) => driverRouteIds(d).includes(r.id)).length },
+    { key: 'drivers', label: t('panel.routes.drivers'), render: (r) => drivers.filter((d) => driverRouteIds(d, drivers).includes(r.id)).length },
     { key: 'id', label: t('panel.common.actions'), render: (r) => canEdit && !r.open ? (
       <><button className="icon-btn info" onClick={() => setEditing(r)}>{t('panel.common.edit')}</button><button className="icon-btn delete" onClick={() => handleDelete(r)}>{t('panel.routes.remove')}</button></>
     ) : '—' },

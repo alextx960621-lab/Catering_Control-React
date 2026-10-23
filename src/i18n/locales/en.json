@@ -790,7 +790,10 @@
       "addressForm": "Home address",
       "assignedRoute": "Assigned route",
       "extraRoutes": "Additional routes (only to cover a temporary replacement)",
-      "extraRoutesHint": "Tick or untick the routes covered. A route cannot belong to two drivers at the same time."
+      "extraRoutesHint": "Tick the routes covered besides their own. While ticked, the original driver does not have them; when unticked they go back to the original driver.",
+      "coversFrom": "{{name}}'s",
+      "coveredBy": "Their route is covered by {{name}}",
+      "alreadyCovered": "Route \"{{route}}\" is already covered by {{name}} as an additional route. Untick it there first."
     },
     "dispatch": {
       "noRoute": "No route",

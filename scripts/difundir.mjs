@@ -18,7 +18,7 @@
 // - Este script nunca corre git que escriba. Solo lee "git status --porcelain" de la
 //   empresa para avisar si hay cambios sin commitear antes de aplicar.
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rmSync, copyFileSync } from 'node:fs';
 import { join, dirname, resolve, relative, sep, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -27,6 +27,9 @@ import { spawnSync } from 'node:child_process';
 // RAIZ es el maestro: la carpeta que contiene scripts/ e install/empresas.json.
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REGISTRO = join(RAIZ, 'install', 'empresas.json');
+// Códigos de salida: 0 = limpio · 1 = error real (nada se pudo hacer) · 2 = hay conflictos
+// (lo seguro SÍ se puede aplicar; los conflictos quedan intactos). panel.mjs distingue 1 de 2.
+const SALIDA_CONFLICTO = 2;
 // El estado vive en el maestro para no ensuciar el git de ninguna empresa.
 const ESTADO_RUTA = join(RAIZ, '.sincronizado.json');
 
@@ -54,6 +57,7 @@ const PROTEGIDOS_PREFIJOS = [
 ];
 const PROTEGIDOS_CONTIENE = [
   'node_modules', 'dist', '.git', '.vercel', // carpetas de build/dependencias/historial: fuera de la difusión
+  '.respaldos-difusion', // copias de seguridad de lo que --forzar reemplazó: jamás viajan a una empresa
   '.temp', // estado del CLI de Supabase (cli-latest, linked-project.json): no es código del proyecto
 ];
 const PROTEGIDOS_EXTENSIONES = ['.rar', '.zip', '.bat'];
@@ -189,6 +193,7 @@ function main(opts) {
   destinoActual = dir;
   const solo = opts.solo ? String(opts.solo).split(sep).join('/').replace(/\/+$/, '') : null;
   const aplica = Boolean(opts.aplicar);
+  const forzar = Boolean(opts.forzar);
   const estado = leerEstado();
   const previo = estado[empresa.storagePrefix]?.archivos ?? {};
 
@@ -216,8 +221,11 @@ function main(opts) {
     if (st) {
       // Si la copia de la empresa ya no coincide con lo que difundimos la última vez,
       // alguien la editó a mano: no la pisamos, es un conflicto a resolver por el dueño.
-      if (sha256(bufEmpresa) !== st.empresaSha) conflictos.push({ rel, marca, cuando: st.difundidoEn });
-      else cambios.push({ rel, marca });
+      if (sha256(bufEmpresa) !== st.empresaSha) {
+        // --forzar: el maestro manda. La copia local se respalda y se pisa (nada se pierde).
+        if (forzar) cambios.push({ rel, marca, pisaLocal: true });
+        else conflictos.push({ rel, marca, cuando: st.difundidoEn });
+      } else cambios.push({ rel, marca });
     } else {
       cambios.push({ rel, marca, sinBaseline: true });
     }
@@ -235,7 +243,7 @@ function main(opts) {
     console.log(`\n-- ${titulo} (${items.length}) --`);
     for (const i of items) console.log(`   ${typeof i === 'string' ? i : i.marca ?? i.rel}`);
   };
-  mostrar('cambiaría', cambios.map((c) => ({ ...c, marca: c.marca + (c.sinBaseline ? '  [sin baseline]' : '') })));
+  mostrar('cambiaría', cambios.map((c) => ({ ...c, marca: c.marca + (c.sinBaseline ? '  [sin baseline]' : '') + (c.pisaLocal ? '  [editado en la empresa: se respalda y se pisa]' : '') })));
   mostrar('nuevos', nuevos.map((n) => ({ rel: n.rel, marca: `${n.rel}  (+${n.lineas} líneas)` })));
   mostrar('omitiría (protegido)', protegidos);
   mostrar('eliminaría', eliminar);
@@ -255,7 +263,7 @@ function main(opts) {
 
   if (!aplica) {
     console.log('\nDry-run: no se escribió nada. Repetí con --aplicar para replicar lo seguro (conflictos y protegidos quedan intactos).');
-    if (conflictos.length) { console.log('\x07Hay conflictos: la difusión NO será limpia hasta resolverlos.'); process.exitCode = 1; }
+    if (conflictos.length) { console.log('\x07Hay conflictos: se saltearán al aplicar (lo demás sí se replica).'); process.exitCode = SALIDA_CONFLICTO; }
     return;
   }
 
@@ -265,8 +273,20 @@ function main(opts) {
   let escritos = 0;
   let borrados = 0;
   // Se escribe lo seguro: cambios confirmados contra baseline + nuevos. Los conflictos no entran.
+  const respaldoDir = join(RAIZ, '.respaldos-difusion', empresa.storagePrefix, new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19));
+  let respaldados = 0;
+  // Los respaldos no deben subir a git: se agrega la línea al .gitignore del maestro si falta.
+  const giRuta = join(RAIZ, '.gitignore');
+  const gi = existsSync(giRuta) ? readFileSync(giRuta, 'utf8') : '';
+  if (!gi.includes('.respaldos-difusion')) writeFileSync(giRuta, gi + (gi && !gi.endsWith('\n') ? '\n' : '') + '.respaldos-difusion/\n');
   for (const c of [...cambios, ...nuevos]) {
     const rel = c.rel;
+    if (c.pisaLocal) {
+      const copia = join(respaldoDir, rel);
+      mkdirSync(dirname(copia), { recursive: true });
+      copyFileSync(join(dir, rel), copia);
+      respaldados++;
+    }
     const buf = leerBytes(join(RAIZ, rel));
     mkdirSync(dirname(join(dir, rel)), { recursive: true });
     writeFileSync(join(dir, rel), buf);
@@ -290,12 +310,13 @@ function main(opts) {
   estado[empresa.storagePrefix] = { ...(estado[empresa.storagePrefix] ?? {}), archivos };
   writeFileSync(ESTADO_RUTA, JSON.stringify(estado, null, 2));
   console.log(`\nAplicado en ${dir}: ${escritos} archivo(s) escritos, ${borrados} eliminados, 0 conflictivos tocados.`);
+  if (respaldados) console.log(`${respaldados} archivo(s) editados en la empresa se pisaron; la versión anterior quedó en ${respaldoDir}`);
   console.log(`Estado actualizado en ${ESTADO_RUTA} (clave ${empresa.storagePrefix}).`);
-  if (conflictos.length) { console.log('\x07Quedan conflictos sin resolver: esta difusión NO fue limpia.'); process.exitCode = 1; }
+  if (conflictos.length) { console.log('\x07Quedan conflictos sin resolver: esta difusión NO fue limpia.'); process.exitCode = SALIDA_CONFLICTO; }
 }
 
 const USO = `node scripts/difundir.mjs --list
-node scripts/difundir.mjs --empresa <nombre|storagePrefix> [--solo <ruta>] [--detallado] [--aplicar]`;
+node scripts/difundir.mjs --empresa <nombre|storagePrefix> [--solo <ruta>] [--detallado] [--forzar] [--aplicar]`;
 
 const opts = argumentos(process.argv.slice(2));
 if (opts.ayuda || opts.help) console.log(USO);

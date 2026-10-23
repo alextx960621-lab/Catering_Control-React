@@ -65,17 +65,27 @@ async function difundir(unas) {
     if (!n) return;
     destinos = [empresas[n - 1]].filter(Boolean);
   }
+  // El maestro manda: lo que la empresa tenga distinto se reemplaza (--forzar), pero antes se
+  // guarda una copia en .respaldos-difusion/. Lo propio de cada empresa (config.js, manifest,
+  // íconos, SQL, secretos) está protegido y nunca se toca. Una sola pregunta para todo.
+  const listas = [];
   for (const e of destinos) {
     console.log(`\n---- simulación para ${e.empresa} (no escribe nada) ----`);
-    if (nodoNode(['scripts/difundir.mjs', '--empresa', e.storagePrefix]) !== 0) {
-      console.log('   Hay conflictos u otro problema: no se aplica nada en esta empresa.');
+    if (nodoNode(['scripts/difundir.mjs', '--empresa', e.storagePrefix, '--forzar']) !== 0) {
+      console.log('   ERROR en la simulación (mirá el mensaje de arriba): esta empresa se saltea.');
       continue;
     }
-    if ((await pregunta(` ¿Aplicar estos cambios en ${e.empresa}? (S/N): `, 'N')).toUpperCase() !== 'S') {
-      console.log('   Cancelado: no se aplicó nada.');
-      continue;
-    }
-    nodoNode(['scripts/difundir.mjs', '--empresa', e.storagePrefix, '--aplicar']);
+    listas.push(e);
+  }
+  if (!listas.length) return pausa('No hay nada que aplicar.');
+  const quien = listas.length === 1 ? listas[0].empresa : `${listas.length} empresas`;
+  if ((await pregunta(`\n ¿Aplicar en ${quien}? Lo que se reemplace queda respaldado. (S/N): `, 'N')).toUpperCase() !== 'S') {
+    console.log('   Cancelado: no se aplicó nada.');
+    return pausa('Difusión cancelada.');
+  }
+  for (const e of listas) {
+    const res = nodoNode(['scripts/difundir.mjs', '--empresa', e.storagePrefix, '--forzar', '--aplicar']);
+    if (res !== 0) console.log(`   ERROR al aplicar en ${e.empresa} (mirá el mensaje de arriba).`);
   }
   await pausa('Difusión terminada.');
 }
@@ -254,7 +264,7 @@ async function nuevaEmpresa() {
 
   console.log('\n Ya aparece en las opciones 1, 2, 5 y 6 de este menú, sin generar ni editar ningún .bat.');
   if ((await pregunta(` ¿Difundir ahora el código del maestro a ${e.empresa}? (S/N): `, 'N')).toUpperCase() === 'S') {
-    nodoNode(['scripts/difundir.mjs', '--empresa', e.storagePrefix, '--aplicar']);
+    nodoNode(['scripts/difundir.mjs', '--empresa', e.storagePrefix, '--forzar', '--aplicar']);
   }
   // Una sola barrera: crearRepo pregunta S/N antes de commitear, así que acá no se pregunta dos veces.
   console.log('\n Si la carpeta todavía no es un repo git, se ofrece armarlo (init, commit, push).');

@@ -29,76 +29,40 @@ que ya están en producción** para ponerlas al día.
 
 ---
 
----
+## esquema 1.27 · v79 · 2026-10-22 — Mapa que sí pinta al abrir y con zoom suave, rutas adicionales como reemplazo y auditoría completa
 
-## esquema 1.27 · v79 · 2026-10-22 — Mapa sin marquesinas, zoom suave y pastillas de rutas extra
+**Sin cambios de SQL.** Código del frontend + **redesplegar `cerrar-dia-automatico`** en cada base (comparte
+`dispatchHelpers.js`: el cierre automático tiene que repartir los sueldos con la misma regla de reemplazo).
 
-**Sin cambios de SQL ni de Edge Functions.** Sí cambia el código de la app: hay que **redeployar el
-frontend** de las tres (Vercel en el maestro/pruebas, Cloudflare Workers en In Shape y Green Fork) y
-tocar **Actualizar ahora** en cada celular.
+1. **Mapa gris al abrir, "aparece pero muy lejos", y el cambio de proveedor.** Causas encontradas leyendo el código:
+   - `protomaps-leaflet` asume datos hasta z15 si no se le dice otra cosa (`maxDataZoom`); el archivo de una
+     ciudad llega a z14. Una ruta abre justo en z15-16 → solo se pintaba el fondo gris; al alejarse (z≤14) sí
+     aparecía. Ahora se le pasa el `maxZoom` real del archivo y amplía ese último nivel (se quitó el overlay raster).
+   - Antes de usar el archivo propio se **sondea** una tesela del centro de la ciudad: si el archivo no está, no
+     cubre la ciudad o el Range/CORS falla, se usa la cadena raster en vez de dejar el fondo vacío (la librería
+     no avisa cuando una tesela falla).
+   - La cadena raster cambiaba de proveedor con `setUrl(url, {…})`: el segundo argumento es `noRedraw`, así que
+     no redibujaba (gris hasta mover el mapa) y los subdominios no cambiaban (OSM recibía `d.tile…`, que no
+     existe). Ahora cada proveedor es una capa nueva dentro de un `LayerGroup`; además salta si en 7 s no
+     cargó ninguna tesela (proveedor colgado, que no genera errores). Se quitó `detectRetina` (pedía teselas
+     @2x de un zoom más, 4 veces los datos; `{r}` ya da @2x solo).
+   - `RouteMapModal` espera a que el cuadro tenga tamaño antes de crear el mapa (con 0×0 no pide teselas y
+     `fitBounds` cae al zoom mínimo) y se reajusta con `ResizeObserver`. Una sola parada ya no acerca al máximo.
+   - **Zoom suave:** pasos de 0,25 (rueda ~0,5 por giro, botones ±0,5) en lugar de saltos de 1-2 niveles.
+2. **Rutas adicionales (reemplazo).** Casillas en fila (ya no una lista larga). Marcar una ruta que es principal
+   de otro driver la **cubre** (reemplazo): el dueño deja de tenerla mientras siga marcada y **al desmarcar
+   vuelve sola** (no se guarda nada en el dueño: `driverRouteIds(driver, drivers)` y `driverForRoute` calculan
+   quién la tiene). Dispatch/Entregas del dueño la dejan de mostrar y los sueldos van a quien la cubre.
+   La lista de drivers muestra "↪ nombre" en la ruta cubierta. Solo se bloquea que dos drivers la cubran a la vez.
+   Pruebas: `tests/driver-route-cover.test.js`.
+3. **Auditoría completa.** Además de lo de v76 ahora se registran: cambios de Configuración (idioma, moneda,
+   plan premium y sus páginas, zona horaria, hora de corte, WhatsApp premium, ciudad del mapa), Publicidad (logo,
+   nombre, WhatsApp, Instagram, imagen del anuncio, **QR de pago**, días de aviso), costo por km, **avisos manuales**
+   a clientes, respaldo **descargado** y **restaurado**, y las ediciones de la tabla de Día de trabajo (orden,
+   observaciones, link de Maps, teléfonos; solo si el valor cambió). Las imágenes no guardan la URL.
 
-### 1. Por qué el mapa salía gris con recuadros "API KEY REQUIRED"
-
-Medido el 2026-10-22 con `curl` y con el navegador, tesela por tesela:
-
-| Proveedor | Respuesta real | Veredicto |
-|---|---|---|
-| `basemaps.cartocdn.com` (voyager, @2x y light_all) | **HTTP 200** con la MISMA imagen de 2049 bytes en z13–z18 | ahora exige API key; pinta la marquesina encima de todo |
-| `tile.openstreetmap.org` (crudo) | **HTTP 200** con PNG idéntico de 6987 bytes y cabecera `x-blocked: Access denied` | su política prohíbe apps en producción; bloquea por user-agent |
-| `server.arcgisonline.com` World_Street_Map | 200, JPEG ~43 KB, teselas vecinas **distintas** | mapa real |
-| `server.arcgisonline.com` World_Topo_Map | 200, JPEG ~32 KB, distintas | mapa real |
-| `tile.opentopomap.org` | 200, PNG ~50 KB, distintas | mapa real |
-
-Los dos primeros eran un hoyo imposible de ver con código: devuelven **200**, así que `tileerror`
-nunca saltaba y la cascada de respaldo jamás se activaba. Se sacaron los dos de la cadena
-(`src/services/mapTiles.js`) y la cadena quedó **Esri Street → OpenTopoMap → Esri Topo** (los tres
-con `Access-Control-Allow-Origin: *`, ninguno necesita clave, y `img-src … https:` de la CSP ya los
-autoriza a todos).
-
-Además la cadena ahora se **autochequea**: `proveedorVivo()` pide dos teselas vecinas y, si dan la
-misma firma de píxeles, descarta ese proveedor aunque haya contestado 200. Verificado en el
-navegador: CARTO → descartado; Esri, OpenTopoMap y OSM crudo → se quedan. Se hace con `<img>` +
-canvas y **no con `fetch`**, porque `connect-src` de la CSP solo autoriza Supabase/OSRM/Nominatim y
-un fetch a estos CDN sería bloqueado en producción.
-
-### 2. "Aparece, pero muy lejos"
-
-`fitBounds` no tenía tope de zoom. Con **una sola parada** el bounding box mide cero y Leaflet se iba
-al `maxZoom` del mapa (z19): justo por encima del z14 real del `.pmtiles`, así que el archivo propio
-no pintaba nada y el respaldo raster cubría toda la pantalla. Ahora el encuadre se topea en el
-`maxNativeZoom` que devuelve el archivo (medido: 1 parada en Obrajes → **z14 con el mapa propio
-pintando**, antes z19).
-
-### 3. La rueda del zoom
-
-`L.map(…)` de fábrica salta de a 1 nivel entero y con `wheelPxPerZoomLevel: 60` un clic de rueda
-(120 px) movía **2 niveles**: de un barrio a una ciudad entera. Se pusieron
-`zoomSnap: 0.25`, `zoomDelta: 0.5`, `wheelPxPerZoomLevel: 160`. Medido con un `WheelEvent` real:
-120 px de rueda = **0.5 nivel** (antes 2), y los botones ±/− también acercan de a poco.
-
-### 4. "Rutas adicionales" se veía feo y largo
-
-`DriversPage.jsx`: era una casilla por fila (con 8 rutas, el formulario se hacía interminable). Ahora
-son **pastillas horizontales que envuelven** (píldora, radio 999, alto 30), con la casilla adentro y
-la seleccionada resaltada en el color de la marca. En la tabla de Choferes, cada ruta extra sale como
-su propia `badge warn` en vez de un solo texto largo unido con comas que cortaba la columna.
-
-### Estado por base
-
-| Base | SQL | Edge Functions |
-|---|---|---|
-| `kkqcaiunetlikfyaldab` (pruebas) | ✅ sin cambios (1.27) | ✅ sin cambios |
-| `spvqcxomhkukwzijhvlm` (In Shape) | ✅ sin cambios (1.27) | ✅ sin cambios |
-| `inirizkgxkpvqnityvud` (Green Fork) | ✅ sin cambios (1.27) | ✅ sin cambios |
-
-### Verificación
-
-- `npm run build` pasa (PWA, 35 entradas).
-- Página de prueba temporal contra el servidor de desarrollo (ya borrada), con los módulos reales:
-  `source: pmtiles`, `maxNativeZoom: 14`, zoom tras `fitBounds` de 1 parada = **14**; en z16.5 el
-  overlay raster = 12/12 teselas de `server.arcgisonline.com` cargadas y visibles; sin ciudad
-  elegida, el fondo raster también es Esri.
-- Sondas de teselas y de rueda, en la tabla de arriba.
+> Después de desplegar: tocar "Actualizar ahora" en cada dispositivo. Si el mapa sigue gris, abrir F12 → Consola con
+> el mapa abierto y mirar los mensajes `[mapa]` (dicen si usó el archivo propio o qué proveedor cayó).
 
 ## esquema 1.27 · v78 · 2026-10-22 — El panel arma el repositorio git de una empresa nueva
 

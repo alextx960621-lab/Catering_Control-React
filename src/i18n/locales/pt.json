@@ -790,7 +790,10 @@
       "addressForm": "Endereço residencial",
       "assignedRoute": "Rota atribuída",
       "extraRoutes": "Rotas adicionais (apenas para cobrir uma substituição temporária)",
-      "extraRoutesHint": "Marque ou desmarque as rotas cobertas. Uma rota não pode estar ao mesmo tempo em dois drivers."
+      "extraRoutesHint": "Marque as rotas cobertas além da sua. Enquanto marcadas, o driver original não as tem; ao desmarcar, voltam para ele.",
+      "coversFrom": "de {{name}}",
+      "coveredBy": "A rota dele é coberta por {{name}}",
+      "alreadyCovered": "A rota \"{{route}}\" já é coberta por {{name}} como adicional. Desmarque lá primeiro."
     },
     "dispatch": {
       "noRoute": "Sem rota",
