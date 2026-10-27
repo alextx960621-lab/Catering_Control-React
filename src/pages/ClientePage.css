@@ -3,19 +3,11 @@
 :root {
   --font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: Figtree, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --bs-primary: #3867f4;
-  --bs-primary-rgb: 56, 103, 244;
-  --bs-link-color: #3867f4;
-  --bs-link-color-rgb: 56, 103, 244;
-  --bs-link-hover-color: #2a52d6;
-  --bs-link-hover-color-rgb: 42, 82, 214;
   --bs-border-radius: 8px;
   --bs-border-radius-sm: 6px;
   --bs-border-radius-lg: 12px;
   --bs-border-radius-xl: 1rem;
   --bs-border-radius-2xl: 1rem;
-  /* Color de los botones "success" del portal (Confirmar pausa/reanudar, etc) */
-  --portal-success: #15a77f;
 }
 
 /* Botones en píldora, inputs con el mismo radio, y el botón nativo de "Seleccionar archivo"… */
@@ -31,7 +23,7 @@ input[type="file"].form-control::file-selector-button {
   padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid var(--bs-border-color, #dee2e6);
-  background: var(--bs-tertiary-bg, #f5f7fb);
+  background: var(--bs-tertiary-bg, #e4e9ef);
   color: var(--bs-body-color, #212529);
   cursor: pointer;
   margin-right: 8px;
@@ -61,11 +53,11 @@ input[type="file"].form-control::file-selector-button:hover { background: var(--
   font-weight: 650;
   box-shadow: none;
 }
-.plan-pick-btn:hover { border-color: var(--bs-primary, #3867f4) !important; background: color-mix(in srgb, var(--bs-primary) 6%, var(--bs-body-bg)); }
+.plan-pick-btn:hover { border-color: var(--bs-primary, #0B5DA8) !important; background: color-mix(in srgb, var(--bs-primary) 6%, var(--bs-body-bg)); }
 
 /* Botón de cerrar modal circular y gris, igual al del panel */
 .btn-close {
-  background-color: var(--bs-tertiary-bg, #f5f7fb);
+  background-color: var(--bs-tertiary-bg, #e4e9ef);
   border-radius: 50%;
   opacity: 1;
   width: 1.9rem;
@@ -78,19 +70,19 @@ input[type="file"].form-control::file-selector-button:hover { background: var(--
 .btn-close:hover { background-color: var(--bs-secondary-bg, #e9ecef); opacity: 1; }
 [data-theme="night"] .btn-close {
   filter: none;
-  background-color: #2b3648;
+  background-color: #3a4a66;
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23e7ecf5'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e");
 }
-[data-theme="night"] .btn-close:hover { background-color: #374259; }
+[data-theme="night"] .btn-close:hover { background-color: #26344f; }
 
 /* El CSS de todas las páginas se bundlea junto (no hay CSS Modules), así que el fondo va… */
-body.page-cliente { background: var(--page-bg, #f5f7fb); font-family: var(--font); }
+body.page-cliente { font-family: var(--font); }
 h1, h2, h3, .btn { font-family: var(--font-display); }
 
 .portal { max-width: 1080px; }
 .portal .card { border-radius: 1rem; }
 .brand-image { width: 42px; height: 42px; object-fit: contain; }
-.hero { background: linear-gradient(115deg, #3867f4, #15a77f); color: #fff; }
+.hero { background: linear-gradient(115deg, #0B5DA8, #1F8236); color: #fff; }
 .metric { background: var(--bs-tertiary-bg); border-radius: 1rem; }
 .client-avatar { width: 52px; height: 52px; background: rgba(255, 255, 255, .2); }
 .instagram { background: linear-gradient(125deg, #833ab4, #fd1d1d, #fcb045); color: #fff; text-decoration: none; }
@@ -108,10 +100,8 @@ a.link-whatsapp:hover { color: #178a42; text-decoration: underline; }
 }
 .pause-mode-card:hover { border-color: color-mix(in srgb, var(--bs-primary) 45%, var(--bs-border-color)); }
 
-[data-theme="night"] { --page-bg: #121824; --bs-primary: #7296ff; --bs-primary-rgb: 114, 150, 255; --bs-link-color: #7296ff; --bs-link-color-rgb: 114, 150, 255; --portal-success: #51cfaa; }
-[data-theme="forest"] { --page-bg: #dcefdc; --bs-primary: #1f7a4d; --bs-primary-rgb: 31, 122, 77; --bs-link-color: #1f7a4d; --bs-link-color-rgb: 31, 122, 77; --portal-success: #9c5f20; }
-[data-theme="forest"] .metric { background: #cde6cd; }
-[data-theme="forest"] .navbar.bg-body { background: #eef7ee !important; }
+[data-theme="forest"] .metric { background: #e3f1e2; }
+[data-theme="forest"] .navbar.bg-body { background: #f4fbf3 !important; }
 
 /* aspect-ratio reserva el espacio antes de que la imagen cargue (evita el salto de layout… */
 .ad-banner img { width: 100%; height: auto; aspect-ratio: 3 / 2; display: block; }
@@ -161,11 +151,11 @@ main.portal { padding-top: 66px; }
 .btn-premium { display: inline-block; background: #fff; color: #e4002b; font-weight: 700; padding: 10px 18px; border-radius: 999px; text-decoration: none; }
 .btn-premium:hover { filter: brightness(.95); }
 
-.form-control:focus-visible, .form-select:focus-visible, .btn:focus-visible, .btn-check:focus-visible + .pause-mode-card, th[role="button"]:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--bs-primary, #3867f4); outline-offset: 2px; }
+.form-control:focus-visible, .form-select:focus-visible, .btn:focus-visible, .btn-check:focus-visible + .pause-mode-card, th[role="button"]:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--bs-primary, #0B5DA8); outline-offset: 2px; }
 
 /* Navegadores sin color-mix(): tintes simples en las opciones que se eligen. */
 @supports not (background: color-mix(in srgb, red 50%, white)) {
-  .plan-pick-btn:hover { background: rgba(56, 103, 244, .06); }
-  .btn-check:checked + .pause-mode-card { background: rgba(56, 103, 244, .08); border-color: #3867f4; }
+  .plan-pick-btn:hover { background: rgba(11, 93, 168, .06); }
+  .btn-check:checked + .pause-mode-card { background: rgba(11, 93, 168, .08); border-color: #0B5DA8; }
   .pause-mode-card:hover { border-color: #8aa4f8; }
 }

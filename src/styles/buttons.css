@@ -1,14 +1,5 @@
 /* Paleta de botones de TODA la app (Login, portal del cliente, Menú Semanal y Panel) */
-:root {
-  --btn-blue: #3867f4;
-  --btn-red: #e4002b;
-  --btn-yellow: #f0a020;
-  --btn-orange: #f26a1b;
-  --btn-green: #1f9d5c;
-  --btn-violet: #8a5cf6;
-  --btn-whatsapp: #25d366;
-  --btn-slate: #64748b;
-}
+/* La paleta (--btn-*) vive en styles/marca.css, compartida con POS Control. */
 
 /* Píldora sólida con degradado, sombra y brillo de letra: la misma forma para todos; solo… */
 .cc-btn {
@@ -43,7 +34,7 @@ a.cc-btn, a.cc-btn:hover, a.cc-btn:focus { color: #fff; text-decoration: none; }
 
 .cc-blue { --cc: var(--btn-blue); }
 .cc-red { --cc: var(--btn-red); }
-.cc-yellow { --cc: var(--btn-yellow); }
+.cc-yellow { --cc: var(--btn-yellow); text-shadow: 0 1px 2px rgba(0, 0, 0, .35); }
 .cc-orange { --cc: var(--btn-orange); }
 .cc-green { --cc: var(--btn-green); }
 .cc-violet { --cc: var(--btn-violet); }

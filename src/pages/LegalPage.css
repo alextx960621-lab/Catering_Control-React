@@ -2,17 +2,8 @@
    cubran el fondo completo de la página y el link "volver", no solo la tarjeta.
    Mismos valores que usa el login por tema (LoginPage.css) para que no se vea otra app. */
 body.page-legal {
-  --brand: #3867f4;
-  --text: #172033; --muted: #657188; --line: #dbe2ee; --bg: #f5f7fb; --surface: #fff;
+  --text: var(--m-ink); --muted: var(--m-mut); --line: var(--m-line); --bg: var(--m-bg); --surface: var(--m-card);
   background: var(--bg);
-}
-[data-theme="night"] body.page-legal {
-  --brand: #7296ff;
-  --text: #e7ecf5; --muted: #9aa7bd; --line: #2b3648; --bg: #121824; --surface: #1a2130;
-}
-[data-theme="forest"] body.page-legal {
-  --brand: #1f7a4d;
-  --text: #163821; --muted: #4f7259; --line: #a9d2ab; --bg: #dcefdc; --surface: #eef7ee;
 }
 
 .legal-wrap {
@@ -66,6 +57,6 @@ body.page-legal {
   .legal-back span { display: none; }
 }
 @supports not (background: color-mix(in srgb, red 50%, white)) {
-  .legal-toc { background: rgba(56, 103, 244, .06); }
-  .legal-summary { background: rgba(56, 103, 244, .07); }
+  .legal-toc { background: rgba(11, 93, 168, .06); }
+  .legal-summary { background: rgba(11, 93, 168, .07); }
 }

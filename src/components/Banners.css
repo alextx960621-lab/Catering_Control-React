@@ -25,7 +25,7 @@
 
 /* Mismos colores fijos que el resto de la app (ver styles/buttons.css): la acción principal… */
 .app-banner__btn-primary, .app-banner__btn-secondary, .app-banner__btn-ok {
-  --cc: var(--btn-blue, #3867f4);
+  --cc: var(--btn-blue, #0B5DA8);
   border: 0;
   border-radius: 999px;
   padding: 6px 16px;
@@ -36,7 +36,7 @@
   box-shadow: 0 4px 14px color-mix(in srgb, var(--cc) 38%, transparent);
 }
 .app-banner__btn-secondary { --cc: var(--btn-red, #e4002b); }
-.app-banner__btn-ok { --cc: var(--btn-green, #1f9d5c); }
+.app-banner__btn-ok { --cc: var(--btn-green, #1F8236); }
 
 /* Menos padding y texto un toque más chico en pantallas angostas -- ayuda a que el aviso… */
 @media (max-width: 480px) {

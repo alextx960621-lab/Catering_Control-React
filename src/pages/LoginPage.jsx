@@ -81,7 +81,7 @@ export default function LoginPage() {
                     {brandName}
                   </h1>
                   {/* Compartir solo se muestra en la app instalada (ver ShareAppButton), al lado del selector… */}
-                  <div className="d-inline-flex align-items-center justify-content-center flex-wrap gap-2">
+                  <div className="login-tools">
                     <ThemeSelect theme={theme} onChange={setTheme} />
                     <ShareAppButton brandName={brandName} />
                   </div>

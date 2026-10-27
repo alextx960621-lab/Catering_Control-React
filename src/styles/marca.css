@@ -1,0 +1,97 @@
+/* MARCA · paleta única de las dos apps hermanas (Catering Control y POS Control).
+   Los valores son los MISMOS que POS Control (src/styles/tokens.css): si un color cambia allá,
+   cambia aquí, y viceversa. Las pantallas no definen colores de tema propios: leen estas variables. */
+
+:root {
+  /* Colores del logo (60 % azul · 30 % verde · 10 % naranja) */
+  --logo-navy: #083D7C; --logo-blue: #0B5DA8; --logo-blue-claro: #1E88C8;
+  --logo-green: #248F3C; --logo-green-claro: #4CC248;
+  --logo-orange: #F68B1F; --logo-yellow: #F7C63D; --logo-dorado: #F8B030;
+  --gloss: linear-gradient(135deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0));
+
+  /* Tema claro */
+  --m-bg: #e4e9ef; --m-card: #ffffff; --m-card-2: #F3F5F7;
+  --m-ink: #1F2937; --m-mut: #4B5563;
+  --m-line: #b4bfd2; --m-line-fuerte: #7f8da6;
+  --m-ac: #0B5DA8; --m-ac-rgb: 11, 93, 168;
+  --m-ac-hover: #083D7C; --m-ac-hover-rgb: 8, 61, 124;
+  --m-ok: #1F8236; --m-danger: #e4002b; --m-warn: #F68B1F; --m-violet: #083D7C;
+  --m-sh-1: 0 2px 6px rgba(21, 35, 62, .10);
+  --m-sh-2: 0 10px 30px rgba(21, 35, 62, .16);
+  --m-sombra: 0 8px 24px rgba(21, 35, 62, .12);
+}
+
+[data-theme="night"] {
+  --m-bg: #0b1120; --m-card: #172033; --m-card-2: #1e2a40;
+  --m-ink: #eef3fb; --m-mut: #aab8cf;
+  --m-line: #3a4a66; --m-line-fuerte: #7488a8;
+  --m-ac: #3C8FE0; --m-ac-rgb: 60, 143, 224;
+  --m-ac-hover: #5CAEF5; --m-ac-hover-rgb: 92, 174, 245;
+  --m-ok: #7be0a0; --m-danger: #ff5c72; --m-warn: #ffc552; --m-violet: #8DB8F0;
+  --m-sh-1: 0 2px 6px rgba(0, 0, 0, .35);
+  --m-sh-2: 0 10px 30px rgba(0, 0, 0, .55);
+  --m-sombra: 0 8px 24px rgba(0, 0, 0, .45);
+}
+
+/* Bosque: el verde es la marca y el azul queda para foco, enlaces y lo seleccionado (igual que en POS). */
+[data-theme="forest"] {
+  --m-bg: #c9e1c9; --m-card: #f4fbf3; --m-card-2: #e3f1e2;
+  --m-ink: #102c1a; --m-mut: #3f6249;
+  --m-line: #8dbb90; --m-line-fuerte: #4f8558;
+  --m-warn: #d6851a;
+}
+
+/* Colores de los botones: fijos en los 3 temas (mismos que POS) */
+:root {
+  --btn-blue: var(--logo-blue);
+  --btn-green: #1F8236;
+  --btn-orange: var(--logo-orange);
+  --btn-yellow: var(--logo-dorado);
+  --btn-red: #e4002b;
+  --btn-violet: var(--logo-navy);
+  --btn-slate: #444B52;
+  --btn-whatsapp: #25d366;
+}
+
+/* Puente: los nombres que ya usan las pantallas (Bootstrap, panel, portal) leen la paleta de arriba */
+:root {
+  --brand: var(--m-ac);
+  --bs-primary: var(--m-ac); --bs-primary-rgb: var(--m-ac-rgb);
+  --bs-link-color: var(--m-ac); --bs-link-color-rgb: var(--m-ac-rgb);
+  --bs-link-hover-color: var(--m-ac-hover); --bs-link-hover-color-rgb: var(--m-ac-hover-rgb);
+  --bs-body-bg: var(--m-bg); --bs-body-color: var(--m-ink);
+  --bs-secondary-color: var(--m-mut); --bs-secondary-bg: var(--m-card-2);
+  --bs-tertiary-bg: var(--m-card-2); --bs-border-color: var(--m-line);
+
+  --panel-bg: var(--m-bg); --panel-surface: var(--m-card); --panel-surface-2: var(--m-card-2);
+  --panel-text: var(--m-ink); --panel-muted: var(--m-mut); --panel-line: var(--m-line);
+  --panel-primary: var(--m-ac); --panel-primary-ink: #fff;
+  --panel-accent: var(--m-ok); --panel-danger: var(--m-danger); --panel-warning: var(--m-warn);
+  --panel-violet: var(--m-violet);
+  --panel-shadow: var(--m-sombra);
+
+  --page-bg: var(--m-bg);
+  --portal-success: #1F8236;
+}
+
+/* Fondo de las páginas públicas y del portal: el mismo que el login de POS (resplandor verde del logo) */
+body.page-login, body.page-cliente, body.page-menu-semanal {
+  background: radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--logo-green) 22%, transparent), transparent 34%), var(--m-bg);
+  color: var(--m-ink);
+}
+body.page-legal { background: var(--m-bg); }
+.card { --bs-card-bg: var(--m-card); --bs-card-color: var(--m-ink); --bs-card-border-color: var(--m-line); }
+body.page-login .form-control, body.page-login .form-select,
+body.page-cliente .form-control, body.page-cliente .form-select,
+body.page-menu-semanal .form-control, body.page-menu-semanal .form-select {
+  background-color: var(--m-bg); color: var(--m-ink); border: 1px solid var(--m-line); border-radius: 14px;
+}
+body.page-login .form-control:focus, body.page-login .form-select:focus,
+body.page-cliente .form-control:focus, body.page-cliente .form-select:focus {
+  border-color: var(--m-ac); box-shadow: 0 0 0 3px color-mix(in srgb, var(--m-ac) 22%, transparent);
+}
+
+/* Navegadores sin color-mix(): el fondo queda liso, sin resplandor */
+@supports not (background: color-mix(in srgb, red 50%, white)) {
+  body.page-login, body.page-cliente, body.page-menu-semanal { background: var(--m-bg); }
+}

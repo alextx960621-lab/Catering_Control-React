@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 export default function ThemeSelect({ theme, onChange }) {
   const { t } = useTranslation();
   return (
-    <div className="d-inline-flex align-items-center gap-2">
+    <div className="login-tema d-inline-flex align-items-center gap-2">
       <label className="form-label small text-secondary mb-0" htmlFor="theme-select">
         {t('common.theme')}
       </label>
